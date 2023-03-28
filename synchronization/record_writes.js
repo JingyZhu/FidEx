@@ -40,13 +40,25 @@ async function startChrome(){
 
 (async function(){
     program
+        .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
+        .option('-f --file <filename>', 'Filename prefix', 'dimension')
+        .option('-m, --manual', "Manual control for finishing loading the page")
+        
+    program
         .argument("<url>")
         .action(url => urlStr=url);
     program.parse();
     const options = program.opts();
+    let dirname = options.dir;
+    let filename = options.file;
+    
+    
     const browser = await startChrome();
     const url = new URL(urlStr);
     
+    if (!fs.existsSync(dirname))
+        fs.mkdirSync(dirname, { recursive: true });
+
     let page = await browser.newPage();
     await page.setDefaultNavigationTimeout(0); 
     const client = await page.target().createCDPSession();
@@ -55,17 +67,21 @@ async function startChrome(){
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
-        await sleep(3000);
+        await sleep(1000);
 
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await page.evaluateOnNewDocument(script);
-        await page.goto(url, {waitUntil: 'load'});
+        await page.goto(url, {
+            waitUntil: 'networkidle2'
+        });
+        
         await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
         const writeLog = await page.evaluate(() => __write_log_prcessed);
-        fs.writeFileSync('write_log.json', JSON.stringify(writeLog, null, 4));
+        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
 
-        await eventSync.waitForReady();
-        
+        if (options.manual) {
+            await eventSync.waitForReady();
+        }
     } catch (err) {
         console.error(err);
     } finally {

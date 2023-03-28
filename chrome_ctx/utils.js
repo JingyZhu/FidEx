@@ -12,24 +12,29 @@ function getElemId (elem) {
     return id;
 };
 
-function getDomXPath(elm, fullTrace=false) { 
-    var allNodes = document.getElementsByTagName('*'); 
+function getDomXPath(elm, fullTrace=false) {
     var xPathsList = [];
-    for (var segs = []; elm && elm.nodeType == 1; elm = elm.parentNode) 
+    let segs = [];
+    for (; elm && elm.nodeType == 1; elm = elm.parentNode)
+    // for (; elm ; elm = elm.parentNode)  // curently using this will cause exception
     { 
-        if (elm.hasAttribute('id')) {
-            segs.unshift(elm.localName.toLowerCase() + '[@id="' + elm.getAttribute('id') + '"]'); 
-        } 
+        let withID = false;
+        // if (elm.hasAttribute('id')) {
+        //     withID = true;
+        //     segs.unshift(elm.localName.toLowerCase() + '[@id="' + elm.getAttribute('id') + '"]'); 
+        // } 
         // else if (elm.hasAttribute('class')) { 
         //     segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]'); 
         // }
-        else { 
+        // else { 
             for (i = 1, sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
                 if (sib.localName == elm.localName)  i++; }; 
-                segs.unshift(elm.localName.toLowerCase() + '[' + i + ']'); 
-        }; 
-        xPathsList.push('//' + segs.join('/') );
+                segs.unshift(`${elm.localName.toLowerCase()}[${i}]`); 
+        // };
+        if (withID) // Only push new path if it has an ID
+            xPathsList.push('//' + segs.join('/') );
     };
+    xPathsList.push('//' + segs.join('/') );
     
     return fullTrace ? xPathsList : xPathsList[xPathsList.length-1];
 };
