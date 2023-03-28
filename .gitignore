@@ -1,0 +1,11 @@
+node_modules/
+chrome_data/
+collections/
+env/
+__pycache__/
+results*
+*.json
+*.png
+*.jpg
+*.html
+*.warc

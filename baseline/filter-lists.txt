@@ -1,0 +1,4 @@
+analytics
+doubleclick.net
+fbevents.js
+www.google.com/recaptcha/api2
