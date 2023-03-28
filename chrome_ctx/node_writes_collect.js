@@ -9,4 +9,3 @@ for (const record of __write_log){
         method: record.method,
     })
 }
-// test
