@@ -1,7 +1,7 @@
 /*
     Override (all) HTML Node's write methods to track the writes.
 */
-__start_recording = true;
+__recording_enabled = true;
 __write_log = [];
 
 write_methods = [
@@ -49,7 +49,7 @@ write_methods = [
 for(const method of write_methods) {
     const original = Node.prototype[method];
     Node.prototype[method] = function(...args) {
-        if (__start_recording){
+        if (__recording_enabled){
             // console.log("write", this, method, args);
             __write_log.push({
                 target: this,
@@ -72,7 +72,7 @@ for (const property of properties) {
     const original_setter = Object.getOwnPropertyDescriptor(Node.prototype, property).set;
     Object.defineProperty(Node.prototype, property, {
         set: function(value) {
-            if (__start_recording){
+            if (__recording_enabled){
                 // console.log("set", this, property, value);
                 __write_log.push({
                     target: this,

@@ -65,6 +65,7 @@ async function getActivePage(browser) {
 (async function(){
     program
         .option('-s, --screenshot', "Looping on screenshot")
+        .option('-u --url <url>', 'URL to load')
     program.parse();
     const options = program.opts();
     const browser = await startChrome();
@@ -88,11 +89,17 @@ async function getActivePage(browser) {
     //     deviceScaleFactor: 0,
     //     mobile: false
     // });
+    if (options.url){
+        await page.goto(
+            options.url,
+            {waitUntil: 'load'}
+        )
+    }
     await eventSync.waitForReady();
     if (options.screenshot){
         while (true){
             let page = await getActivePage(browser);
-            await measure.collectFidelityInfo(page, '', 'test', 'dimension');
+            await measure.collectFidelityInfo(page, '', 'temp', 'dimension');
             await eventSync.waitForReady();
         }
     }

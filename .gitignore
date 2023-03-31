@@ -1,5 +1,6 @@
 node_modules/
 chrome_data/
+temp/
 collections/
 env/
 __pycache__/
@@ -9,3 +10,4 @@ results*
 *.jpg
 *.html
 *.warc
+*.log
