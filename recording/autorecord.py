@@ -84,7 +84,7 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/carta_urls_100.json')
 
 # # * Test single URL
-test_url = "https://macm.org/activites/cercle-du-mac-au-1700-la-poste-avec-genevieve-cadieux/"
+test_url = "https://fredtruck.com/digital-seals"
 test_url = requests.get(test_url).url # * In case of redirection
 print(test_url)
 test_archive = "test"

@@ -29,7 +29,8 @@ async function startChrome(){
             // '--autoplay-policy=no-user-gesture-required',
             // `--user-data-dir=/tmp/chrome/${Date.now()}`
             '--user-data-dir=../chrome_data',
-            '--enable-automation'
+            '--enable-automation',
+            '--disable-skia-runtime-opts'
         ],
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},

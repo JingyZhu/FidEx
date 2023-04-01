@@ -40,10 +40,10 @@ async function collectFidelityInfo(page, url, dirname,
         }
         fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(results, null, 2));      
     }
-    // Lazy loading
-    await page.evaluate(() => window.scrollTo(0, Number.MAX_SAFE_INTEGER));
-    // Here I'd love to use page.waitForNetworkIdle() instead of something similar
-    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Scroll for lazy loading
+    // await page.evaluate(() => window.scrollTo(0, Number.MAX_SAFE_INTEGER));
+    // await new Promise(resolve => setTimeout(resolve, 2000));
     await page.screenshot({
         path: `${dirname}/${filename}.png`,
         // fullPage: true,

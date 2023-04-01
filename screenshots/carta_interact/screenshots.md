@@ -40,4 +40,12 @@
     - ???
 
 - macm.org_1
-    - 
+    - Video for liveweb page cannot be taken into screenshot in any way
+
+- majesticauction.ca_1
+    - Rendering difference
+
+- momus.ca_1
+    - Lazy loading
+
+- paulwongprojects.com_1
