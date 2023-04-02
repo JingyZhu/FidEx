@@ -192,7 +192,7 @@ async function getActivePage(browser) {
         
         // * Record writes to HTML
         await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-        const writeLog = await recordPage.evaluate(() => __write_log_prcessed);
+        const writeLog = await recordPage.evaluate(() => __write_log_processed);
         fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
 
         await recordPage.close();

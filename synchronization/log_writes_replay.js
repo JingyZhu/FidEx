@@ -99,7 +99,7 @@ async function startChrome(){
     
         // * Record writes to HTML
         await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-        const writeLog = await page.evaluate(() => __write_log_prcessed);
+        const writeLog = await page.evaluate(() => __write_log_processed);
         fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
     
     } catch (err) {
