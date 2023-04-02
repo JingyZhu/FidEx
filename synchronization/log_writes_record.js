@@ -1,6 +1,6 @@
 /*
-    Wrapper for get_elem_dimensions.js
-    Start the browser and load certain page
+    Wrapper for node_write_override.js and node_write_collect.js.
+    In rrcord phase, Start the browser and load certain page
 
     Before recording, making sure that the collection 
     has already been created on the target browser extension

@@ -17,11 +17,11 @@ import requests
 import sys
 
 HOST = 'http://localhost:8080'
-default_archive = 'test'
-metadata_file = 'carta_interact_metadata.json'
+default_archive = 'carta'
+metadata_file = 'carta_metadata.json'
 
 def record_replay(url, archive_name):
-    p = Popen(['node', 'live_recording.js', '-d', f'pageinfo/{archive_name}',
+    p = Popen(['node', 'live_recording.js', '-d', f'pageinfo/{archive_name}', '-f', 'live_dimension',
                 #  '-i, 
                  '-a', default_archive, url], stdout=PIPE)
     ts = None
@@ -42,9 +42,9 @@ def record_replay(url, archive_name):
 
     ts = ts.strip()
     archive_url = f"{HOST}/{default_archive}/{ts}/{url}"
-    os.makedirs(f'pageinfo/{archive_name}_archive')
-    check_call(['cp', f'pageinfo/{archive_name}/exception_failfetch.json', f'pageinfo/{archive_name}_archive/exception_failfetch_record.json'])
-    check_call(['node', 'check_replay.js', '-d', f'pageinfo/{archive_name}_archive', 
+    # os.makedirs(f'pageinfo/{archive_name}_archive')
+    check_call(['cp', f'pageinfo/{archive_name}/exception_failfetch.json', f'pageinfo/{archive_name}/exception_failfetch_record.json'])
+    check_call(['node', 'check_replay.js', '-d', f'pageinfo/{archive_name}', '-f', 'archive_dimension',
                 #  '-i', 
                  archive_url])
     return ts
@@ -84,7 +84,7 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/carta_urls_100.json')
 
 # # * Test single URL
-test_url = "https://fredtruck.com/digital-seals"
+test_url = "https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/"
 test_url = requests.get(test_url).url # * In case of redirection
 print(test_url)
 test_archive = "test"

@@ -1,6 +1,6 @@
 /*
-    Wrapper for get_elem_dimensions.js
-    Start the browser and load certain page
+    Wrapper for node_write_override.js and node_write_collect.js.
+    In replay phase, Start the browser and load certain page
 */
 const puppeteer = require("puppeteer")
 const fs = require('fs')

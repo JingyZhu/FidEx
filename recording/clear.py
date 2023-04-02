@@ -1,8 +1,8 @@
 #!/home/jingyz/Research/fidelity/env/bin/python3
 from subprocess import call
 
-metadata = 'carta_interact_metadata.json'
-default_archive = 'carta_interact'
+metadata = 'carta_metadata.json'
+default_archive = 'carta'
 
 call(['rm', metadata])
 call(f"rm -rf pageinfo/*", shell=True)

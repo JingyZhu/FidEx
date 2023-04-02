@@ -1,6 +1,7 @@
 const { fail } = require('assert');
 const fs = require('fs');
 const { loadToChromeCTX } = require('./load');
+const { execSync } = require("child_process");
 
 async function getDimensions(page) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
@@ -41,19 +42,56 @@ async function collectFidelityInfo(page, url, dirname,
         fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(results, null, 2));      
     }
 
-    // Scroll for lazy loading
-    // await page.evaluate(() => window.scrollTo(0, Number.MAX_SAFE_INTEGER));
-    // await new Promise(resolve => setTimeout(resolve, 2000));
+    // * Method 1: Capture screenshot of the whole page
+    for (let i = 1; i*1080 < height; i += 1) {
+        await page.evaluate(() => window.scrollBy(0, 1080));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     await page.screenshot({
         path: `${dirname}/${filename}.png`,
-        // fullPage: true,
-        clip: { 
-            x: 0, 
-            y: 0, 
-            width: width, 
+        clip: {
+            x: 0,
+            y: 0,
+            width: width,
             height: height,
         }
     })
+
+    // * Method 2: Capture screenshot viewpoint by viewpoint, and merge
+    // let all_images = [];
+    // await page.screenshot({
+    //     path: `${dirname}/${filename}_0.png`,
+    //     clip: { 
+    //         x: 0, 
+    //         y: 0, 
+    //         width: width, 
+    //         height: 1080,
+    //     }
+    // })
+    // all_images.push(`${dirname}/${filename}_0.png`);
+    // // Scroll for lazy loading
+    // for (let i = 1; i*1080 < height; i += 1) {
+    //     await page.evaluate(() => window.scrollBy(0, 1080));
+    //     await new Promise(resolve => setTimeout(resolve, 5000));
+    //     await page.screenshot({
+    //         path: `${dirname}/${filename}_${i}.png`,
+    //         clip: { 
+    //             x: 0, 
+    //             y: i*1080, 
+    //             width: width, 
+    //             height: Math.min(1080, height - i*1080)
+    //         }
+    //     })
+    //     all_images.push(`${dirname}/${filename}_${i}.png`);
+    // }
+
+    // // Merge all images vertically
+    // execSync(`magick ${all_images.join(" ")} -append ${dirname}/${filename}.png`);
+    
+    // // Remove all images from disk
+    // execSync(`rm ${all_images.join(" ")}`);
 }
 
 

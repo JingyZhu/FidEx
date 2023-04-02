@@ -8,6 +8,17 @@ import pandas as pd
 
 # total = 1920 * 1080 * 3 # resolution * channels
 
+# Merge multiple images into one
+# images: list of images path
+def merge_images(images, direction='vertical'):
+    images = [cv2.imread(image) for image in images]
+    if direction == 'horizontal':
+        return np.hstack(images)
+    elif direction == 'vertical':
+        return np.vstack(images)
+    else:
+        raise ValueError('direction must be either horizontal or vertical')
+
 def score(live, archive):
     diff = live - archive
     total = live.shape[0]*live.shape[1]*live.shape[2]
@@ -52,7 +63,6 @@ def run(metadata_file):
     json.dump(img_diffs, open('pixel_diff.json', 'w+'), indent=2)
     json.dump(new_metadata, open(f'../recording/{metadata_file}', 'w+'), indent=2)
     
-
 
 def pairwise_diff(directory, N=10):
     simi = np.zeros((N, N))

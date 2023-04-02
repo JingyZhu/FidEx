@@ -6,10 +6,10 @@ __write_log_prcessed = [];
 for (const record of __write_log){
     const firstArg = record.args[0];
     let argName = null;
-    if (firstArg instanceof Node){
-        if (firstArg.tagName !== undefined)
-            argName = firstArg.tagName;
-        else if (firstArg.nodeName !== undefined)
+    if (firstArg instanceof Element){
+        argName = firstArg.outerHTML;
+    } else if (firstArg instanceof Node){
+        if (firstArg.nodeName !== undefined)
             argName = firstArg.nodeName;
         else
             argName = firstArg.nodeType;

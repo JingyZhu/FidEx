@@ -78,7 +78,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         e.screenshot_count = count;
         excepFF.afterInteraction(e);
         await measure.collectFidelityInfo(page, url, dirname,
-                             `dimension_${count++}`, collectFidelityInfoOptions)
+                             `${filename}_${count++}`, collectFidelityInfoOptions)
     }
 }
 
@@ -135,7 +135,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         // * Log down measurements of the page
         excepFF.afterInteraction('onload')
         await measure.collectFidelityInfo(page, url, dirname, 
-                                'dimension', collectFidelityInfoOptions)
+                                filename, collectFidelityInfoOptions)
         
         // * Interact with the webpage
         if (options.interaction){

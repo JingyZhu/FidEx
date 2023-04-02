@@ -9,11 +9,12 @@ from baseline import pixel_diff, exception_failfetch
 from subprocess import call
 import cv2
 import re
+import os
 
 events_info = json.load(open('events_info.json', 'r'))
 # directory = 'canadianart.ca_1'
 # target_events_info = [ei for ei in events_info if ei['directory'] == directory]
-
+metadata = 'carta_metadata.json'
 
 def comp_all_screenshots():
     target_events_info = [e for e in events_info if e['directory'] != '2022.vbexhibitions.hk_1']
@@ -39,6 +40,29 @@ def comp_all_screenshots():
             call(['cp', archive_img, f'./screenshot_diff/{dirr}/{j+1}_archive_{archive_idx}_archive.png'])
             img_simi = pixel_diff.diff(live_img, archive_img, return_diff_img=True)
             cv2.imwrite(f'./screenshot_diff/{dirr}/{j+1}_diff_{img_simi[0]:.2f}.png', img_simi[1])
+
+def comp_onload_screenshots():
+    data = json.load(open(metadata, 'r'))
+    onload_simi = []
+    for i, ei in enumerate(data.values()):
+        dirr = ei['directory']
+        print(i, dirr)
+        if not os.path.exists(f'./pageinfo/{dirr}/live_dimension.png') or not os.path.exists(f'./pageinfo/{dirr}/archive_dimension.png'):
+            continue
+        call(['mkdir', '-p', f'./screenshot_diff/{dirr}/'])
+        # * Onload
+        live_img = f'./pageinfo/{dirr}/live_dimension.png'
+        archive_img = f'./pageinfo/{dirr}/archive_dimension.png' 
+        call(['cp', live_img, f'./screenshot_diff/{dirr}/0_live.png'])
+        call(['cp', archive_img, f'./screenshot_diff/{dirr}/0_archive.png'])
+        img_simi = pixel_diff.diff(live_img, archive_img, return_diff_img=True)
+        onload_simi.append({
+            'directory': dirr,
+            'screenshot_similarity': img_simi[0]
+        })
+        json.dump(onload_simi, open('./screenshot_diff/onload_screenshot_similarity.json', 'w+'), indent=2)
+        cv2.imwrite(f'./screenshot_diff/{dirr}/0_diff_{img_simi[0]:.2f}.png', img_simi[1])
+
 
 def main():
     target_events_info = events_info
@@ -85,4 +109,4 @@ def main():
         json.dump(results, open('interaction_results.json', 'w+'), indent=2)
     # json.dump(results, open('interaction_results.json', 'w+'), indent=2)
 
-comp_all_screenshots()
+comp_onload_screenshots()
