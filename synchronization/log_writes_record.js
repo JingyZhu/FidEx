@@ -181,6 +181,9 @@ async function getActivePage(browser) {
 
         if (options.manual)
             await eventSync.waitForReady();
+        else
+            await sleep(2000);
+        
         
         // * Interact with the webpage
         // if (options.interaction){

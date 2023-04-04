@@ -89,3 +89,13 @@ def record_replay_all_urls(data):
 
 # liveweb()
 record_replay_all_urls('test_urls.json')
+
+# * Test single URL
+# test_url = "https://www.visualartscentre.ca/school-of-art/photo-gallery/teachers/noemie-sylvestre/"
+# test_url = requests.get(test_url).url # * In case of redirection
+# print(test_url)
+# test_archive = "test"
+# ts = record_replay(test_url, test_archive)
+# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+
+# http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/

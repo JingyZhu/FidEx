@@ -88,6 +88,8 @@ async function startChrome(){
 
         if (options.manual)
             await eventSync.waitForReady();
+        else
+            await sleep(2000);
         
         // * Interact with the webpage
         // if (options.interaction){

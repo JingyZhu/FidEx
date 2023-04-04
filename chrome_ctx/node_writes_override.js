@@ -13,12 +13,15 @@ function _debug_log(...args) {
 
 // Check if the node is in the document
 function isNodeInDocument(node) {
-    while (node = node.parentNode) {
-        if (node == document) {
-            return true;
-        }
+    return node.isConnected;
+}
+
+// Check if the node's parent has any dimension
+function getDimension(node) {
+    if (node == null || typeof node.getBoundingClientRect !== 'function') {
+        return {width: 0, height: 0};
     }
-    return false;
+    return node.getBoundingClientRect();
 }
 
 // Override Node write methods
@@ -32,15 +35,31 @@ node_write_methods = [
 for(const method of node_write_methods) {
     const original = Node.prototype[method];
     Node.prototype[method] = function(...args) {
-        if (isNodeInDocument(this) && __recording_enabled){
-            _debug_log("write1", this, method, args);
-            __write_log.push({
+        let beforeDimension = null, beforeParentDimension = null;
+        let afterDimension = null, afterParentDimension = null;
+        let record = null;
+        const ableRecord = __recording_enabled && isNodeInDocument(this);
+        if (ableRecord){
+            beforeDimension = getDimension(this);
+            beforeParentDimension = getDimension(this.parentNode);
+            record = {
                 target: this,
                 method: method,
                 args: args
-            })
+            }
         }
-        return original.apply(this, args);
+        retVal = original.apply(this, args);
+        if (ableRecord){
+            afterDimension = getDimension(this);
+            afterParentDimension = getDimension(this.parentNode);
+            // * Record only if the dimension changes
+            if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
+                || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+                _debug_log("write", this, method, args);
+                __write_log.push(record);
+            }
+        }
+        return retVal;
     }
 }
 
@@ -55,15 +74,31 @@ for (const property of node_properties) {
     const original_setter = Object.getOwnPropertyDescriptor(Node.prototype, property).set;
     Object.defineProperty(Node.prototype, property, {
         set: function(value) {
-            if (isNodeInDocument(this) && __recording_enabled){
-                _debug_log("set", this, property, value);
-                __write_log.push({
+            let beforeDimension = null, beforeParentDimension = null;
+            let afterDimension = null, afterParentDimension = null;
+            let record = null;
+            const ableRecord = __recording_enabled && isNodeInDocument(this);
+            if (ableRecord){
+                beforeDimension = getDimension(this);
+                beforeParentDimension = getDimension(this.parentNode);
+                record = {
                     target: this,
                     method: 'set:' + property,
                     args: [value]
-                })
+                }
             }
-            return original_setter.apply(this, [value]);
+            retVal = original_setter.apply(this, [value]);
+            if (ableRecord){
+                afterDimension = getDimension(this);
+                afterParentDimension = getDimension(this.parentNode);
+                // * Record only if the dimension changes
+                if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
+                    || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+                    _debug_log("set", this, property, value);
+                    __write_log.push(record);
+                }
+            }
+            return retVal;
         }
     });
 }
@@ -94,15 +129,31 @@ element_write_methods = [
 for(const method of element_write_methods) {
     const original = Element.prototype[method];
     Element.prototype[method] = function(...args) {
-        if (isNodeInDocument(this) && __recording_enabled){
-            _debug_log("write2", this, method, args);
-            __write_log.push({
+        let beforeDimension = null, beforeParentDimension = null;
+        let afterDimension = null, afterParentDimension = null;
+        let record = null;
+        const ableRecord = __recording_enabled && isNodeInDocument(this);
+        if (ableRecord){
+            beforeDimension = getDimension(this);
+            beforeParentDimension = getDimension(this.parentNode);
+            record = {
                 target: this,
                 method: method,
                 args: args
-            })
+            }
         }
-        return original.apply(this, args);
+        retVal = original.apply(this, args);
+        if (ableRecord){
+            afterDimension = getDimension(this);
+            afterParentDimension = getDimension(this.parentNode);
+            // * Record only if the dimension changes
+            if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
+                || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+                _debug_log("write2", this, method, args);
+                __write_log.push(record);
+            }
+        }
+        return retVal;
     }
 }
 
@@ -118,15 +169,31 @@ for (const property of element_properties) {
     const original_setter = Object.getOwnPropertyDescriptor(Element.prototype, property).set;
     Object.defineProperty(Element.prototype, property, {
         set: function(value) {
-            if (isNodeInDocument(this) && __recording_enabled){
-                _debug_log("set2", this, property, value);
-                __write_log.push({
+            let beforeDimension = null, beforeParentDimension = null;
+            let afterDimension = null, afterParentDimension = null;
+            let record = null;
+            const ableRecord = __recording_enabled && isNodeInDocument(this);
+            if (ableRecord){
+                beforeDimension = getDimension(this);
+                beforeParentDimension = getDimension(this.parentNode);
+                record = {
                     target: this,
                     method: 'set:' + property,
                     args: [value]
-                })
+                }
             }
-            return original_setter.apply(this, [value]);
+            retVal = original_setter.apply(this, [value]);
+            if (ableRecord){
+                afterDimension = this.getBoundingClientRect();
+                afterParentDimension = getDimension(this.parentNode);
+                // * Record only if the dimension changes
+                if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
+                    || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+                    _debug_log("set2", this, property, value);
+                    __write_log.push(record);
+                }
+            }
+            return retVal;
         }
     });
 }
