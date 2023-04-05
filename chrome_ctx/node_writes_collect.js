@@ -7,9 +7,25 @@ __recording_enabled = false;
 // Normalize all href and src attributes in node
 function _normalSRC(node){
     const _attrs = ['src', 'href', 'action'];
+    const setSrcSet = (n) => {
+        return; // * srcset seems to have bug for archive, not sure how broad the issue is
+        // Change srcset to absolute path
+        if (n.hasAttribute('srcset')){
+            let srcset = n.getAttribute('srcset');
+            let srcsetList = srcset.split(', ');
+            let newSrcSet = [];
+            for (const srcRes of srcsetList){
+                const src = srcRes.split(' ')[0];
+                let newSrc = new URL(src, window.location.href).href;
+                newSrcSet.push(`${newSrc} ${srcRes.split(' ')[1]}`);
+            }
+            n.setAttribute('srcset', newSrcSet.join(', '));
+        }
+    }
     for (let attr of _attrs){
         if (node.hasAttribute(attr))
             node[attr] = node[attr];
+        setSrcSet(node)
     }
     let allDescendants = node.querySelectorAll('*');
     for (let descendant of allDescendants){
@@ -17,6 +33,7 @@ function _normalSRC(node){
             if (descendant.hasAttribute(attr))
                 descendant[attr] = descendant[attr];
         }
+        setSrcSet(descendant)
     }
     return node;
 }

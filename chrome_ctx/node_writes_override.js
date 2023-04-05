@@ -24,6 +24,17 @@ function getDimension(node) {
     return node.getBoundingClientRect();
 }
 
+// Check if dimensions are valid and changes
+function isDimensionChanged(before, after) {
+    if (before == null || after == null) {
+        return false;
+    }
+    if (before.left < 0 || before.top < 0 || after.left < 0 || after.top < 0) {
+        return false;
+    }
+    return before.width !== after.width || before.height !== after.height;
+}
+
 // Override Node write methods
 node_write_methods = [
     'appendChild',
@@ -53,9 +64,12 @@ for(const method of node_write_methods) {
             afterDimension = getDimension(this);
             afterParentDimension = getDimension(this.parentNode);
             // * Record only if the dimension changes
-            if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
-                || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+            if (isDimensionChanged(beforeDimension, afterDimension) || isDimensionChanged(beforeParentDimension, afterParentDimension)){
                 _debug_log("write", this, method, args);
+                record.beforeDimension = beforeDimension
+                record.afterDimension = afterDimension
+                record.beforeParentDimension = beforeParentDimension
+                record.afterParentDimension = afterParentDimension
                 __write_log.push(record);
             }
         }
@@ -92,9 +106,12 @@ for (const property of node_properties) {
                 afterDimension = getDimension(this);
                 afterParentDimension = getDimension(this.parentNode);
                 // * Record only if the dimension changes
-                if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
-                    || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+                if (isDimensionChanged(beforeDimension, afterDimension) || isDimensionChanged(beforeParentDimension, afterParentDimension)){
                     _debug_log("set", this, property, value);
+                    record.beforeDimension = beforeDimension
+                    record.afterDimension = afterDimension
+                    record.beforeParentDimension = beforeParentDimension
+                    record.afterParentDimension = afterParentDimension
                     __write_log.push(record);
                 }
             }
@@ -147,9 +164,12 @@ for(const method of element_write_methods) {
             afterDimension = getDimension(this);
             afterParentDimension = getDimension(this.parentNode);
             // * Record only if the dimension changes
-            if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
-                || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+            if (isDimensionChanged(beforeDimension, afterDimension) || isDimensionChanged(beforeParentDimension, afterParentDimension)){
                 _debug_log("write2", this, method, args);
+                record.beforeDimension = beforeDimension
+                record.afterDimension = afterDimension
+                record.beforeParentDimension = beforeParentDimension
+                record.afterParentDimension = afterParentDimension
                 __write_log.push(record);
             }
         }
@@ -187,9 +207,12 @@ for (const property of element_properties) {
                 afterDimension = this.getBoundingClientRect();
                 afterParentDimension = getDimension(this.parentNode);
                 // * Record only if the dimension changes
-                if (beforeDimension.width !== afterDimension.width || beforeDimension.height !== afterDimension.height
-                    || beforeParentDimension.width !== afterParentDimension.width || beforeParentDimension.height !== afterParentDimension.height){
+                if (isDimensionChanged(beforeDimension, afterDimension) || isDimensionChanged(beforeParentDimension, afterParentDimension)){
                     _debug_log("set2", this, property, value);
+                    record.beforeDimension = beforeDimension
+                    record.afterDimension = afterDimension
+                    record.beforeParentDimension = beforeParentDimension
+                    record.afterParentDimension = afterParentDimension
                     __write_log.push(record);
                 }
             }
