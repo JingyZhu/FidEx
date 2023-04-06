@@ -2,7 +2,7 @@
     Override (all) HTML Node's write methods to track the writes.
 */
 __debug = false;
-__recording_enabled = true;
+__recording_enabled = false;
 __write_log = [];
 
 

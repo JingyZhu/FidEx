@@ -21,3 +21,37 @@
 
 - wyld.gallery_1
     - Google recaptcha generates random URLs everytime (last 2 writes)
+
+
+## Prefix methods and Screenshots methods have different writes
+#### Only screenshot says it is different
+- latvianpavilion.lv_1 (screenshot wrong)
+    - Background pixel rendering difference
+
+- momus.ca_1 (both have wrong)
+    - Screenshot: live misses images
+    - Predix: Some broken images
+
+- pavilionofkosovo.com_1 (screenshots wrong)
+    - Rolling text (animation)
+
+- www.visualartscentre.ca_1 (screenshots wrong)
+    - Pixel rendering difference
+
+- williamkentfoundation.org_1 (screenshots wrong)
+    - Pixel rendering difference
+
+- www.stablearts.org_1 (prefix wrong)
+    - Background image missing
+
+- fredtruck.com_1 (prefix wrong)
+    - PDF file shown in another iframe is not in archive
+
+- www.wallergallery.com_1 (prefix wrong)
+    - Image missing
+
+- venezia-biennale-japan.jpf.go.jp_1 (screenshots wrong)
+    - Pixel rendering difference
+
+- www.natasharia.com_1 (screenshots wrong)
+    - Live misses images
