@@ -100,8 +100,8 @@ async function startChrome(){
         // fs.writeFileSync(`${dirname}/exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
     
         // * Record writes to HTML
-        await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-        const writeLog = await page.evaluate(() => __write_log_processed);
+        await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
+        const writeLog = await page.evaluate(() => _render_tree);
         fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
     
     } catch (err) {

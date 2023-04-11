@@ -194,8 +194,8 @@ async function getActivePage(browser) {
         // fs.writeFileSync(`${dirname}/exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         
         // * Record writes to HTML
-        await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-        const writeLog = await recordPage.evaluate(() => __write_log_processed);
+        await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
+        const writeLog = await recordPage.evaluate(() => _render_tree);
         fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
 
         await recordPage.close();

@@ -88,10 +88,10 @@ def record_replay_all_urls(data):
 
 
 # liveweb()
-record_replay_all_urls('../datacollect/data/carta_urls_100.json')
+record_replay_all_urls('test_urls.json')
 
 # * Test single URL
-# test_url = "https://www.bonhams.com/specialists/5797/louis-krieger/"
+# test_url = "https://www.visualartscentre.ca/school-of-art/photo-gallery/teachers/noemie-sylvestre/"
 # test_url = requests.get(test_url).url # * In case of redirection
 # print(test_url)
 # test_archive = "test"

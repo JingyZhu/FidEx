@@ -14,7 +14,7 @@ import os
 events_info = json.load(open('events_info.json', 'r'))
 # directory = 'canadianart.ca_1'
 # target_events_info = [ei for ei in events_info if ei['directory'] == directory]
-metadata = 'carta_metadata.json'
+metadata = 'eot_metadata.json'
 
 def comp_all_screenshots():
     target_events_info = [e for e in events_info if e['directory'] != '2022.vbexhibitions.hk_1']

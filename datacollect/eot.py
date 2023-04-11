@@ -87,4 +87,4 @@ def test_break():
             })
         json.dump(results, open('eot_1k_broken.json', 'w+'), indent=2)
 
-get_data()
+test_break()

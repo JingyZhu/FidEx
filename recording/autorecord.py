@@ -17,8 +17,8 @@ import requests
 import sys
 
 HOST = 'http://localhost:8080'
-default_archive = 'carta'
-metadata_file = 'carta_metadata.json'
+default_archive = 'eot'
+metadata_file = 'eot_metadata.json'
 
 def record_replay(url, archive_name):
     p = Popen(['node', 'live_recording.js', '-d', f'pageinfo/{archive_name}', '-f', 'live_dimension',
@@ -56,6 +56,7 @@ def record_replay_all_urls(data):
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
     urls = json.load(open(data, 'r'))
+    urls = [u['live_url'] for u in urls]
     # urls = random.sample(urls, 100)
 
     for i, url in list(enumerate(urls)):
@@ -81,15 +82,15 @@ def record_replay_all_urls(data):
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
 
-# record_replay_all_urls('../datacollect/data/carta_urls_100.json')
+record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-test_url = "https://nationalmuseumofmexicanart.org/"
-test_url = requests.get(test_url).url # * In case of redirection
-print(test_url)
-test_archive = "test"
-ts = record_replay(test_url, test_archive)
-print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+# test_url = "https://nationalmuseumofmexicanart.org/"
+# test_url = requests.get(test_url).url # * In case of redirection
+# print(test_url)
+# test_archive = "test"
+# ts = record_replay(test_url, test_archive)
+# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # * Test difference between multiple replay
 # archive_url = "http://localhost:8080/carta/20221216065733/https://stovallworkshop.com/"
