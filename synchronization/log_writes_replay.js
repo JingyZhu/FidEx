@@ -101,9 +101,14 @@ async function startChrome(){
     
         // * Record writes to HTML
         await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
-        const writeLog = await page.evaluate(() => _render_tree);
-        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
-    
+        // const writeLog = await page.evaluate(() => _render_tree);
+        // fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
+        const writeLog = await page.evaluate(() => _render_tree_text.join('\n'));
+        const writeMap = await page.evaluate(() => _node_info);
+        fs.writeFileSync(`${dirname}/${filename}.html`, writeLog);
+        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeMap, null, 2));
+
+        
     } catch (err) {
         console.error(err);
     } finally {

@@ -195,9 +195,13 @@ async function getActivePage(browser) {
         
         // * Record writes to HTML
         await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
-        const writeLog = await recordPage.evaluate(() => _render_tree);
-        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
-
+        // const writeLog = await recordPage.evaluate(() => _render_tree);
+        // fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeLog, null, 2));
+        const writeLog = await recordPage.evaluate(() => _render_tree_text.join('\n'));
+        const writeMap = await recordPage.evaluate(() => _node_info);
+        fs.writeFileSync(`${dirname}/${filename}.html`, writeLog);
+        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeMap, null, 2));
+        
         await recordPage.close();
         
         // * Download recorded archive

@@ -97,3 +97,36 @@
 
 - www.gallery.ca_1 (Idempoent op)
     - Archive extra writes: SetAttr and remove
+
+
+### Pages with different render tree
+#### HTML format (after filtration)
+- chicagoimagists.com_1
+    - Archive has additional section of "loading"
+    - (Sol: Sync changes?)
+
+- canadianart.ca_1
+    - javascript code inlined into a href attr
+    - Rewritten by wombat
+    - (Sol: Dimension match)
+
+- paulwongprojects.com_1
+    - Live has additional "data-ruffle-polyfilled" attribute
+
+- alllightexpanded.com_1
+    - Video has poster attribute, which has relative link for live and absolute for archive
+
+- nationalmuseumofmexicanart.org_1
+    - Recaptcha
+
+- www.gkb-furniture.com_1
+    - Seems to be style's attr order not correct
+    - (Sol: reorder or dimension match)
+
+- niadart.org_1
+    - Missin components
+
+- wyld.gallery_1
+    - Image carousels
+        - Move by changing class & transition
+        - Dimension for a certain image could move out of the viewport
