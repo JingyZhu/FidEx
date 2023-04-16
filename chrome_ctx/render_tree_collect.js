@@ -62,40 +62,17 @@ function _normalSRC(node){
     for (let i = 0; i < node.attributes.length; i++){
         _attrs.push(node.attributes[i].name);
     }
-    const setSrcSet = (n) => {
-        return; // * srcset seems to have bug for archive, not sure how broad the issue is
-        // Change srcset to absolute path
-        if (n.hasAttribute('srcset')){
-            let srcset = n.getAttribute('srcset');
-            let srcsetList = srcset.split(', ');
-            let newSrcSet = [];
-            for (const srcRes of srcsetList){
-                const src = srcRes.split(' ')[0];
-                let newSrc = new URL(src, window.location.href).href;
-                newSrcSet.push(`${newSrc} ${srcRes.split(' ')[1]}`);
-            }
-            n.setAttribute('srcset', newSrcSet.join(', '));
-        }
-    }
     for (let attr of _attrs){
         if (!node.hasAttribute(attr))
             continue;
-        let val = node[attr];
-        if (typeof val === 'string' && val.startsWith('/') && !val.startsWith('//')){
+        let relVal = node.getAttribute(attr);
+        let absVal = node[attr]
+        if (typeof absVal === 'string' && relVal.startsWith('/') && !relVal.startsWith('//')){
             try{
-                node[attr] = val;
+                node[attr] = node[attr];
             } catch {}
         }
-        setSrcSet(node)
     }
-    // let allDescendants = node.querySelectorAll('*');
-    // for (let descendant of allDescendants){
-    //     for (let attr of _attrs){
-    //         if (descendant.hasAttribute(attr))
-    //             descendant[attr] = descendant[attr];
-    //     }
-    //     setSrcSet(descendant)
-    // }
     return node;
 }
 
