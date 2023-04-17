@@ -15,6 +15,10 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function waitTimeout(event, ms) {
+    return Promise.race([event, sleep(ms)]);
+}
+
 async function startChrome(){
     const launchOptions = {
         // other options (headless, args, etc)
@@ -80,11 +84,31 @@ async function startChrome(){
         await client.send('Debugger.enable');
         await sleep(1000);
         
+        let requestMap = {};
+        let networkLogs = [];
+        client.on('Network.requestWillBeSent', (params) => {
+            const request = params.request;
+            requestMap[params.requestId] = {
+                url: request.url,
+                method: request.method,
+            }
+        });
+        client.on('Network.responseReceived', (params) => {
+            const response = params.response;
+            networkLogs.push({
+                url: response.url,
+                status: response.status,
+                method: requestMap[params.requestId].method
+            })
+        });
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await page.evaluateOnNewDocument(script);
-        await page.goto(url, {
-            waitUntil: 'networkidle2'
-        })
+        try{
+            let networkIdle = page.goto(url, {
+                waitUntil: 'networkidle0'
+            })
+            await waitTimeout(networkIdle, 30*1000); 
+        } catch {}
 
         if (options.manual)
             await eventSync.waitForReady();
@@ -106,7 +130,8 @@ async function startChrome(){
         const writeLog = await page.evaluate(() => _render_tree_text.join('\n'));
         const writeMap = await page.evaluate(() => _node_info);
         fs.writeFileSync(`${dirname}/${filename}.html`, writeLog);
-        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeMap, null, 2));
+        fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(writeMap, null, 2));
+        fs.writeFileSync(`${dirname}/${filename}_network.json`, JSON.stringify(networkLogs, null, 2));
 
         
     } catch (err) {

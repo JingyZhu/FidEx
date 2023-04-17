@@ -32,7 +32,6 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-
 async function startChrome(){
     const launchOptions = {
         // other options (headless, args, etc)
@@ -127,8 +126,8 @@ async function getActivePage(browser) {
         behavior: 'allow',
         downloadPath: './downloads/',
     });
-    await client_0.send('Network.clearBrowserCookies');
-    await client_0.send('Network.clearBrowserCache');
+    await Promise.all([client_0.send('Network.clearBrowserCookies'), 
+                        client_0.send('Network.clearBrowserCache')]);
     
     try {
         
@@ -138,7 +137,7 @@ async function getActivePage(browser) {
             {waitUntil: 'load'}
         )
         await dummyRecording(page, url);
-        await sleep(3000);
+        await sleep(1000);
         
         let recordPage = await getActivePage(browser);
         if (!recordPage)
@@ -146,9 +145,9 @@ async function getActivePage(browser) {
         // Avoid puppeteer from overriding dpr
         // ? Timeout doesn't alway work
         let networkIdle = recordPage.waitForNetworkIdle({
-            timeout: 3*1000
+            timeout: 2*1000
         })
-        await waitTimeout(networkIdle, 3*1000) 
+        await waitTimeout(networkIdle, 2*1000) 
 
         // * Loading actual URL
         const client = await recordPage.target().createCDPSession();
@@ -157,6 +156,23 @@ async function getActivePage(browser) {
         await client.send('Debugger.enable');
         await sleep(1000);
 
+        let requestMap = {};
+        let networkLogs = [];
+        client.on('Network.requestWillBeSent', (params) => {
+            const request = params.request;
+            requestMap[params.requestId] = {
+                url: request.url,
+                method: request.method,
+            }
+        });
+        client.on('Network.responseReceived', (params) => {
+            const response = params.response;
+            networkLogs.push({
+                url: response.url,
+                status: response.status,
+                method: requestMap[params.requestId].method
+            })
+        });
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await recordPage.evaluateOnNewDocument(script);
         await recordPage.goto(
@@ -177,7 +193,7 @@ async function getActivePage(browser) {
                 timeout: 30*1000
             })
             await waitTimeout(networkIdle, 30*1000); 
-        } catch(err) {}
+        } catch {}
 
         if (options.manual)
             await eventSync.waitForReady();
@@ -200,8 +216,9 @@ async function getActivePage(browser) {
         const writeLog = await recordPage.evaluate(() => _render_tree_text.join('\n'));
         const writeMap = await recordPage.evaluate(() => _node_info);
         fs.writeFileSync(`${dirname}/${filename}.html`, writeLog);
-        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(writeMap, null, 2));
-        
+        fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(writeMap, null, 2));
+        fs.writeFileSync(`${dirname}/${filename}_network.json`, JSON.stringify(networkLogs, null, 2));
+
         await recordPage.close();
         
         // * Download recorded archive

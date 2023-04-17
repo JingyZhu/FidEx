@@ -91,7 +91,7 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/carta_urls_100.json')
 
 # * Test single URL
-test_url = "http://chicagoimagists.com/"
+test_url = "http://google.com"
 test_url = requests.get(test_url).url # * In case of redirection
 print(test_url)
 test_archive = "test"
