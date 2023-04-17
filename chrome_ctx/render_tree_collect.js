@@ -67,7 +67,9 @@ function _normalSRC(node){
             continue;
         let relVal = node.getAttribute(attr);
         let absVal = node[attr]
-        if (typeof absVal === 'string' && relVal.startsWith('/') && !relVal.startsWith('//')){
+        if (typeof absVal === 'string' 
+        && (relVal.startsWith('/') || relVal.startsWith('.'))
+        && !relVal.startsWith('//')){
             try{
                 node[attr] = node[attr];
             } catch {}
@@ -81,9 +83,10 @@ _render_tree_text = []
 _node_info = {}
 function getNodeText(node) {
     if (node.node.nodeType === Node.ELEMENT_NODE){
-        const regex = /<.*?>/g;
+        const regex = /<(.|\n|\r)*?>/g;
         node.node = _normalSRC(node.node);
-        return node.node.outerHTML.match(regex)[0];
+        let tag = node.node.outerHTML.match(regex)[0];
+        return tag.replace(/\n/g, '');
     } else if (node.node.nodeType === Node.TEXT_NODE){
         return node.node.textContent;
     } else
