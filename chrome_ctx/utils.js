@@ -32,9 +32,9 @@ function getDomXPath(elm, fullTrace=false) {
                 segs.unshift(`${elm.localName.toLowerCase()}[${i}]`); 
         // };
         if (withID) // Only push new path if it has an ID
-            xPathsList.push('//' + segs.join('/') );
+            xPathsList.push('/' + segs.join('/') );
     };
-    xPathsList.push('//' + segs.join('/') );
+    xPathsList.push('/' + segs.join('/') );
     
     return fullTrace ? xPathsList : xPathsList[xPathsList.length-1];
 };

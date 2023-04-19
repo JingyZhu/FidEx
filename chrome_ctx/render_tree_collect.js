@@ -30,7 +30,7 @@ function _dfsVisible(node) {
         };
     }
 
-    if (node.childNodes.length > 0) {
+    if (node.childNodes.length > 0 && node.tagName != 'IFRAME') {
         for (let child of node.childNodes) {
             if (child.nodeType === Node.ELEMENT_NODE) {
                 childInfo = _dfsVisible(child);
@@ -105,6 +105,18 @@ function getNodeTextXpath(node, depth=0) {
         return null;
 }
 
+function getNodeExtraAttr(node){
+    let attrs = {};
+    if (node.nodeType === Node.ELEMENT_NODE){
+        let targetAttr = ['currentSrc']
+        for (let attr of targetAttr){
+            if (attr in node)
+                attrs[attr] = node[attr];
+        }
+    }
+    return attrs;
+}
+
 function _serializeRenderTree() {
     const prefix = '  '
     let _dfsHelper = function(node, depth=0) {
@@ -114,6 +126,7 @@ function _serializeRenderTree() {
             _node_info[nodeText] = {
                 xpath: getDomXPath(node.node),
                 dimension: node.dimension,
+                extraAttr: getNodeExtraAttr(node.node)
             };
         }
         for (let child of node.children) {

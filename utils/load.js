@@ -15,9 +15,10 @@ async function loadToChromeCTX(page, file) {
 async function loadToChromeCTXWithUtils(page, file) {
     const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
     await page.evaluate(utilScript);
-    const cdp = await page.target().createCDPSession();
+    // const cdp = await page.target().createCDPSession();
     const script = fs.readFileSync(file, 'utf8');
-    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true});
+    await page.evaluate(script);
+    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, contextId: contextId});
 }
 
 module.exports = {
