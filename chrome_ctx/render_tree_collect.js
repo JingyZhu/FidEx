@@ -83,10 +83,15 @@ _render_tree_text = []
 _node_info = {}
 function getNodeText(node) {
     if (node.node.nodeType === Node.ELEMENT_NODE){
-        const regex = /<(.|\n|\r)*?>/g;
         node.node = _normalSRC(node.node);
-        let tag = node.node.outerHTML.match(regex)[0];
-        return tag.replace(/\n/g, '');
+        let tag = node.node.outerHTML;
+        const innerHTML = node.node.innerHTML;
+        tag = tag.replace(/<\/.*?>/g, "");
+        if (innerHTML !== "") {
+            const end = tag.lastIndexOf(innerHTML);
+            tag = tag.slice(0, end)
+        }
+        return tag.replace(/\n/g, "");
     } else if (node.node.nodeType === Node.TEXT_NODE){
         return node.node.textContent;
     } else
@@ -108,10 +113,13 @@ function getNodeTextXpath(node, depth=0) {
 function getNodeExtraAttr(node){
     let attrs = {};
     if (node.nodeType === Node.ELEMENT_NODE){
-        let targetAttr = ['currentSrc']
+        let targetAttr = ['complete', 'currentSrc']
         for (let attr of targetAttr){
-            if (attr in node)
+            if (attr in node){
                 attrs[attr] = node[attr];
+                if (node[attr] == "")
+                    console.log(node)
+            }
         }
     }
     return attrs;

@@ -256,3 +256,18 @@
 
 - www.monicareyesgallery.com_1
     - Sceeenshot issue with liveweb
+
+
+### Network different unique (html not different)
+- www.yyzartistsoutlet.org_1
+    - Different random URL requests
+    - Both 200 (suspect pywb has some matching rule)
+
+- www.natasharia.com_1
+    - Random iframe URL
+
+- williamkentfoundation.org_1
+    - Different resolution of image with srcset
+    - Fidelity issue?
+
+- 
