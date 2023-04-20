@@ -9,8 +9,8 @@ import requests
 import sys
 
 HOST = 'http://localhost:8080'
-default_archive = 'sync'
-metadata_file = 'sync_metadata.json'
+default_archive = 'eot'
+metadata_file = 'eot_metadata.json'
 
 def liveweb():
     urls = json.load(open('../datacollect/data/carta_urls_100.json', 'r'))
@@ -62,6 +62,7 @@ def record_replay_all_urls(data):
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
     urls = json.load(open(data, 'r'))
+    urls = [u['live_url'] for u in urls] # * For eot
     # urls = random.sample(urls, 100)
 
     for i, url in list(enumerate(urls)):
@@ -89,13 +90,14 @@ def record_replay_all_urls(data):
 
 # liveweb()
 # record_replay_all_urls('../datacollect/data/carta_urls_100.json')
+record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-test_url = "https://croatianpavilion2022.com/irma-omerzo/"
-test_url = requests.get(test_url).url # * In case of redirection
-print(test_url)
-test_archive = "test"
-ts = record_replay(test_url, test_archive)
-print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+# test_url = "https://croatianpavilion2022.com/irma-omerzo/"
+# test_url = requests.get(test_url).url # * In case of redirection
+# print(test_url)
+# test_archive = "test"
+# ts = record_replay(test_url, test_archive)
+# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/

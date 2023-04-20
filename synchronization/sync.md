@@ -1,3 +1,192 @@
+# Render tree
+## Pages with different render tree
+### HTML format (after filtration)
+- chicagoimagists.com_1
+    - Archive has additional section of "loading"
+    - (Sol: Sync changes?)
+
+- canadianart.ca_1
+    - javascript code inlined into a href attr
+    - Rewritten by wombat
+    - (Sol: Dimension match)
+
+- paulwongprojects.com_1
+    - Live has additional "data-ruffle-polyfilled" attribute
+
+- alllightexpanded.com_1
+    - Video has poster attribute, which has relative link for live and absolute for archive
+
+- nationalmuseumofmexicanart.org_1
+    - Recaptcha
+
+- www.gkb-furniture.com_1
+    - Seems to be style's attr order not correct
+    - (Sol: reorder or dimension match)
+
+- niadart.org_1
+    - Missin components
+
+- wyld.gallery_1
+    - Image carousels
+        - Move by changing class & transition
+        - Dimension for a certain image could move out of the viewport
+
+### HTML + dimension
+#### Carta
+- www.richardfung.ca_1
+    - Do have some fidelity issue: (Left side bar expanded vs. collapsed)
+
+- venicebiennale.britishcouncil.org_1
+    - Cookie section only on Live
+
+- eriac.org_1
+    - Recaptcha
+
+- fredtruck.com_1
+    - Do have some fidelity issue: (PDF not shown)
+
+- tttheartist.com_1
+    - Image carousel needs to be clicked to scroll
+    - Archive 503 on 2 images. Not difference onload, but difference after clicking
+    - Total div of carousel different in width (archive smaller)
+
+- www.haystack-mtn.org_1 ??
+
+- ignasiaballi.net_1
+    - Non-identical tag + slightly different dimension
+
+- www.lucindabunnen.com_1
+    - Do have some fidelity issue: (Shopping cart icon & autoplay)
+    - Autoplay seems to be because ruffle (flash player) inserted when recording the page by webrecorder
+
+- www.artsatl.org_1
+    - Do have some fidelity issue: (Twitter & Facebook share button)
+    - Not captured (totally) by screenshot because it is missing caturing it (empty screenshot for that part)
+
+- nbss.edu_1
+    - a2a (Add to any) button with different xpath between live and archive
+    - Rerun solve the problem
+
+- www.frontart.org_1
+    - Missing view numbers
+
+- www.stablearts.org_1
+    - Do have some fidelity issue: (Background image broken on archive)
+
+- nationalmuseumofmexicanart.org_1
+    - Liveweb page has additional transparent div
+
+- www.eyedrum.org_1
+    - Do have some fidelity issue: (Map)
+
+- www.ktaylor.net_1
+    - Do have some fidelity issue: (Image carousel image broken after clicks)
+
+#### eot
+- www.usgs.gov_1
+    - Archive has an iframe with dimension 1*1
+    - Live has the same iframe with dimension 0*0
+
+### Screenshot uniquely deciding False
+#### Summarize: Main reasons
+    - Screenshot issue with liveweb + Pixel difference
+    - Carousel + Animation
+    - Broken Image (503)
+    - Minor: iframe access (solved), Canvas
+
+- Examples
+    - www.molokaiartscenter.org_1
+        - Image carousel
+        - Recaptcha URL not found in archive, but not detected by HTML
+
+    - www.primary-colours.ca_1
+        - Blur background + Random background layout
+
+    - momus.ca_1
+        - 1 Broken image + Screenshot issue with liveweb
+
+    - www.natasharia.com_1
+        - Screnshot issue with liveweb
+
+    - venezia-biennale-japan.jpf.go.jp_1
+        - Pixel difference
+
+    - bookproject2020.blogspot.com_1
+        - Broken background
+        - (Seems missing one section for archive)
+
+    - publicknowledge.sfmoma.org_1
+        - Carousel
+
+    - artandpractice.org_1
+        - Recaptcha + Unplayable virtual tour
+        - iframe currently not able to iterate children (cross domain access)
+
+    - www.artbrussels.com_1
+        - Pixel difference
+
+    - paulwongprojects.com_1
+        - Screnshot issue with liveweb
+
+    - nbss.edu_1
+        - Screnshot issue with liveweb
+
+    - whippersnapper.ca_1
+        - Animation
+
+    - floatingmuseum.org_1
+        - Image carousel
+
+    - pmvabf.org_1
+        - Animation + Broken image
+
+    - candlewoodartsfestival.org_1
+        - Broken image + Autoplay
+
+    - 2022.vbexhibitions.hk_1 !!
+        - Canvas causing Animation difference
+
+    - williamkentfoundation.org_1
+        - Pixel difference
+
+    - pavilionofkosovo.com_1
+        - Scrolling text
+
+    - www.wallergallery.com_1
+        - Broken image
+
+    - www.masonfineartandevents.com_1
+        - Broken image
+
+    - www.visualartscentre.ca_1
+        - Pixel difference
+
+    - www.radioatelier.ca_1
+        - Pixel difference
+
+    - www.monicareyesgallery.com_1
+        - Sceeenshot issue with liveweb
+
+
+### Network different unique (html not different)
+- www.yyzartistsoutlet.org_1
+    - Different random URL requests
+    - Both 200 (suspect pywb has some matching rule)
+
+- www.natasharia.com_1
+    - Random iframe URL
+
+- williamkentfoundation.org_1
+    - Different resolution of image with srcset
+    - Fidelity issue?
+
+- oklahoma.gov_1
+    - Recorder progressively fetch images in different resolution
+    - Replay serve in another resolution (with different URL)
+    - Caused by behavior.js from brosertrix
+
+
+# Writes
 ## Live and archive have different writes
 
 - www.bonhams.com_1
@@ -97,177 +286,3 @@
 
 - www.gallery.ca_1 (Idempoent op)
     - Archive extra writes: SetAttr and remove
-
-
-### Pages with different render tree
-#### HTML format (after filtration)
-- chicagoimagists.com_1
-    - Archive has additional section of "loading"
-    - (Sol: Sync changes?)
-
-- canadianart.ca_1
-    - javascript code inlined into a href attr
-    - Rewritten by wombat
-    - (Sol: Dimension match)
-
-- paulwongprojects.com_1
-    - Live has additional "data-ruffle-polyfilled" attribute
-
-- alllightexpanded.com_1
-    - Video has poster attribute, which has relative link for live and absolute for archive
-
-- nationalmuseumofmexicanart.org_1
-    - Recaptcha
-
-- www.gkb-furniture.com_1
-    - Seems to be style's attr order not correct
-    - (Sol: reorder or dimension match)
-
-- niadart.org_1
-    - Missin components
-
-- wyld.gallery_1
-    - Image carousels
-        - Move by changing class & transition
-        - Dimension for a certain image could move out of the viewport
-
-#### HTML + dimension
-- www.richardfung.ca_1
-    - Do have some fidelity issue: (Left side bar expanded vs. collapsed)
-
-- venicebiennale.britishcouncil.org_1
-    - Cookie section only on Live
-
-- www.irelandatvenice2022.ie_1
-    - Regex matching issue on outerHTML
-
-- eriac.org_1
-    - Recaptcha
-
-- fredtruck.com_1
-    - Do have some fidelity issue: (PDF not shown)
-
-- tttheartist.com_1
-    - Image carousel needs to be clicked to scroll
-    - Archive 503 on 2 images. Not difference onload, but difference after clicking
-    - Total div of carousel different in width (archive smaller)
-
-- www.haystack-mtn.org_1 ??
-
-- ignasiaballi.net_1
-    - Non-identical tag + slightly different dimension
-
-- www.lucindabunnen.com_1
-    - Do have some fidelity issue: (Shopping cart icon & autoplay)
-    - Autoplay seems to be because ruffle (flash player) inserted when recording the page by webrecorder
-
-- www.artsatl.org_1
-    - Do have some fidelity issue: (Twitter & Facebook share button)
-    - Not captured (totally) by screenshot because it is missing caturing it (empty screenshot for that part)
-
-- nbss.edu_1
-    - a2a (Add to any) button with different xpath between live and archive
-    - Rerun solve the problem
-
-- www.frontart.org_1
-    - Missing view numbers
-
-- www.stablearts.org_1
-    - Do have some fidelity issue: (Background image broken on archive)
-
-- nationalmuseumofmexicanart.org_1
-    - Liveweb page has additional transparent div
-
-- www.eyedrum.org_1
-    - Do have some fidelity issue: (Map)
-
-- www.ktaylor.net_1
-    - Do have some fidelity issue: (Image carousel image broken after clicks)
-
-#### Screenshot uniquely deciding False
-- www.molokaiartscenter.org_1
-    - Image carousel
-    - Recaptcha URL not found in archive, but not detected by HTML
-
-- www.primary-colours.ca_1
-    - Blur background + Random background layout
-
-- momus.ca_1
-    - 1 Broken image + Screenshot issue with liveweb
-
-- www.natasharia.com_1
-    - Screnshot issue with liveweb
-
-- venezia-biennale-japan.jpf.go.jp_1
-    - Pixel difference
-
-- bookproject2020.blogspot.com_1
-    - Broken background
-    - (Seems missing one section for archive)
-
-- publicknowledge.sfmoma.org_1
-    - Carousel
-
-- artandpractice.org_1
-    - Recaptcha + Unplayable virtual tour
-    - iframe currently not able to iterate children (cross domain access)
-
-- www.artbrussels.com_1
-    - Pixel difference
-
-- paulwongprojects.com_1
-    - Screnshot issue with liveweb
-
-- nbss.edu_1
-    - Screnshot issue with liveweb
-
-- whippersnapper.ca_1
-    - Animation
-
-- floatingmuseum.org_1
-    - Image carousel
-
-- pmvabf.org_1
-    - Animation + Broken image
-
-- candlewoodartsfestival.org_1
-    - Broken image + Autoplay
-
-- 2022.vbexhibitions.hk_1 !!
-    - Canvas causing Animation difference
-
-- williamkentfoundation.org_1
-    - Pixel difference
-
-- pavilionofkosovo.com_1
-    - Scrolling text
-
-- www.wallergallery.com_1
-    - Broken image
-
-- www.masonfineartandevents.com_1
-    - Broken image
-
-- www.visualartscentre.ca_1
-    - Pixel difference
-
-- www.radioatelier.ca_1
-    - Pixel difference
-
-- www.monicareyesgallery.com_1
-    - Sceeenshot issue with liveweb
-
-
-### Network different unique (html not different)
-- www.yyzartistsoutlet.org_1
-    - Different random URL requests
-    - Both 200 (suspect pywb has some matching rule)
-
-- www.natasharia.com_1
-    - Random iframe URL
-
-- williamkentfoundation.org_1
-    - Different resolution of image with srcset
-    - Fidelity issue?
-
-- 

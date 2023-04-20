@@ -1,8 +1,8 @@
 #!/home/jingyz/Research/fidelity/env/bin/python3
 from subprocess import call
 
-metadata = 'sync_metadata.json'
-default_archive = 'sync'
+metadata = 'eot_metadata.json'
+default_archive = 'eot'
 
 call(['rm', metadata])
 call(f"rm downloads/*", shell=True)
