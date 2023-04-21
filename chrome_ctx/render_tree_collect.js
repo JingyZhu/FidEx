@@ -82,30 +82,19 @@ function _normalSRC(node){
 _render_tree_text = []
 _node_info = {}
 function getNodeText(node) {
-    if (node.node.nodeType === Node.ELEMENT_NODE){
-        node.node = _normalSRC(node.node);
-        let tag = node.node.outerHTML;
-        const innerHTML = node.node.innerHTML;
-        tag = tag.replace(/<\/.*?>/g, "");
+    if (node.nodeType === Node.ELEMENT_NODE){
+        node = _normalSRC(node);
+        let tag = node.outerHTML;
+        const innerHTML = node.innerHTML;
         if (innerHTML !== "") {
             const end = tag.lastIndexOf(innerHTML);
             tag = tag.slice(0, end)
+        } else {
+            tag = tag.replace(/<\/.*?>/g, "");
         }
         return tag.replace(/\n/g, "");
-    } else if (node.node.nodeType === Node.TEXT_NODE){
-        return node.node.textContent;
-    } else
-        return null;
-}
-
-function getNodeTextXpath(node, depth=0) {
-    if (node.node.nodeType === Node.ELEMENT_NODE){
-        let xpath = getDomXPath(node.node).slice(2);
-        xpath = xpath.split('/').slice(depth+1)
-        xpath = xpath.join('/')
-        return `${xpath}: ${JSON.stringify(node.dimension)}` 
-    } else if (node.node.nodeType === Node.TEXT_NODE){
-        return node.node.textContent;
+    } else if (node.nodeType === Node.TEXT_NODE){
+        return node.textContent;
     } else
         return null;
 }
@@ -128,7 +117,7 @@ function getNodeExtraAttr(node){
 function _serializeRenderTree() {
     const prefix = '  '
     let _dfsHelper = function(node, depth=0) {
-        const nodeText = getNodeText(node);
+        const nodeText = getNodeText(node.node);
         if (nodeText != null){
             _render_tree_text.push(prefix.repeat(depth) + nodeText);
             _node_info[nodeText] = {

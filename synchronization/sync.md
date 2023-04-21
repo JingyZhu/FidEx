@@ -1,6 +1,6 @@
 # Render tree
 ## Pages with different render tree
-### HTML format (after filtration)
+### HTML format (after filtration) (No longer important)
 - chicagoimagists.com_1
     - Archive has additional section of "loading"
     - (Sol: Sync changes?)
@@ -32,6 +32,13 @@
         - Dimension for a certain image could move out of the viewport
 
 ### HTML + dimension
+#### Summarize
+    - Fidelity issues
+    - Recaptcha
+    - Carousel
+        - Only shown images has dimension
+        - Images moved from left to right
+
 #### Carta
 - www.richardfung.ca_1
     - Do have some fidelity issue: (Left side bar expanded vs. collapsed)
@@ -83,9 +90,110 @@
     - Do have some fidelity issue: (Image carousel image broken after clicks)
 
 #### eot
+- www.ndtourism.com_1
+    - Same (branch of) element appear at different order
+    - Current diff dectection consider as dels + adds
+
+- oklahoma.gov_1
+    - Image carousel different state
+    - Carousel achieved by setting active image with dimension while others 0*0
+    - Live has addition translation banner
+
+- las.doa.virginia.gov_1
+    - Liveweb has additional Virginia banner
+
 - www.usgs.gov_1
     - Archive has an iframe with dimension 1*1
     - Live has the same iframe with dimension 0*0
+
+- twitter.com_4
+    - iframe for google account login has no dimension in archive
+    - Because 404 within iframe
+    - However, the button is outside of iframe, so the look is the same
+
+- reportline.doa.virginia.gov_1
+    - Liveweb has additional Virginia banner
+
+- www.uspto.gov_1
+    - Liveweb has "Trademark" button set as active, while archive has not (fidelity?)
+
+- nimhd.nih.gov_1
+    - Archive adds "external link" icon to disclaimer link
+
+- www.accessidaho.org_1
+    - Archive's iframe for "help" out of the viewport
+
+- www.ddap.pa.gov_1
+    - Translation banner
+
+- herc.research.va.gov_1
+    - Live has twitter timeline, in archive it is replaced by a link
+
+- bhc.ca.gov_1
+    - Translation banner
+
+- www.airforce.com_1
+    - Live has cookie banner
+
+### Network different
+#### Summarize
+    - Missing component
+    - Record and replay serve different resolution of images
+    - 503
+
+#### Carta
+- www.yyzartistsoutlet.org_1
+    - Different random URL requests
+    - Both 200 (suspect pywb has some matching rule)
+
+- www.natasharia.com_1
+    - Random iframe URL
+
+- williamkentfoundation.org_1
+    - Different resolution of image with srcset
+    - Fidelity issue?
+
+#### EOT
+- www.ndtourism.com_1
+    - Recorder progressively fetch images in different resolution
+    - Replay serve in another resolution (with different URL)
+    - Caused by behavior.js from brosertrix
+
+- oklahoma.gov_1
+    - Recorder progressively fetch images in different resolution
+    - Replay serve in another resolution (with different URL)
+    - Caused by behavior.js from brosertrix
+
+- las.doa.virginia.gov_1
+    - Liveweb has additional Virginia banner
+
+- www.usgs.gov_1
+    - 503
+
+- twitter.com_4
+    - 404 with iframe link
+
+- reportline.doa.virginia.gov_1
+    - Liveweb has additional Virginia banner
+
+- nimhd.nih.gov_1
+    - 503 + additional component
+
+- www.accessidaho.org_1
+    - 503
+
+- www.ddap.pa.gov_1
+    - Missing component
+
+- herc.research.va.gov_1
+    - Missing component
+
+- bhc.ca.gov_1
+    - Missing component
+
+- www.airforce.com_1
+    - 
+
 
 ### Screenshot uniquely deciding False
 #### Summarize: Main reasons
@@ -167,23 +275,6 @@
     - www.monicareyesgallery.com_1
         - Sceeenshot issue with liveweb
 
-
-### Network different unique (html not different)
-- www.yyzartistsoutlet.org_1
-    - Different random URL requests
-    - Both 200 (suspect pywb has some matching rule)
-
-- www.natasharia.com_1
-    - Random iframe URL
-
-- williamkentfoundation.org_1
-    - Different resolution of image with srcset
-    - Fidelity issue?
-
-- oklahoma.gov_1
-    - Recorder progressively fetch images in different resolution
-    - Replay serve in another resolution (with different URL)
-    - Caused by behavior.js from brosertrix
 
 
 # Writes
