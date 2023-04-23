@@ -7,10 +7,27 @@ import json
 import time
 import random
 from concurrent import futures
+from urllib.parse import urlsplit
+from publicsuffixlist import PublicSuffixList
+from collections import defaultdict
 
 total_item = 59902
 base_url = 'http://eotarchive.cdlib.org/search'
 headers = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'}
+
+class HostExtractor:
+    def __init__(self):
+        self.psl = PublicSuffixList()
+    
+    def extract(self, url):
+        """
+        Wayback: Whether the url is got from wayback
+        """
+        if 'http://' not in url and 'https://' not in url:
+            url = 'http://' + url
+        hostname = urlsplit(url).netloc.strip('.').split(':')[0]
+        return self.psl.privatesuffix(hostname)
+
 
 def get_page_data(idx):
     data = []
@@ -65,7 +82,7 @@ def get_data():
     json.dump(result, open('eot_1k.json', 'w+'), indent=2)
 
 def test_break():
-    data = json.load(open('eot_1k.json', 'r'))
+    data = json.load(open('data/eot_1k.json', 'r'))
     live_urls = [d['live_url'] for d in data]
     def broken(i, url):
         print(i, url)
@@ -85,6 +102,17 @@ def test_break():
                 'url': url,
                 'broken': r
             })
-        json.dump(results, open('eot_1k_broken.json', 'w+'), indent=2)
+        json.dump(results, open('data/eot_1k_broken.json', 'w+'), indent=2)
 
-test_break()
+def sample_good():
+    data = json.load(open('data/eot_1k.json', 'r'))
+    good_urls = [b for b in data if not b['broken']]
+    site_urls = defaultdict(list)
+    h = HostExtractor()
+    for g in good_urls:
+        site_urls[h.extract(g['live_url'])].append(g)
+    sample_site_urls = random.sample(list(site_urls.items()), 120)
+    sample_urls = [random.choice(v) for v in dict(sample_site_urls).values()]
+    json.dump(sample_urls, open('data/eot_good_100.json', 'w+'), indent=2)
+
+sample_good()

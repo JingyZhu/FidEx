@@ -184,6 +184,9 @@ async function pageIframesInfo(iframe, parentInfo){
         else
             await sleep(2000);
         
+        // * Take screenshot
+        await measure.collectFidelityInfo(page, url, dirname, filename);
+        
         // * Interact with the webpage
         // if (options.interaction){
         //     await interaction(page, client, excepFF, url, dirname);

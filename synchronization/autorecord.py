@@ -7,6 +7,7 @@ import json
 from urllib.parse import urlsplit
 import requests
 import sys
+import re
 
 HOST = 'http://localhost:8080'
 default_archive = 'eot'
@@ -38,11 +39,13 @@ def record_replay(url, archive_name):
         if not line:
             break
         line = line.decode()
-        if "recording page ts" in line:
-            ts = line.split(': ')[1]
+        if "recorded page" in line:
+            info = re.sub(r'.*recorded page: ', '', line)
+            info = json.loads(info)
+            ts, url = info['ts'], info['url']
             break
     if ts is None:
-        return ''
+        return '', url
 
     os.rename(f'downloads/{default_archive}.warc', f'downloads/{archive_name}.warc')
     check_call(['wb-manager', 'add', default_archive, 
@@ -53,7 +56,7 @@ def record_replay(url, archive_name):
     check_call(['node', 'log_writes_replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'archive',
                 archive_url])
-    return ts
+    return ts, url
 
 
 def record_replay_all_urls(data):
@@ -69,16 +72,18 @@ def record_replay_all_urls(data):
         print(i, url)
         sys.stdout.flush()
         try:
-            url = requests.get(url).url # * In case of redirection
+            req_url = requests.get(url).url # * In case of redirection, only focusing on getting new hostname
         except:
             continue
-        us = urlsplit(url)
+        us = urlsplit(req_url)
         hostname = us.netloc.split(':')[0]
         count = 1
         while f"{hostname}_{count}" in seen_dir:
             count += 1
+        # if f"{hostname}_{count}" in seen_dir:
+        #     continue
         archive_name = f"{hostname}_{count}"
-        ts = record_replay(url, archive_name)
+        ts, url = record_replay(url, archive_name)
         seen_dir.add(archive_name)
         metadata[url] = {
             'ts': ts,
@@ -93,11 +98,11 @@ def record_replay_all_urls(data):
 record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-# test_url = "https://croatianpavilion2022.com/irma-omerzo/"
-# test_url = requests.get(test_url).url # * In case of redirection
-# print(test_url)
+# test_url = "http://fbi.gov/milwaukee/"
+# test_req_url = requests.get(test_url).url # * In case of redirection
+# print(test_req_url)
 # test_archive = "test"
-# ts = record_replay(test_url, test_archive)
+# ts, test_url = record_replay(test_url, test_archive)
 # print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/

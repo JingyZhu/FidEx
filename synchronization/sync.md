@@ -135,6 +135,9 @@
 - www.airforce.com_1
     - Live has cookie banner
 
+- www.isbinvestment.com_1
+    - Archive missing "bill" for "$23.2"
+
 ### Network different
 #### Summarize
     - Missing component
@@ -191,9 +194,30 @@
 - bhc.ca.gov_1
     - Missing component
 
-- www.airforce.com_1
-    - 
+- flickr.com_2
+    - Liveweb always has images loading=eager
+    - Archive has loading=lazy for newly added images 
 
+## Render tree vs. Screenshots
+### Render tree uniquely deciding False
+#### Summarize: Main reasons
+    - Addtional component with dimensions doesn't necessarily contribute to the look
+
+#### EOT
+- twitter.com_4
+    - iframe only in live doesn't affect the look
+
+- www.ddap.pa.gov_1
+    - Translation banner
+
+- flickr.com_2
+    - Preloading
+
+- roc.az.gov_1
+    - Dimension slightly different
+
+- www.archives.gov_1
+    - Collapsed a tag for archive
 
 ### Screenshot uniquely deciding False
 #### Summarize: Main reasons
@@ -274,7 +298,32 @@
 
     - www.monicareyesgallery.com_1
         - Sceeenshot issue with liveweb
+    
+    - www.bta.ms.gov_1
+        - Screeshot issue with liveweb
+    
+    - niccs.cisa.gov_1
+        - Screeshot issue with liveweb
+    
+    - gao.az.gov_1
+        - Carousel
+    
+    - www.ca1.uscourts.gov_1
+        - Animation
+    
+    - earth.gsfc.nasa.gov_1
+        - Pixel difference
+    
+    - www.philadelphiafed.org_1
+        - Screeshot issue with liveweb
+    
+    - www.hsgac.senate.gov_1
+        - Render difference
+    
+    - hiosh.ehawaii.gov_1
+        -Render difference
 
+    - **www.dir.ca.gov_1** (Bug)
 
 
 # Writes

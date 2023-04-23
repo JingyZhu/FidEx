@@ -106,8 +106,8 @@ function getNodeExtraAttr(node){
         for (let attr of targetAttr){
             if (attr in node){
                 attrs[attr] = node[attr];
-                if (node[attr] == "")
-                    console.log(node)
+                // if (node[attr] == "")
+                //     console.log(node)
             }
         }
     }

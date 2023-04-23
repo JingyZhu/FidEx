@@ -11,6 +11,7 @@ const fs = require('fs');
 const eventSync = require('../utils/event_sync');
 const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../utils/load');
 const { program } = require('commander');
+const measure = require('../utils/measure');
 const { parse: HTMLParse } = require('node-html-parser');
 
 const http = require('http');
@@ -267,7 +268,9 @@ async function pageIframesInfo(iframe, parentInfo){
             await eventSync.waitForReady();
         else
             await sleep(2000);
-        
+
+        // * Take screenshot
+        await measure.collectFidelityInfo(recordPage, url, dirname, filename);
         
         // * Interact with the webpage
         // if (options.interaction){
@@ -277,6 +280,8 @@ async function pageIframesInfo(iframe, parentInfo){
         // }
         // fs.writeFileSync(`${dirname}/exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         
+        const finalURL = recordPage.url();
+
         // * Record writes to HTML
         const rootFrame = recordPage.mainFrame();
         const renderInfo = await pageIframesInfo(rootFrame,
@@ -297,7 +302,7 @@ async function pageIframesInfo(iframe, parentInfo){
         let ts = await clickDownload(page);
 
         // ! Signal of the end of the program
-        console.log("recording page ts:", ts)
+        console.log("recorded page:", JSON.stringify({ts: ts, url: finalURL}));
     } catch (err) {
         console.error(err);
     } finally {
