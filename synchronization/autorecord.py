@@ -72,16 +72,16 @@ def record_replay_all_urls(data):
         print(i, url)
         sys.stdout.flush()
         try:
-            req_url = requests.get(url).url # * In case of redirection, only focusing on getting new hostname
+            req_url = requests.get(url, timeout=20).url # * In case of redirection, only focusing on getting new hostname
         except:
             continue
         us = urlsplit(req_url)
         hostname = us.netloc.split(':')[0]
         count = 1
-        while f"{hostname}_{count}" in seen_dir:
-            count += 1
-        # if f"{hostname}_{count}" in seen_dir:
-        #     continue
+        # while f"{hostname}_{count}" in seen_dir:
+        #     count += 1
+        if f"{hostname}_{count}" in seen_dir:
+            continue
         archive_name = f"{hostname}_{count}"
         ts, url = record_replay(url, archive_name)
         seen_dir.add(archive_name)
@@ -95,14 +95,14 @@ def record_replay_all_urls(data):
 
 # liveweb()
 # record_replay_all_urls('../datacollect/data/carta_urls_100.json')
-record_replay_all_urls('../datacollect/data/eot_good_100.json')
+# record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-# test_url = "http://fbi.gov/milwaukee/"
-# test_req_url = requests.get(test_url).url # * In case of redirection
-# print(test_req_url)
-# test_archive = "test"
-# ts, test_url = record_replay(test_url, test_archive)
-# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+test_url = "https://newhampshire.jobcorps.gov/"
+test_req_url = requests.get(test_url).url # * In case of redirection
+print(test_req_url)
+test_archive = "test"
+ts, test_url = record_replay(test_url, test_archive)
+print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/

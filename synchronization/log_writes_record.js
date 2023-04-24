@@ -269,9 +269,6 @@ async function pageIframesInfo(iframe, parentInfo){
         else
             await sleep(2000);
 
-        // * Take screenshot
-        await measure.collectFidelityInfo(recordPage, url, dirname, filename);
-        
         // * Interact with the webpage
         // if (options.interaction){
         //     await interaction(recordPage, client, excepFF, url, dirname);
@@ -286,6 +283,10 @@ async function pageIframesInfo(iframe, parentInfo){
         const rootFrame = recordPage.mainFrame();
         const renderInfo = await pageIframesInfo(rootFrame,
             {xpath: '', dimension: {left: 0, top: 0}, prefix: ""});
+
+        // * Take screenshot
+        // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+        await measure.collectFidelityInfo(recordPage, url, dirname, filename);
 
         fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
