@@ -98,7 +98,7 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-test_url = "https://newhampshire.jobcorps.gov/"
+test_url = "https://leg.wa.gov/CodeReviser/Pages/default.aspx"
 test_req_url = requests.get(test_url).url # * In case of redirection
 print(test_req_url)
 test_archive = "test"

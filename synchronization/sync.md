@@ -138,6 +138,7 @@
 
 - www.airforce.com_1
     - Live has cookie banner
+    - Eval on js related to cookie throws error (TypeError: Cannot read properties of undefined (reading 'DomainData')
 
 - www.isbinvestment.com_1
     - Archive missing "bill" for "$23.2"
@@ -163,6 +164,48 @@
 
 - www.aces.edu_1
     - timerbar keeps increasing (changing dimension) overtime
+
+- www.accessidaho.org_1
+    - Should give a random quote everytime
+    - On archive, always gives the same quote. Random seed is the timestamp of the archive 
+
+- www.ddap.pa.gov_1
+    - Google translate banner
+
+- www.collegedrinkingprevention.gov_1
+    - Carousel: Rerun solved the problem
+
+- radiate.fnal.gov_1 ??
+    - Carousel
+        - Seems to be implemented by listing all images in the first div (with dimension, but visibility:hidden)
+        - When switching image, deletes all nodes relate to it and add whole new set of nodes
+
+- www.ncdoj.gov_1
+    - Youtube video autoplay and failed on liveweb
+
+- www.tn.gov_1
+    - Liveweb has an 1*1 ad pixel
+    - 1 ads related resource: blocked on record, 404 on replay
+
+- **www.fsgb.gov_1**
+    - Archive keeps have loading without actually loaded
+    - Non-deterministic request get 404, use fuzzy matching seem to solve the problem
+
+- house.louisiana.gov_1
+    - Live and Archive have different style, causing different dimension
+    - **Reason**
+        - Syntax Error: Unexpected eval or arguments in strict mode (at shoelace.js:13:5)
+
+- www.dsireusa.org_1
+    - Archive page misses policy map for US
+    - **Reason**
+        - Uncaught ReferenceError: google is not defined scripts.min.js
+
+- communityofgardens.tumblr.com_1
+    - Archive misses iframe for follow and sign up/in
+    - **Reason (suspected)**
+        - Two iframes for follow and sign up are added by window.postMessage --> renderIframe
+        - However, archive's onMessage callback never triggered for window.postMessage
 
 ### Network different
 #### Summarize

@@ -59,6 +59,14 @@ for(const method of node_write_methods) {
                 args: args
             }
         }
+        // if (['appendChild', 'insertBefore', 'replaceChild'].includes(method)){
+        //     for (let arg of args){
+        //         if (arg instanceof Element){
+        //             console.log("AHA")
+        //             arg.style.transition = 'all 0s ease 0s'
+        //         }
+        //     }
+        // }
         retVal = original.apply(this, args);
         if (ableRecord){
             afterDimension = getDimension(this);
@@ -159,6 +167,14 @@ for(const method of element_write_methods) {
                 args: args
             }
         }
+        // if (['append', 'after', 'before'].includes(method)){
+        //     for (let arg of args){
+        //         if (arg instanceof Element){
+        //             console.log("OHO")
+        //             arg.style.transition = 'all 0s ease 0s'
+        //         }
+        //     }
+        // }
         retVal = original.apply(this, args);
         if (ableRecord){
             afterDimension = getDimension(this);
@@ -220,3 +236,24 @@ for (const property of element_properties) {
         }
     });
 }
+
+// // * Override setTimeout and setInterval
+// const original_setTimeout = window.setTimeout;
+// window.setTimeout = function(callback, delay, ...args) {
+//     const original_callback = callback;
+//     callback = function(...args) {
+//         _debug_log("setTimeout", original_callback, args);
+//         return original_callback.apply(this, args);
+//     }
+//     return original_setTimeout(callback, delay/10, ...args);
+// }
+
+// const original_setInterval = window.setInterval;
+// window.setInterval = function(callback, delay, ...args) {
+//     const original_callback = callback;
+//     callback = function(...args) {
+//         _debug_log("setInterval", original_callback, args);
+//         return original_callback.apply(this, args);
+//     }
+//     return original_setInterval(callback, delay/10, ...args);
+// }
