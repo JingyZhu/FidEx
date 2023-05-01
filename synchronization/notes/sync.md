@@ -185,7 +185,7 @@
 
 - www.tn.gov_1
     - Liveweb has an 1*1 ad pixel
-    - 1 ads related resource: blocked on record, 404 on replay
+    - Blocked on archive, passed on liveweb (resource itself is a 1*1 pixel)
 
 - **www.fsgb.gov_1**
     - Archive keeps have loading without actually loaded
