@@ -117,6 +117,7 @@ async function pageIframesInfo(iframe, parentInfo){
         .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
         .option('-f --file <filename>', 'Filename prefix', 'dimension')
         .option('-m, --manual', "Manual control for finishing loading the page")
+        .option('-w, --wayback', "Whether replay is from wayback machine")
 
     program
         .argument("<url>")
@@ -171,13 +172,25 @@ async function pageIframesInfo(iframe, parentInfo){
             })
         });
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+        const timeout = options.wayback ? 200*1000 : 30*1000;
+        // console.log("Timeout: ", timeout)
         await page.evaluateOnNewDocument(script);
-        try{
+        
+        try {
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            await waitTimeout(networkIdle, 30*1000); 
+            await waitTimeout(networkIdle, timeout); 
         } catch {}
+
+        if (options.wayback){
+            try {
+                await page.evaluate(() => {
+                    document.querySelector("#wm-ipp-base").remove();
+                    document.querySelector("#wm-ipp-print").remove();
+                })
+            } catch {}
+        }
 
         if (options.manual)
             await eventSync.waitForReady();

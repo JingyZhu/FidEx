@@ -87,7 +87,7 @@ def record_replay_all_urls(data):
         seen_dir.add(archive_name)
         metadata[url] = {
             'ts': ts,
-            'wayback': f'{HOST}/{default_archive}/{ts}/{url}',
+            'archive': f'{HOST}/{default_archive}/{ts}/{url}',
             'directory': archive_name,
         }
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
@@ -98,11 +98,40 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-test_url = "https://leg.wa.gov/CodeReviser/Pages/default.aspx"
-test_req_url = requests.get(test_url).url # * In case of redirection
-print(test_req_url)
-test_archive = "test"
-ts, test_url = record_replay(test_url, test_archive)
-print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+# test_url = "https://leg.wa.gov/CodeReviser/Pages/default.aspx"
+# test_req_url = requests.get(test_url).url # * In case of redirection
+# print(test_req_url)
+# test_archive = "test"
+# ts, test_url = record_replay(test_url, test_archive)
+# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/
+
+
+def replay_all_wayback():
+    metadata = json.load(open(metadata_file, 'r'))
+    urls = [u for u in metadata] # * For eot
+    # urls = random.sample(urls, 100)
+
+    for i, url in list(enumerate(urls)):
+        print(i, url)
+        sys.stdout.flush()
+        # Query wayback CDX to get the latest archive
+        try:
+            r = requests.get('http://archive.org/wayback/available', params={'url': url, 'timestamp': metadata[url]['ts']})
+            r = r.json()
+            wayback_url = r['archived_snapshots']['closest']['url']
+        except Exception as e:
+            print(str(e))
+            continue
+        us = urlsplit(url)
+        hostname = us.netloc.split(':')[0]
+        count = 1
+        archive_name = f"{hostname}_{count}"
+        check_call(['node', 'log_writes_replay.js', '-d', f'writes/{archive_name}', 
+                '-f', 'wayback', '-w',
+                wayback_url])
+        metadata[url]['wayback'] = wayback_url
+        json.dump(metadata, open(metadata_file, 'w+'), indent=2)
+
+replay_all_wayback()
