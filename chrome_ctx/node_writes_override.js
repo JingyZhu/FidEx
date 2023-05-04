@@ -56,7 +56,8 @@ for(const method of node_write_methods) {
             record = {
                 target: this,
                 method: method,
-                args: args
+                args: args,
+                trace: Error().stack
             }
         }
         // if (['appendChild', 'insertBefore', 'replaceChild'].includes(method)){
@@ -106,7 +107,8 @@ for (const property of node_properties) {
                 record = {
                     target: this,
                     method: 'set:' + property,
-                    args: [value]
+                    args: [value],
+                    trace: Error().stack
                 }
             }
             retVal = original_setter.apply(this, [value]);
@@ -164,7 +166,8 @@ for(const method of element_write_methods) {
             record = {
                 target: this,
                 method: method,
-                args: args
+                args: args,
+                trace: Error().stack
             }
         }
         // if (['append', 'after', 'before'].includes(method)){
@@ -215,7 +218,8 @@ for (const property of element_properties) {
                 record = {
                     target: this,
                     method: 'set:' + property,
-                    args: [value]
+                    args: [value],
+                    trace: Error().stack
                 }
             }
             retVal = original_setter.apply(this, [value]);

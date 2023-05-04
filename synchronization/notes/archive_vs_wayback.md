@@ -1,9 +1,12 @@
 # Archive vs Wayback
+    - Page updates
+    - Wayback has more issues
 - www.aces.edu_1
-    - Page updates (frequently)
+    - Wayback numbers are not broken by ","
+    - Slow loading speed causing when measured, not finished execution
 
 - www.accessidaho.org_1
-    - Page updates
+    - Randomness both broken, but with different initial ts as seed
 
 - www.ncdoj.gov_1
     - Page updates
@@ -15,23 +18,29 @@
     - Page updates
 
 - www.nist.gov_1
+    - Wayback bottom images lazy loading.
+        - Even in eager, slow loading speed
     - Only Wayback has external link (archive and live don't)
 
 - www.nlm.nih.gov_1
     - Wayback has more issues
+        - Two sub links added under archive are not presented in wayback
 
 - www.cbp.gov_1
     - Wayback has more issues
+        - Wayback no search bar
 
 - www.sandiego.gov_1
     - Updates
+        - Temperature
     - Wayback has more issues
+        - No feedback button
 
 - www.illinois.gov_1
     - Lazy loading image
 
 - www.penndot.pa.gov_1
-    - Seems to be broken images on archive causing layout to be all difference
+    - Seems to be broken images on archive causing layout to be all different
 
 - www.republican.senate.gov_1
     - Video dimension different

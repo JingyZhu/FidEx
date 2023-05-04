@@ -27,7 +27,7 @@ function getDomXPath(elm, fullTrace=false) {
         //     segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]'); 
         // }
         // else { 
-            for (i = 1, sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
+            for (let i = 1, sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
                 if (sib.localName == elm.localName)  i++; }; 
                 segs.unshift(`${elm.localName.toLowerCase()}[${i}]`); 
         // };

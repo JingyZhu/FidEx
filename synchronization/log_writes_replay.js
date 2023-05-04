@@ -45,6 +45,17 @@ async function startChrome(){
     return browser;
 }
 
+function origURL(url){
+    // Get part of URL that is after the last http:// or https://
+    const matches = url.split(/(http:\/\/|https:\/\/)/);
+    if (matches.length > 2) {
+        const lastMatchIndex = matches.length - 2;
+        const lastUrl = matches[lastMatchIndex] + matches[lastMatchIndex + 1];
+        return lastUrl;
+    }
+    return '';
+}
+
 // Traverse through the iframe tree to build write log
 async function pageIframesInfo(iframe, parentInfo){
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
@@ -78,7 +89,8 @@ async function pageIframesInfo(iframe, parentInfo){
     const childFrames = await iframe.childFrames();
     let childHTMLs = [], childidx = [];
     for (const childFrame of childFrames){
-        const childURL = childFrame.url();
+        const childURL = origURL(childFrame.url());
+        // console.log(childURL, childURL in htmlIframes, htmlIframes)
         if (!(childURL in htmlIframes))
             continue
         let prefix = htmlIframes[childURL].html.match(/^\s+/)
@@ -188,8 +200,14 @@ async function pageIframesInfo(iframe, parentInfo){
                 await page.evaluate(() => {
                     document.querySelector("#wm-ipp-base").remove();
                     document.querySelector("#wm-ipp-print").remove();
+                    let elements = document.querySelectorAll('*');
+                    for (const element of elements){
+                        if (element.hasAttribute('loading'))
+                            element.loading = 'eager';
+                    }
                 })
             } catch {}
+            await sleep(2000);
         }
 
         if (options.manual)

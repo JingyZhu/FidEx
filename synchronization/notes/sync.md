@@ -117,13 +117,6 @@
 - www.uspto.gov_1
     - Liveweb has "Trademark" button set as active, while archive has not (fidelity?)
 
-- nimhd.nih.gov_1
-    - Archive adds "external link" icon to disclaimer link
-    - **Reason**
-        - Both liveweb and archive will add a disclaimer link for URL not in gov and is not image
-        - However, liveweb remove the link when the page is onload by JQuerying with certain src and remove them.
-        - Since archive's images' sources are rewritten, the JQuerying will not remove the link
-
 - www.accessidaho.org_1
     - Archive's iframe for "help" out of the viewport
 
@@ -136,76 +129,23 @@
 - bhc.ca.gov_1
     - Translation banner
 
-- www.airforce.com_1
-    - Live has cookie banner
-    - Eval on js related to cookie throws error (TypeError: Cannot read properties of undefined (reading 'DomainData')
-
 - www.isbinvestment.com_1
     - Archive missing "bill" for "$23.2"
 
 - gov.idaho.gov_1
     - Recaptcha
 
-- theftaz.azag.gov_1
-    - Translation
-        - **Reason** Archive's translation has a `style="display: none;"`, while live has display: "" (empty string)
-        - For set display: "", there needs to be a supportedLanguange resource fetched, which is not in the archive.
-        - The reason it is not in the archive is because the resource is fetched under an iframe, which is **Blocked** by the archive's CSP. Closest in el_conf (search for e.o = b ? function(h), or g(m))
-        - The exception is also handled silently
-            - Exception: `DOMException: Blocked a frame with origin "http://localhost:8080" from accessing a cross-origin frame.
-                at Kp (http://localhost:8080/eot/20230423230501js_/https://translate.googleapis.com/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/exm=el_conf/ed=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_main:249:1279)
-                at http://localhost:8080/eot/20230423230501js_/https://translate.googleapis.com/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/exm=el_conf/ed=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_main:249:1022
-                at e.o (/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_conf:100:443)
-                at ye (/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_conf:104:198)
-                at te (/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_conf:104:88)
-                at _.F.G (/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_conf:103:178)
-                at je (/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_conf:98:1376)`
-        - **GOT REASON**: Wombat or pywb rewrite iframe.contentWindow.postMessage to iframe.contentWindow.__WB_pmv(self).postMessage, which cause the problem
-
-- www.aces.edu_1
-    - timerbar keeps increasing (changing dimension) overtime
-
 - www.accessidaho.org_1
     - Should give a random quote everytime
     - On archive, always gives the same quote. Random seed is the timestamp of the archive 
 
-- www.ddap.pa.gov_1
-    - Google translate banner
-
 - www.collegedrinkingprevention.gov_1
     - Carousel: Rerun solved the problem
-
-- radiate.fnal.gov_1 ??
-    - Carousel
-        - Seems to be implemented by listing all images in the first div (with dimension, but visibility:hidden)
-        - When switching image, deletes all nodes relate to it and add whole new set of nodes
-
-- www.ncdoj.gov_1
-    - Youtube video autoplay and failed on liveweb
-
-- www.tn.gov_1
-    - Liveweb has an 1*1 ad pixel
-    - Blocked on archive, passed on liveweb (resource itself is a 1*1 pixel)
 
 - **www.fsgb.gov_1**
     - Archive keeps have loading without actually loaded
     - Non-deterministic request get 404, use fuzzy matching seem to solve the problem
 
-- house.louisiana.gov_1
-    - Live and Archive have different style, causing different dimension
-    - **Reason**
-        - Syntax Error: Unexpected eval or arguments in strict mode (at shoelace.js:13:5)
-
-- www.dsireusa.org_1
-    - Archive page misses policy map for US
-    - **Reason**
-        - Uncaught ReferenceError: google is not defined scripts.min.js
-
-- communityofgardens.tumblr.com_1
-    - Archive misses iframe for follow and sign up/in
-    - **Reason (suspected)**
-        - Two iframes for follow and sign up are added by window.postMessage --> renderIframe
-        - However, archive's onMessage callback never triggered for window.postMessage
 
 ### Network different
 #### Summarize

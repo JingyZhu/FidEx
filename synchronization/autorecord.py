@@ -98,12 +98,12 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-# test_url = "https://leg.wa.gov/CodeReviser/Pages/default.aspx"
-# test_req_url = requests.get(test_url).url # * In case of redirection
-# print(test_req_url)
-# test_archive = "test"
-# ts, test_url = record_replay(test_url, test_archive)
-# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+test_url = "https://www.peacecorps.gov/azerbaijan/"
+test_req_url = requests.get(test_url).url # * In case of redirection
+print(test_req_url)
+test_archive = "test"
+ts, test_url = record_replay(test_url, test_archive)
+print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/
 
@@ -134,4 +134,4 @@ def replay_all_wayback():
         metadata[url]['wayback'] = wayback_url
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
-replay_all_wayback()
+# replay_all_wayback()

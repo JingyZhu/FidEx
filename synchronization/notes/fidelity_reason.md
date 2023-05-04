@@ -3,7 +3,19 @@
     - Rewrite cause query fails to work
     - Strict mode violation
 ## EOT
-theftaz.azag.gov_1
+- www.uspto.gov_1
+
+- nimhd.nih.gov_1
+    - Archive adds "external link" icon to disclaimer link
+    - **Reason**
+        - Both liveweb and archive will add a disclaimer link for URL not in gov and is not image
+        - However, liveweb remove the link when the page is onload by JQuerying with certain src and remove them.
+        - Since archive's images' sources are rewritten, the JQuerying will not remove the link
+
+- www.ddap.pa.gov_1
+    - Google translate banner
+
+- theftaz.azag.gov_1
     - Translation
         - **Reason** Archive's translation has a `style="display: none;"`, while live has display: "" (empty string)
         - For set display: "", there needs to be a supportedLanguange resource fetched, which is not in the archive.
@@ -19,19 +31,16 @@ theftaz.azag.gov_1
                 at je (/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_conf:98:1376)`
         - **GOT REASON**: Wombat or pywb rewrite iframe.contentWindow.postMessage to iframe.contentWindow.__WB_pmv(self).postMessage, which cause the problem
 
-- nimhd.nih.gov_1
-    - Archive adds "external link" icon to disclaimer link
-    - **Reason**
-        - Both liveweb and archive will add a disclaimer link for URL not in gov and is not image
-        - However, liveweb remove the link when the page is onload by JQuerying with certain src and remove them.
-        - Since archive's images' sources are rewritten, the JQuerying will not remove the link
+- www.airforce.com_1
+    - Live has cookie banner
+    - Eval on js related to cookie throws error (TypeError: Cannot read properties of undefined (reading 'DomainData')
 
 - house.louisiana.gov_1
     - Live and Archive have different style, causing different dimension
     - **Reason**
         - Syntax Error: Unexpected eval or arguments in strict mode (at shoelace.js:13:5)
     
-- www.dsireusa.org_1
+- www.dsireusa.org_1 ??
     - Archive page misses policy map for US
     - **Reason**
         - Uncaught ReferenceError: google is not defined scripts.min.js
@@ -49,4 +58,30 @@ theftaz.azag.gov_1
             - Z.Av: Proxy(HTMLDocument)
         - Essentially: Proxy(Window).Document() != Proxy(HTMLDocument)
     
-- 
+- www.republican.senate.gov_1
+    - Youtube error behavior difference between record and replay
+    - Similar to www.ncdoj.gov_1
+
+- leg.wa.gov_1
+    - Google Translate
+
+- uieservices.mt.gov_1
+    - Archive has blank page
+    - **Reason**
+        - Random request returns 404
+        - Ignore query match causes infinite requesting loop
+            - This is because requesting URL has the same non query part as the home page, which is an HTML (actual resource should be json) and cause the parsing error (/_/?Load=....)
+
+- mvp.sos.ga.gov_1
+    - Archive has blank page
+    - **Reason**
+        - illegal invocation of parentNode on Proxy(Document)
+        - ParentNode from Node.prototype, which is not proxied
+        - parentN = Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode'), parentN.get.call(Proxy(Document)) will cause the error
+
+- www.fmcs.gov_1
+    - Archive doesn't have twitter timeline
+    - **Reason**
+        - iframe added when DOMContentLoaded fired (in widgets.js)
+        - ProxyDocument seems don't work on addEventListener (no events found)
+        - Even if it works, seems like DOMContentLoaded fired before addEventListener is called
