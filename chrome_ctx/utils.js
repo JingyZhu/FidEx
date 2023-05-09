@@ -19,6 +19,7 @@ function getDomXPath(elm, fullTrace=false) {
     // for (; elm ; elm = elm.parentNode)  // curently using this will cause exception
     { 
         let withID = false;
+        let i = 1
         // if (elm.hasAttribute('id')) {
         //     withID = true;
         //     segs.unshift(elm.localName.toLowerCase() + '[@id="' + elm.getAttribute('id') + '"]'); 
@@ -27,7 +28,7 @@ function getDomXPath(elm, fullTrace=false) {
         //     segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]'); 
         // }
         // else { 
-            for (let i = 1, sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
+            for (let sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
                 if (sib.localName == elm.localName)  i++; }; 
                 segs.unshift(`${elm.localName.toLowerCase()}[${i}]`); 
         // };

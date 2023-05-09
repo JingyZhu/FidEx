@@ -98,7 +98,7 @@ def record_replay_all_urls(data):
 # record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-test_url = "https://www.peacecorps.gov/azerbaijan/"
+test_url = "http://localhost:8081/temp/test.html"
 test_req_url = requests.get(test_url).url # * In case of redirection
 print(test_req_url)
 test_archive = "test"
