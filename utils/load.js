@@ -1,3 +1,6 @@
+/**
+ * Loading files from ../chrome_ctx to Chrome's execution context.
+ */
 const fs = require('fs');
 
 async function loadToChromeCTX(page, file) {

@@ -4,6 +4,7 @@ temp/
 collections/
 env/
 __pycache__/
+html_test/
 results*
 *.json
 *.png

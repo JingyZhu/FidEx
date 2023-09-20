@@ -26,8 +26,9 @@ function getDomXPath(elm, fullTrace=false) {
         // else if (elm.hasAttribute('class')) { 
         //     segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]'); 
         // }
-        // else { 
-            for (let i = 1, sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
+        // else {
+            let i = 1;
+            for (sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
                 if (sib.localName == elm.localName)  i++; }; 
                 segs.unshift(`${elm.localName.toLowerCase()}[${i}]`); 
         // };

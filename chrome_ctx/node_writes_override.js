@@ -1,9 +1,11 @@
-/*
-    Override (all) HTML Node's write methods to track the writes.
-*/
+/**
+ * Override (all) HTML Node's write methods to track the writes.
+ */
 __debug = false;
-__recording_enabled = false;
+__recording_enabled = true;
+__trace_enabled = false;
 __write_log = [];
+__write_id = 0;
 
 
 function _debug_log(...args) {
@@ -46,6 +48,7 @@ node_write_methods = [
 for(const method of node_write_methods) {
     const original = Node.prototype[method];
     Node.prototype[method] = function(...args) {
+        const wid = __write_id++;
         let beforeDimension = null, beforeParentDimension = null;
         let afterDimension = null, afterParentDimension = null;
         let record = null;
@@ -57,7 +60,8 @@ for(const method of node_write_methods) {
                 target: this,
                 method: method,
                 args: args,
-                trace: Error().stack
+                trace: Error().stack,
+                id: wid
             }
         }
         // if (['appendChild', 'insertBefore', 'replaceChild'].includes(method)){
@@ -68,6 +72,11 @@ for(const method of node_write_methods) {
         //         }
         //     }
         // }
+        
+        // * Record current stack trace.
+        if (__trace_enabled)
+            console.trace(wid);
+        
         retVal = original.apply(this, args);
         if (ableRecord){
             afterDimension = getDimension(this);
@@ -97,6 +106,7 @@ for (const property of node_properties) {
     const original_setter = Object.getOwnPropertyDescriptor(Node.prototype, property).set;
     Object.defineProperty(Node.prototype, property, {
         set: function(value) {
+            const wid = __write_id++;
             let beforeDimension = null, beforeParentDimension = null;
             let afterDimension = null, afterParentDimension = null;
             let record = null;
@@ -108,9 +118,15 @@ for (const property of node_properties) {
                     target: this,
                     method: 'set:' + property,
                     args: [value],
-                    trace: Error().stack
+                    trace: Error().stack,
+                    id: wid
                 }
             }
+            
+            // * Record current stack trace.
+            if (__trace_enabled)
+                console.trace(wid);
+        
             retVal = original_setter.apply(this, [value]);
             if (ableRecord){
                 afterDimension = getDimension(this);
@@ -156,6 +172,7 @@ element_write_methods = [
 for(const method of element_write_methods) {
     const original = Element.prototype[method];
     Element.prototype[method] = function(...args) {
+        const wid = __write_id++;
         let beforeDimension = null, beforeParentDimension = null;
         let afterDimension = null, afterParentDimension = null;
         let record = null;
@@ -167,7 +184,8 @@ for(const method of element_write_methods) {
                 target: this,
                 method: method,
                 args: args,
-                trace: Error().stack
+                trace: Error().stack,
+                id: wid
             }
         }
         // if (['append', 'after', 'before'].includes(method)){
@@ -178,6 +196,11 @@ for(const method of element_write_methods) {
         //         }
         //     }
         // }
+
+        // * Record current stack trace.
+        if (__trace_enabled)
+            console.trace(wid);
+        
         retVal = original.apply(this, args);
         if (ableRecord){
             afterDimension = getDimension(this);
@@ -208,6 +231,7 @@ for (const property of element_properties) {
     const original_setter = Object.getOwnPropertyDescriptor(Element.prototype, property).set;
     Object.defineProperty(Element.prototype, property, {
         set: function(value) {
+            const wid = __write_id++;
             let beforeDimension = null, beforeParentDimension = null;
             let afterDimension = null, afterParentDimension = null;
             let record = null;
@@ -219,9 +243,15 @@ for (const property of element_properties) {
                     target: this,
                     method: 'set:' + property,
                     args: [value],
-                    trace: Error().stack
+                    trace: Error().stack,
+                    id: wid
                 }
             }
+
+            // * Record current stack trace.
+            if (__trace_enabled)
+                console.trace(wid);
+
             retVal = original_setter.apply(this, [value]);
             if (ableRecord){
                 afterDimension = this.getBoundingClientRect();

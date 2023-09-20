@@ -95,15 +95,15 @@ def record_replay_all_urls(data):
 
 # liveweb()
 # record_replay_all_urls('../datacollect/data/carta_urls_100.json')
-# record_replay_all_urls('../datacollect/data/eot_good_100.json')
+record_replay_all_urls('../datacollect/data/eot_good_100.json')
 
 # * Test single URL
-test_url = "https://www.peacecorps.gov/azerbaijan/"
-test_req_url = requests.get(test_url).url # * In case of redirection
-print(test_req_url)
-test_archive = "test"
-ts, test_url = record_replay(test_url, test_archive)
-print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+# test_url = "http://fmcs.gov/internet"
+# test_req_url = requests.get(test_url).url # * In case of redirection
+# print(test_req_url)
+# test_archive = "test"
+# ts, test_url = record_replay(test_url, test_archive)
+# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
 
 # http://localhost:8080/sync/20230402215501/https://williamkentfoundation.org/biography/attachment/william-kent-foundation-20/embed/
 

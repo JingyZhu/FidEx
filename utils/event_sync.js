@@ -1,3 +1,6 @@
+/**
+ * Utils for events synchronization.
+ */
 const fs = require('fs')
 const readline = require('readline')
 

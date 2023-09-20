@@ -1,7 +1,7 @@
-/*
-    Collect write logs
-    Note: need to override Node write methods and setters using node_write_override.js
-*/
+/**
+ * Collect write logs after loading the page.
+ * Note: need to override Node write methods and setters using node_write_override.js
+ */
 __write_log_processed = [];
 __recording_enabled = false;
 // Normalize all href and src attributes in node

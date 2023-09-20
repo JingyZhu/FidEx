@@ -220,28 +220,15 @@ async function pageIframesInfo(iframe, parentInfo){
 
         // * Loading actual URL
         const client = await recordPage.target().createCDPSession();
+        let excepFF = new measure.excepFFHandler();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
+        client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
+        client.on('Network.requestWillBeSent', params => excepFF.onRequest(params))
+        client.on('Network.responseReceived', params => excepFF.onFetch(params))
         await sleep(1000);
 
-        let requestMap = {};
-        let networkLogs = [];
-        client.on('Network.requestWillBeSent', (params) => {
-            const request = params.request;
-            requestMap[params.requestId] = {
-                url: request.url,
-                method: request.method,
-            }
-        });
-        client.on('Network.responseReceived', (params) => {
-            const response = params.response;
-            networkLogs.push({
-                url: response.url,
-                status: response.status,
-                method: requestMap[params.requestId].method
-            })
-        });
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await recordPage.evaluateOnNewDocument(script);
         await recordPage.goto(
@@ -268,6 +255,8 @@ async function pageIframesInfo(iframe, parentInfo){
             await eventSync.waitForReady();
         else
             await sleep(2000);
+        // * Log down measurements of the page
+        excepFF.afterInteraction('onload')
 
         // * Interact with the webpage
         // if (options.interaction){
@@ -275,7 +264,6 @@ async function pageIframesInfo(iframe, parentInfo){
         //     if (options.manual)
         //         await eventSync.waitForReady();
         // }
-        // fs.writeFileSync(`${dirname}/exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         
         const finalURL = recordPage.url();
 
@@ -290,7 +278,7 @@ async function pageIframesInfo(iframe, parentInfo){
 
         fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
-        fs.writeFileSync(`${dirname}/${filename}_network.json`, JSON.stringify(networkLogs, null, 2));
+        fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
 
         await recordPage.close();
         

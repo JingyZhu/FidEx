@@ -1,21 +1,12 @@
 /*
-    Wrapper for get_elem_dimensions.js
-    Start the browser and load certain page
-
-    Before recording, making sure that the collection 
-    has already been created on the target browser extension
-
+    Experimental code to collect the stack when requests will be sent
 */
-const puppeteer = require("puppeteer")
+const puppeteer = require("puppeteer");
 const { program } = require('commander');
-const eventSync = require('./utils/event_sync');
-const measure = require('./utils/measure');
 const fs = require('fs');
-
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+const eventSync = require('../utils/event_sync');
+const { loadToChromeCTXWithUtils } = require('../utils/load');
+const execution = require('../utils/execution');
 
 async function startChrome(){
     const launchOptions = {
@@ -44,28 +35,34 @@ async function startChrome(){
     return browser;
 }
 
-async function getActivePage(browser) {
-    const waitTimeout = async function (event, ms) {
-        return Promise.race([event, sleep(ms)]);
+/*
+    Collect the stack when a request is sent
+*/
+function collectRequestStack(params){
+    let requestStack = {
+        url: params.request.url,
+        stackInfo: []
     }
-    var pages = await browser.pages();
-    var arr = [];
-    for (const p of pages) {
-        let visible = await waitTimeout(
-            p.evaluate(() => { 
-                return document.visibilityState == 'visible' 
-            }), 3000)
-        if(visible) {
-            arr.push(p);
-        }
+    let stack = params.initiator.stack;
+    requestStack.stackInfo = execution.parseStack(stack);
+    return requestStack;
+}
+
+/**
+ * Collect stack trace when a node is written
+ */
+function collectWriteStack(params){
+    let writeStack = {
+        writeID: params.args[0].value,
+        stackInfo: []
     }
-    if(arr.length == 1) return arr[0];
-    // else return pages[pages.length-1]; // ! Fall back solution
+    let stack = params.stackTrace;
+    writeStack.stackInfo = execution.parseStack(stack);
+    return writeStack;
 }
 
 (async function(){
     program
-        .option('-s, --screenshot', "Looping on screenshot")
         .option('-u --url <url>', 'URL to load')
     program.parse();
     const options = program.opts();
@@ -74,26 +71,40 @@ async function getActivePage(browser) {
     const client = await page.target().createCDPSession();
     await client.send('Network.clearBrowserCookies');
     await client.send('Network.clearBrowserCache');
-    await client.send('Page.setDownloadBehavior', {
-        behavior: 'allow',
-        downloadPath: '/home/jingyz/browser-screenshots/',
-    });
     await client.send('Emulation.setDeviceMetricsOverride', {
         width: 1920,
         height: 1080,
         deviceScaleFactor: 0,
         mobile: false
     });
-    // await recordPage._client().send('Emulation.setDeviceMetricsOverride', {
-    //     width: 1920,
-    //     height: 1080,
-    //     deviceScaleFactor: 0,
-    //     mobile: false
-    // });
+    
+    // * Enable different domains
+    await client.send('Network.enable');
+    await client.send('Debugger.enable');
+    await client.send('Runtime.enable');
+    await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
 
-    const script = fs.readFileSync( `chrome_ctx/node_writes_override.js`, 'utf8');
+    // * Log request stack
+    let requestStacks = [];
+    client.on('Network.requestWillBeSent', (params) => {
+        const requestStack = collectRequestStack(params);
+        requestStacks.push(requestStack);
+    })
+
+    // * Listening on console.trace
+    let writeStacks = [];
+    client.on('Runtime.consoleAPICalled', (params) => {
+        if (params.type === 'trace'){
+            const writeStack = collectWriteStack(params);
+            writeStacks.push(writeStack);
+        }
+    })
+
+    // * Override the node write function
+    const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
     await page.evaluateOnNewDocument(script);
-
+    
+    
     if (options.url){
         await page.goto(
             options.url,
@@ -101,13 +112,8 @@ async function getActivePage(browser) {
         )
     }
     await eventSync.waitForReady();
-    if (options.screenshot){
-        while (true){
-            let page = await getActivePage(browser);
-            await measure.collectFidelityInfo(page, '', 'temp', 'dimension');
-            await eventSync.waitForReady();
-        }
-    }
+    fs.writeFileSync(`requestStacks.json`, JSON.stringify(requestStacks, null, 2));
+    fs.writeFileSync(`writeStacks.json`, JSON.stringify(writeStacks, null, 2));
     await browser.close();
     process.exit();
 })()
