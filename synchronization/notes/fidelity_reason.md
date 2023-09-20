@@ -83,5 +83,6 @@
     - Archive doesn't have twitter timeline
     - **Reason**
         - iframe added when DOMContentLoaded fired (in widgets.js)
-        - ProxyDocument seems don't work on addEventListener (no events found)
+        - **No longer right** ~~ProxyDocument seems don't work on addEventListener (no events found)~~
         - Even if it works, seems like DOMContentLoaded fired before addEventListener is called
+            - Suspect this to be called by script async property
