@@ -150,25 +150,36 @@ unsafeWindow.__write_id = 0;
     ];
 
     function newWriteMethod(originalFn, method) {
-        return function(...args){
+        return function (...args) {
             const wid = unsafeWindow.__write_id++;
             let beforeDS = new DimensionSets();
             let record = null;
             const ableRecord = unsafeWindow.__recording_enabled && isNodeInDocument(this);
             // Deep copy arg in args if arg is a node
-            let args_copy = [];
+            let viable_args = [];
+            let args_copy = []
             for (const arg of args) {
+                // ? Seen document fragment being empty after insertion (probably destroyed by jQuery)
+                // ? Need to unwrap it before apply originalFn
+                if (arg instanceof DocumentFragment) {
+                    let children = arg.childNodes;
+                    for (const child of children) {
+                        viable_args.push(child);
+                    }
+                }
+                else
+                    viable_args.push(arg);
+
                 if (arg instanceof Node)
                     args_copy.push(arg.cloneNode(true));
-                else
-                    args_copy.push(arg);
             }
             if (ableRecord) {
                 beforeDS.recordDimension(this, args);
                 record = {
                     target: this,
                     method: method,
-                    args: args_copy,
+                    args: viable_args,
+                    args_snapshot: args_copy,
                     trace: Error().stack,
                     id: wid
                 }
@@ -183,6 +194,8 @@ unsafeWindow.__write_id = 0;
                 let afterDS = new DimensionSets();
                 afterDS.recordDimension(this, args);
                 // * Record only if the dimension changes
+                // ! One thing to note is that the dimension of the node might not immediately change after the write (e.g. if write an image to the DOM, the dimension of the image might not be available immediately)
+                // ! Might need to wait till the end of the page load for comparing the dimension
                 if (!beforeDS.isDimensionMatch(afterDS)) {
                     _debug_log("write", this, method, args);
                     record.beforeDS = beforeDS;
@@ -196,7 +209,7 @@ unsafeWindow.__write_id = 0;
     }
 
     function newSetMethod(originalFn, property) {
-        return function(value){
+        return function (value) {
             const wid = unsafeWindow.__write_id++;
             let beforeDS = new DimensionSets();
             let record = null;
