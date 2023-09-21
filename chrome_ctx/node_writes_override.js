@@ -5,6 +5,7 @@ __debug = false;
 __recording_enabled = true;
 __trace_enabled = false;
 __write_log = [];
+__raw_write_log = [];
 __write_id = 0;
 
 
@@ -53,13 +54,21 @@ for(const method of node_write_methods) {
         let afterDimension = null, afterParentDimension = null;
         let record = null;
         const ableRecord = __recording_enabled && isNodeInDocument(this);
+        // Deep copy arg in args if arg is a node
+        let args_copy = [];
+        for (const arg of args) {
+            if (arg instanceof Node)
+                args_copy.push(arg.cloneNode(true));
+            else
+                args_copy.push(arg);
+        }
         if (ableRecord){
             beforeDimension = getDimension(this);
             beforeParentDimension = getDimension(this.parentNode);
             record = {
                 target: this,
                 method: method,
-                args: args,
+                args: args_copy,
                 trace: Error().stack,
                 id: wid
             }
@@ -90,6 +99,7 @@ for(const method of node_write_methods) {
                 record.afterParentDimension = afterParentDimension
                 __write_log.push(record);
             }
+            __raw_write_log.push(record);
         }
         return retVal;
     }
@@ -111,13 +121,17 @@ for (const property of node_properties) {
             let afterDimension = null, afterParentDimension = null;
             let record = null;
             const ableRecord = __recording_enabled && isNodeInDocument(this);
+            // Deep copy value if value is a node
+            value_copy = value;
+            if (value instanceof Node)
+                value_copy = value.cloneNode(true);
             if (ableRecord){
                 beforeDimension = getDimension(this);
                 beforeParentDimension = getDimension(this.parentNode);
                 record = {
                     target: this,
                     method: 'set:' + property,
-                    args: [value],
+                    args: [value_copy],
                     trace: Error().stack,
                     id: wid
                 }
@@ -140,6 +154,7 @@ for (const property of node_properties) {
                     record.afterParentDimension = afterParentDimension
                     __write_log.push(record);
                 }
+                __raw_write_log.push(record);
             }
             return retVal;
         }
@@ -177,13 +192,21 @@ for(const method of element_write_methods) {
         let afterDimension = null, afterParentDimension = null;
         let record = null;
         const ableRecord = __recording_enabled && isNodeInDocument(this);
+        // Deep copy arg in args if arg is a node
+        let args_copy = [];
+        for (const arg of args) {
+            if (arg instanceof Node)
+                args_copy.push(arg.cloneNode(true));
+            else
+                args_copy.push(arg);
+        }
         if (ableRecord){
             beforeDimension = getDimension(this);
             beforeParentDimension = getDimension(this.parentNode);
             record = {
                 target: this,
                 method: method,
-                args: args,
+                args: args_copy,
                 trace: Error().stack,
                 id: wid
             }
@@ -214,6 +237,7 @@ for(const method of element_write_methods) {
                 record.afterParentDimension = afterParentDimension
                 __write_log.push(record);
             }
+            __raw_write_log.push(record);
         }
         return retVal;
     }
@@ -236,13 +260,17 @@ for (const property of element_properties) {
             let afterDimension = null, afterParentDimension = null;
             let record = null;
             const ableRecord = __recording_enabled && isNodeInDocument(this);
+            // Deep copy value if value is a node
+            value_copy = value;
+            if (value instanceof Node)
+                value_copy = value.cloneNode(true);
             if (ableRecord){
                 beforeDimension = getDimension(this);
                 beforeParentDimension = getDimension(this.parentNode);
                 record = {
                     target: this,
                     method: 'set:' + property,
-                    args: [value],
+                    args: [value_copy],
                     trace: Error().stack,
                     id: wid
                 }
@@ -265,6 +293,7 @@ for (const property of element_properties) {
                     record.afterParentDimension = afterParentDimension
                     __write_log.push(record);
                 }
+                __raw_write_log.push(record);
             }
             return retVal;
         }

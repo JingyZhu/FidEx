@@ -8,7 +8,7 @@
 - nimhd.nih.gov_1
     - Archive adds "external link" icon to disclaimer link
     - **Reason**
-        - Both liveweb and archive will add a disclaimer link for URL not in gov and is not image
+        - Both liveweb and archive will add a disclaimer link for URL not in gov and is not image (function.js->blankLinks)
         - However, liveweb remove the link when the page is onload by JQuerying with certain src and remove them.
         - Since archive's images' sources are rewritten, the JQuerying will not remove the link
 
