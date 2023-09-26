@@ -20,6 +20,7 @@
         - **Reason** Archive's translation has a `style="display: none;"`, while live has display: "" (empty string)
         - For set display: "", there needs to be a supportedLanguange resource fetched, which is not in the archive.
         - The reason it is not in the archive is because the resource is fetched under an iframe, which is **Blocked** by the archive's CSP. Closest in el_conf (search for e.o = b ? function(h), or g(m))
+            - **Update**: Search style.display in el_main. Probably the first one. By the time searched it is: a.style.display = b ? "" : "none"
         - The exception is also handled silently
             - Exception: `DOMException: Blocked a frame with origin "http://localhost:8080" from accessing a cross-origin frame.
                 at Kp (http://localhost:8080/eot/20230423230501js_/https://translate.googleapis.com/_/translate_http/_/js/k=translate_http.tr.en_US.Arp_I7oRyqY.O/d=1/exm=el_conf/ed=1/rs=AN8SPfpqBaYOsqrB9xy0BJYbZ1X0cAGdiw/m=el_main:249:1279)

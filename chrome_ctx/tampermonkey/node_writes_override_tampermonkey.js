@@ -158,14 +158,6 @@ function isNodeInDocument(node) {
     return node.isConnected;
 }
 
-// Override Node write methods
-node_write_methods = [
-    'appendChild',
-    'insertBefore',
-    'replaceChild',
-    'removeChild'
-];
-
 function newWriteMethod(originalFn, method) {
     return function (...args) {
         const wid = unsafeWindow.__write_id++;
@@ -267,6 +259,13 @@ function newSetMethod(originalFn, property) {
     }
 }
 
+// Override Node write methods
+node_write_methods = [
+    'appendChild',
+    'insertBefore',
+    'replaceChild',
+    'removeChild'
+];
 
 for (const method of node_write_methods) {
     const originalFn = Node.prototype[method];
