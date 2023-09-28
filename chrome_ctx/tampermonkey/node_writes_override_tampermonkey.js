@@ -67,6 +67,16 @@ unsafeWindow.__write_log = [];
 unsafeWindow.__raw_write_log = [];
 unsafeWindow.__write_id = 0;
 
+function _debug_log(...args) {
+    if (unsafeWindow.__debug)
+        console.log(...args);
+}
+
+// Check if the node is in the document
+function isNodeInDocument(node) {
+    return node.isConnected;
+}
+
 /**
  * Class for sets of recorded dimensions of different nodes.
  */
@@ -147,15 +157,30 @@ class DimensionSets {
 
 }
 
+class CSSOverrider {
+    constructor() {
+        this.overriddenElement = new Set();
+    }
 
-function _debug_log(...args) {
-    if (unsafeWindow.__debug)
-        console.log(...args);
-}
+    _overrideStyleProperties(element) {
+        for (const property of __CSSStyleProperties) {
+            // TODO: Override all CSS properties.
+        }
 
-// Check if the node is in the document
-function isNodeInDocument(node) {
-    return node.isConnected;
+    }
+
+    /**
+     * Override CSS of the element and all its children
+     * @param {HTMLElement} element
+     */
+    overrideElements(element) {
+        // TODO: Write this function
+        this._overrideStyleProperties(element);
+        const elements = element.querySelectorAll('*');
+        for (const element of elements) {
+            this._overrideStyleProperties(element);
+        }
+    }
 }
 
 function newWriteMethod(originalFn, method) {
