@@ -107,8 +107,8 @@ async function overrideArchives(client) {
         await overrideArchives(client);
         client.on('Page.frameNavigated', async (frame) => {
             console.log("Frame navigated 1")
-            // if (!frame.parentId)
-            //     await overrideArchives(client);
+            if (!frame.parentId)
+                await overrideArchives(client);
         });
     });
 })()
