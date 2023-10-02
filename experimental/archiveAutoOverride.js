@@ -7,7 +7,7 @@
 const puppeteer = require("puppeteer");
 const fs = require('fs');
 
-const HOSTNAME = "http://localhost";
+const HOSTNAMES = ["localhost", "web.archive.org"];
 const OVERRIDE_DIR = '/home/jingyz/chrome-overrides';
 const PATH_MAP = {};
 
@@ -23,11 +23,11 @@ function getAllOverrides(dir){
             const subFiles = fs.readdirSync(filePath);
             stack = stack.concat(subFiles.map(f => file + '/' + f));
         } else {
-            files.push('http://' + file);
-            PATH_MAP['http://' + file] = filePath;
+            files.push(file);
+            PATH_MAP[file] = filePath;
             if (file.endsWith('index.html')){
-                files.push('http://' + file.substring(0, file.length - 10));
-                PATH_MAP['http://' + file.substring(0, file.length - 10)] = filePath
+                files.push(file.substring(0, file.length - 10));
+                PATH_MAP[file.substring(0, file.length - 10)] = filePath
             }
         }
     }
@@ -40,36 +40,45 @@ async function overrideArchives(client) {
     for (let i = 0; i < archivedCopyURLs.length; i++) {
         let url = archivedCopyURLs[i];
         const resourcePath = PATH_MAP[url];
-        if (url.startsWith(HOSTNAME)) {
+        for (const hostname of HOSTNAMES) {
+            if (url.startsWith(hostname)) {
             // Replace URL's http:/ with http://, and https:/ with https:// only after the hostname
             // For example, "http://localhost:8080/eot/20230912213801/https:/nimhd.nih.gov/" should be "http://localhost:8080/eot/20230912213801/https://nimhd.nih.gov/"
-            url = url.replace(/(https?:)(\/)([^/])/, '$1//$3');
+                url = url.replace(/(https?:)(\/)([^/])/, '$1//$3');
+                break
+            }
         }
         PATH_MAP[url] = resourcePath;
-        // Replace the first http: or https: with http?:
-        url = url.replace(/^(https?:)/, 'http?:');
+        // Add http? for scheme matching.
+        url = 'http?://' + url
         urlPatterns.push({
             urlPattern: url,
             resourceType: "",
             requestStage: "Response"
         })
     }
-    console.log("Send Fetch.enable", urlPatterns);
+    // console.log("Send Fetch.enable", urlPatterns);
     await client.send("Fetch.enable", {
         patterns: urlPatterns
     });
-    console.log("Finished sending");
+    console.log("Finished sending Fetch.enable");
     // * For debugging
     client.on('Fetch.requestPaused', async (params) => {
         console.log("ReqeustPaused", params.request.url);
-        console.log(PATH_MAP, params.request.url)
-        const resource = fs.readFileSync(PATH_MAP[params.request.url]);
-        await client.send('Fetch.fulfillRequest', {
-            requestId: params.requestId,
-            responseCode: 200,
-            responseHeaders: params.responseHeaders,
-            body: Buffer.from(resource).toString('base64')
-        });
+        // Remove the beginning  http:// or https://
+        file = params.request.url.replace(/^https?:\/\//, '');
+        const resource = fs.readFileSync(PATH_MAP[file]);
+        try{
+            await client.send('Fetch.fulfillRequest', {
+                requestId: params.requestId,
+                responseCode: 200,
+                responseHeaders: params.responseHeaders,
+                body: Buffer.from(resource).toString('base64')
+            });
+            console.log("Sent Fetch.fulfillRequest", params.request.url);
+        } catch (e) {
+            console.log("Error sending Fetch.fulfillRequest", e);
+        }
     });
 }
 
@@ -90,7 +99,7 @@ async function overrideArchives(client) {
         await overrideArchives(client);
         // Whenever a page is navigated, override the archived copy URLs
         client.on('Page.frameNavigated', async (frame) => {
-            console.log("Frame navigated 0")
+            console.log("Frame navigated 0", `frame ${i}`)
             // Only run if the frame is the main frame
             if (!frame.parentId)
                 await overrideArchives(client);
