@@ -100,6 +100,9 @@ class RewriterApp(object):
         self.static_prefix = self.config.get('static_prefix', 'static')
 
         csp_header = self.config.get('csp-header', self.DEFAULT_CSP)
+        ## * Added by jingyz
+        csp_header = None
+        ## * End
         if csp_header:
             self.csp_header = ('Content-Security-Policy', csp_header)
         else:
