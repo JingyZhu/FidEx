@@ -17,4 +17,15 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
         ```
 
 - theftaz.azag.gov_1
-    - Probably neet to rewrite some of the iframe/contentWindow logic in wombat.js
+    - Probably need to rewrite some of the iframe/contentWindow logic in wombat.js
+    - Currently, three steps to fix the fidelity issue
+        - 1. Remove **2** __WB_pmw(self) from iframe.contentWindow.postMessage in el_main (one in string argument).
+        - 2. Disable CSP headers from pywb (to avoid triggering CSP violation in document.body.append(script) to SupportedLanguages)
+             - **This will result in the fetch to actual site instead of archive, so need someway to actually change back to archive**
+        - 3. Remove __WB_pmv(self) at reg replace in Wombat.prototype.wrapScriptTextJsProxy from wombat.js
+    - On Wayback, step 2 is not doable.
+
+
+- house.louisiana.gov_1
+    - Remove ```let arguments;``` in shoelace.js (since it cannot be used under strict mode)
+    - Remove all the brackets around imports. Since static import cannot be done conditionally.
