@@ -74,13 +74,6 @@
         - Ignore query match causes infinite requesting loop
             - This is because requesting URL has the same non query part as the home page, which is an HTML (actual resource should be json) and cause the parsing error (/_/?Load=....)
 
-- mvp.sos.ga.gov_1
-    - Archive has blank page
-    - **Reason**
-        - illegal invocation of parentNode on Proxy(Document)
-        - ParentNode from Node.prototype, which is not proxied
-        - parentN = Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode'), parentN.get.call(Proxy(Document)) will cause the error
-
 - www.fmcs.gov_1
     - Archive doesn't have twitter timeline
     - **Reason**
@@ -88,3 +81,31 @@
         - **No longer right** ~~ProxyDocument seems don't work on addEventListener (no events found)~~
         - Even if it works, seems like DOMContentLoaded fired before addEventListener is called
             - Suspect this to be called by script async property
+
+- www.nato.int_1
+    - Archive not have images in the slider down below the top view of the page
+    - First difference between archive and live is that images within the slider are not fetched by archive
+    - The diverging point between the execution of archive and live is at 
+        - ```m.__WB_pmw(self).postMessage(n, l)``` under ```ttps://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.IoxrLNdlTyI.O/m=googleapis_proxy ...```
+        - After ```postMessage``` is called, no handler is invoked, and there is a warning from ```wombat.js``` saying: "```Skipping message event to https://www.nato.int doesn't start with origin https://content.googleapis.com```
+        - On latest WebRecorder, there is **no such problem**. Suspect the issue is caused by **Wombat.js** and is already solved.
+
+- edis.usitc.gov_1
+    - Missing import notification banner message
+    - Reason: post request to ```https://edis.usitc.gov/external/util/unescape``` returns 503 in the archive
+        - Post request works in **WebRecorder**
+
+- www.sandiego.gov_1
+    - No background image (also for webrecorder)
+
+- mvp.sos.ga.gov_1
+    - Archive has blank page
+    - Webrecorder has banner and footer, but other parts empty
+    - **Reason (unable to reproduce in the new version)**
+        - illegal invocation of parentNode on Proxy(Document)
+        - ParentNode from Node.prototype, which is not proxied
+        - parentN = Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode'), parentN.get.call(Proxy(Document)) will cause the error
+    - **Updated Reason**
+        - Hard to track what exactly happened. The main div was not added to the page. Which due to an silently handled exception at: ```catch (d) {
+                    (c || d instanceof $A.Wf)``` at ```aura_prod.js```
+        - The exception text is: ```Failed to initialize a component [Unexpected identifier '_postMessage']```

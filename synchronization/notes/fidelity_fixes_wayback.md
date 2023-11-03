@@ -72,3 +72,8 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
     - On Wayback
         - Old design till 2014
         - Current design seems to working most of the time on Wayback. However, do see at least one not working sometime (20230901093615)
+
+- uieservices.mt.gov_1
+    - Unclear of how to fix it. But potential ways could be
+        - Eliminate non-determinism (e.g. DRP APIs return the same values as recording)
+        - Whenever requesting the resource with non-deterministic paths, return the most similar resources. 
