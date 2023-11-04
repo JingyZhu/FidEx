@@ -86,7 +86,7 @@
     - Archive not have images in the slider down below the top view of the page
     - First difference between archive and live is that images within the slider are not fetched by archive
     - The diverging point between the execution of archive and live is at 
-        - ```m.__WB_pmw(self).postMessage(n, l)``` under ```ttps://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.IoxrLNdlTyI.O/m=googleapis_proxy ...```
+        - ```m.__WB_pmw(self).postMessage(n, l)``` under ```https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.IoxrLNdlTyI.O/m=googleapis_proxy ...```
         - After ```postMessage``` is called, no handler is invoked, and there is a warning from ```wombat.js``` saying: "```Skipping message event to https://www.nato.int doesn't start with origin https://content.googleapis.com```
         - On latest WebRecorder, there is **no such problem**. Suspect the issue is caused by **Wombat.js** and is already solved.
 

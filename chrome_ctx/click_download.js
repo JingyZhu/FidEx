@@ -40,6 +40,12 @@ async function secondPageDownload() {
     let wholePage = document.querySelector("archive-web-page-app").shadowRoot
                         .querySelector("wr-rec-coll").shadowRoot
                         .querySelector("#pages").shadowRoot
+    // Change the date of archives to date descending order
+    let dateButton = Array.from(wholePage.querySelectorAll('a')).find(a => a.innerText.includes('Date'))
+    while (!dateButton.className.includes('desc')){
+        dateButton.click()
+        await sleep(100)
+    }
     let pageLists = wholePage.querySelectorAll('wr-page-entry')
     let topPage = pageLists[0].shadowRoot
     let pageLink = new URL(topPage.querySelector('a').href)
