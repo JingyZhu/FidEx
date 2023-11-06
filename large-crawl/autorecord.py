@@ -75,11 +75,13 @@ def record_replay_all_urls(data):
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
     urls = json.load(open(data, 'r'))
-    urls = [u['live_url'] for u in urls][:10] # * For eot
+    urls = [u['live_url'] for u in urls][:1000] # * For eot
     # urls = random.sample(urls, 100)
 
     for i, url in list(enumerate(urls)):
         print(i, url)
+        if url in metadata and metadata[url]['ts'] != '':
+            continue
         sys.stdout.flush()
         try:
             req_url = requests.get(url, timeout=20).url # * In case of redirection, only focusing on getting new hostname
@@ -88,12 +90,14 @@ def record_replay_all_urls(data):
         us = urlsplit(req_url)
         hostname = us.netloc.split(':')[0]
         count = 1
-        # while f"{hostname}_{count}" in seen_dir:
-        #     count += 1
+        while f"{hostname}_{count}" in seen_dir:
+            count += 1
         if f"{hostname}_{count}" in seen_dir:
             continue
         archive_name = f"{hostname}_{count}"
         ts, url = record_replay(url, archive_name)
+        if ts == '':
+            continue
         seen_dir.add(archive_name)
         metadata[url] = {
             'ts': ts,
@@ -104,7 +108,7 @@ def record_replay_all_urls(data):
 
 
 # liveweb()
-record_replay_all_urls('../datacollect/data/eot_good_100.json')
+record_replay_all_urls('../datacollect/data/eot_good_all.json')
 
 # * Test single URL
 # test_url = "http://fmcs.gov/internet"
