@@ -109,3 +109,28 @@
         - Hard to track what exactly happened. The main div was not added to the page. Which due to an silently handled exception at: ```catch (d) {
                     (c || d instanceof $A.Wf)``` at ```aura_prod.js```
         - The exception text is: ```Failed to initialize a component [Unexpected identifier '_postMessage']```
+
+- dra.gov_1
+    - News carousel is broken in archive. There is only one section in the caousel and cannot be moved.
+    - archive's js execution (news-carousel.js and equalizer.js) is run under strict-mode, so no self var and arguments var is not allowed.
+
+- www.nrcs.usda.gov_1
+    - Archive copy has a map control banner on the right side of the map. Liveweb doesn.t **Weird**
+
+- judiciary.house.gov_1
+    - Facebook iframe
+
+- www.sewp.nasa.gov_1
+    - Archive has fewer sections (links) on left "Fast Access". It also doesn't have any "Events Hop Topics" compared with liveweb.
+    - **Reason**
+        - In s5.js, because wombat rewrites the script by adding a scope, the following code throw and exception:
+        ```javascript
+        {
+            function today() {
+                return new Date()
+            }
+            var today = new Date()
+        }
+        ```
+        Without the scope, there is no exception thrown.
+    - *Minor*: Archive's top banner has a "Email SEWP", while in liveweb it is "Chat Now".

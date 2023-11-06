@@ -7,7 +7,7 @@
 const puppeteer = require("puppeteer");
 const fs = require('fs');
 
-const HOSTNAMES = ["localhost", "web.archive.org"];
+const HOSTNAMES = ["localhost", "web.archive.org", 'pistons.eecs.umich.edu'];
 const OVERRIDE_DIR = '/home/jingyz/chrome-overrides';
 const PATH_MAP = {};
 

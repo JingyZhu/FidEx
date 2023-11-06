@@ -66,7 +66,7 @@ def get_page_data(idx):
 
 def get_data():
     num_pages = total_item // 20
-    page_sample = random.sample(list(range(num_pages)), 50)
+    page_sample = random.sample(list(range(num_pages)), 500)
     # page_sample = [0, 1, 2, 3, 4, 5] + page_sample
     page_sample.sort()
 
@@ -77,13 +77,13 @@ def get_data():
             continue
         result += data
         print("Total unique:", len(set([d['live_url'] for d in result])))
-        json.dump(result, open('eot_1k.json', 'w+'), indent=2)
+        json.dump(result, open('eot_10k.json', 'w+'), indent=2)
         time.sleep(5)
-    json.dump(result, open('eot_1k.json', 'w+'), indent=2)
+    json.dump(result, open('eot_10k.json', 'w+'), indent=2)
 
 def test_break():
-    data = json.load(open('data/eot_1k.json', 'r'))
-    live_urls = [d['live_url'] for d in data]
+    data = json.load(open('data/eot_10k.json', 'r'))
+    live_urls_map = {d['live_url']: d for d in data}
     def broken(i, url):
         print(i, url)
         try:
@@ -94,15 +94,16 @@ def test_break():
     results = []
     with futures.ThreadPoolExecutor(max_workers=16) as executor:
         rs = {}
-        for i, url in enumerate(live_urls):
+        for i, (url, d) in enumerate(live_urls_map.items()):
             rs[url] = executor.submit(broken, i, url)
         for url, r in rs.items():
             r = r.result()
-            results.append({
-                'url': url,
-                'broken': r
-            })
-        json.dump(results, open('data/eot_1k_broken.json', 'w+'), indent=2)
+            d = live_urls_map[url]
+            d['broken'] = r
+            results.append(d)
+            if len(results) % 100 == 1:
+                json.dump(results, open('data/eot_10k_broken.json', 'w+'), indent=2)
+        json.dump(results, open('data/eot_10k_broken.json', 'w+'), indent=2)
 
 def sample_good():
     data = json.load(open('data/eot_1k.json', 'r'))
@@ -115,4 +116,9 @@ def sample_good():
     sample_urls = [random.choice(v) for v in dict(sample_site_urls).values()]
     json.dump(sample_urls, open('data/eot_good_100.json', 'w+'), indent=2)
 
-sample_good()
+def all_good():
+    data = json.load(open('data/eot_10k.json', 'r'))
+    good_urls = [b for b in data if not b['broken']]
+    json.dump(good_urls, open('data/eot_good_all.json', 'w+'), indent=2)
+
+all_good()

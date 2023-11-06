@@ -77,3 +77,14 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
     - Unclear of how to fix it. But potential ways could be
         - Eliminate non-determinism (e.g. DRP APIs return the same values as recording)
         - Whenever requesting the resource with non-deterministic paths, return the most similar resources. 
+
+- dra.gov_1
+    - Remove all wrappers added by wombat for "news-carousel.js" and "equalizer.js"
+    - On Wayback
+        - The same fix works for latest archive
+        - The carousel component only exists since 2023
+
+- www.sewp.nasa.gov_1
+    - Remove ```var``` from ```var today = new Date()``` in s5.js
+    - On Wayback
+        - The same behavior seen first on 2021-Feb
