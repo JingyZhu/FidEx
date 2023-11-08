@@ -80,12 +80,14 @@ def record_replay_all_urls(data):
 
     for i, url in list(enumerate(urls)):
         print(i, url)
-        if url in metadata and metadata[url]['ts'] != '':
+        if url in metadata or url.replace('http://', 'https://') in metadata:
             continue
         sys.stdout.flush()
         try:
             req_url = requests.get(url, timeout=20).url # * In case of redirection, only focusing on getting new hostname
         except:
+            continue
+        if req_url in metadata:
             continue
         us = urlsplit(req_url)
         hostname = us.netloc.split(':')[0]

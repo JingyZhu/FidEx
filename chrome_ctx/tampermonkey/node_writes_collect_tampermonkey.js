@@ -214,4 +214,17 @@ unsafeWindow.collect_writes = function () {
         })
     }
 }
+
+// Find writes that have target of element (or element's ancestors)
+unsafeWindow.find_writes = function(element) {
+    let writes = [];
+    for (const write of unsafeWindow.__final_write_log) {
+        const target = write.target;
+        // check if target is element or the ancestor of element
+        if (target.contains(element))
+            writes.push(write);
+    }
+    return writes;
+}
+
 unsafeWindow.__recording_enabled = true;

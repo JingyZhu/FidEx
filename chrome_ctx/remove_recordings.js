@@ -46,4 +46,5 @@ async function removeRecording(topN=1) {
     // select tag with title: "Confirm Delete"
     let deleteButton = Array.from(wholePage.querySelectorAll('button')).find(b => b.innerText.includes('Delete'))
     deleteButton.click()
+    await sleep(1000)
 }    

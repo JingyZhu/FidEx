@@ -88,3 +88,8 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
     - Remove ```var``` from ```var today = new Date()``` in s5.js
     - On Wayback
         - The same behavior seen first on 2021-Feb
+
+- www.osmre.gov_1
+    - Remove the CSP header in pywb src code.
+    - On Wayback
+        - The same behavior seen at least from 2022-Feb

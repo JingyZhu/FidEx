@@ -134,3 +134,22 @@
         ```
         Without the scope, there is no exception thrown.
     - *Minor*: Archive's top banner has a "Email SEWP", while in liveweb it is "Chat Now".
+
+- www.osmre.gov_1
+    - Style broken in archive
+    - In archive, got a CSP error: ```the stylesheet 'https://cdnjs.cloudflare.com/ajax/libs/uswds/3.3.0/css/uswds.min.css' because it violates the following Content Security Policy directive: "default-src 'unsafe-eval' 'unsafe-inline' 'self' data: blob: mediastream: ws: wss:". Note that 'style-src-elem' was not explicitly set, so 'default-src' is used as a fallback.```
+        - The css is fetched outside of the archive hostname (e.g. not in HOSTNAME:8080...)
+        - Archive (pywb) adds a CSP header to the response, which blocks the css from being loaded
+
+- globe.gov_1
+    - Archive misses recent measurement map.
+    - Error on assigning ```document.domain (n.domain)```
+        - From the script ```combo?browserId...```
+        - Search for ```n.domain !== document.domain && (n.domain = document.domain)```
+    - On liveweb page: since ```n.domain``` is the same as ```document.domain```, the assignment is not executed.
+
+- eta.lbl.gov_1
+    - Archive misses the background image on the top
+    - Got error: ```Uncaught TypeError: Failed to execute 'isSameNode' on 'Node': parameter 1 is not of type 'Node'.```
+        - Search for ``` if (!document.documentElement.isSameNode(documentElement))``` in ```js_p_rlhspxm3FrTqbj-H20s0cZbpZ_4_UA60J7_BO7L_M.js```
+        - ```documentElement``` in archive is Proxied
