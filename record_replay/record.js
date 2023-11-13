@@ -209,7 +209,7 @@ async function pageIframesInfo(iframe, parentInfo){
         .option('-m, --manual', "Manual control for finishing loading the page")
         .option('-i, --interaction', "Interact with the page")
         .option('-w, --write', "Collect writes to the DOM")
-        .option('-s, --screenshot', "Collect screenshot and other measurements ", true)
+        .option('-s, --screenshot', "Collect screenshot and other measurements")
         .option('-r, --remove', "Remove recordings after finishing loading the page")
 
     program
@@ -315,21 +315,29 @@ async function pageIframesInfo(iframe, parentInfo){
         const finalURL = recordPage.url();
 
         // * Step 7: Collect the writes to the DOM
+        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
             await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await recordPage.evaluate(() => __write_log_processed);
+            const writeLog = await recordPage.evaluate(() => {
+                return {
+                    writes: __final_write_log_processed,
+                    rawWrites: __raw_write_log_processed
+                }
+            });
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
 
         // * Step 8: Collect the screenshots and all other measurement for checking fidelity
-        const rootFrame = recordPage.mainFrame();
-        const renderInfo = await pageIframesInfo(rootFrame,
-            {xpath: '', dimension: {left: 0, top: 0}, prefix: ""});
-        // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-        await measure.collectFidelityInfo(recordPage, url, dirname, filename);
-        fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
-        fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
-        fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
+        if (options.screenshot){
+            const rootFrame = recordPage.mainFrame();
+            const renderInfo = await pageIframesInfo(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: ""});
+            // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+            await measure.collectFidelityInfo(recordPage, url, dirname, filename);
+            fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
+            fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
+        }
         await recordPage.close();
         
         // * Step 9: Download recorded archive

@@ -2,8 +2,9 @@
  * Collect write logs after loading the page.
  * Note: need to override Node write methods and setters using node_write_override.js
  */
-__write_log_processed = [];
+__raw_write_log_processed = [];
 __final_write_log = [];
+__final_write_log_processed = [];
 __recording_enabled = false;
 // Normalize all href and src attributes in node
 function _normalSRC(node){
@@ -40,17 +41,10 @@ function _normalSRC(node){
 }
 
 function collect_writes(){
-    for (const record of __raw_write_log) {
-        let currentDS = new DimensionSets();
-        currentDS.recordDimension(record.target, record.args);
-        // * Check if the dimension now is the same as before the write
-        // * The reason for checking it now is to catch lazy loaded elements
-        // * For example, if an image is written to the DOM, it might not be loaded immediately.
-        if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
-            continue
-        __final_write_log.push(record);
+    // Process raw_args so that it can be stringified
+    function process_args(raw_args) {
         let args = [];
-        for (let arg of record.args) {
+        for (let arg of raw_args) {
             if (args == null || arg == undefined)
                 continue
             if (arg instanceof Element) {
@@ -65,10 +59,30 @@ function collect_writes(){
                 args.push(arg);
             }
         }
-        // Handle img src
+        return args;
+    }
+
+    for (const record of __raw_write_log) {
+        args = process_args(record.args);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
-        __write_log_processed.push({
+
+        __raw_write_log_processed.push({
+            xpath: getDomXPath(record.target, fullTree = true),
+            method: record.method,
+            arg: args
+        })
+
+        let currentDS = new DimensionSets();
+        currentDS.recordDimension(record.target, record.args);
+        // * Check if the dimension now is the same as before the write
+        // * The reason for checking it now is to catch lazy loaded elements
+        // * For example, if an image is written to the DOM, it might not be loaded immediately.
+        if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
+            continue
+        __final_write_log.push(record);
+        // Handle img src
+        __final_write_log_processed.push({
             xpath: getDomXPath(record.target, fullTree = true),
             method: record.method,
             arg: args
