@@ -33,10 +33,6 @@
         - **GOT REASON**: Wombat or pywb rewrite iframe.contentWindow.postMessage to iframe.contentWindow.__WB_pmv(self).postMessage, which cause the problem (search for "a.rc.contentWindow.__WB_pmw(self)")
         - **TODO**: It is currently unable to detect writes to styles, need to add this functionality (now able to override a single instance of style with all listed properties.)
 
-- www.airforce.com_1
-    - Live has cookie banner
-    - Eval on js related to cookie throws error (TypeError: Cannot read properties of undefined (reading 'DomainData')
-
 - house.louisiana.gov_1
     - Live and Archive have different style, causing different dimension
     - **Reason**
