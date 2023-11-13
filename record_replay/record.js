@@ -69,6 +69,12 @@ async function clickDownload(page) {
     await eventSync.waitFile(`./downloads/${ArchiveFile}.warc`);
     return pageTs;
 }
+// This function assumes that the archive collection is already opened
+// i.e. click_download.js:firstPageClick should already be executed
+async function removeRecordings(page, topN) {
+    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/remove_recordings.js`)
+    await page.evaluate(topN => removeRecording(topN), topN)
+}
 
 async function dummyRecording(page) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/start_recording.js`)
@@ -91,6 +97,37 @@ async function getActivePage(browser) {
     }
     if(arr.length == 1) return arr[0];
     // else return pages[pages.length-1]; // ! Fall back solution
+}
+
+async function interaction(page, cdp, excepFF, url, dirname) {
+    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
+    await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
+    let numEvents = await page.evaluate(async () => {
+        eli.init();
+        // eli.shuffle();
+        return eli.listeners.length;
+    })
+    // ! Temp
+    // let origPath = await page.evaluate(async () => {
+    //     return eli.origPath;
+    // })
+    // fs.writeFileSync(`${dirname}/listeners.json`, JSON.stringify(origPath, null, 2));
+    // ! End of temp
+    // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
+    let count = 1;
+    for (let i = 0; i < numEvents && i < 20; i++) {
+        let e = {};
+        let p = page.evaluate(async () => await eli.triggerNext())
+            .then(r => e = r)
+        await waitTimeout(p, 3000);
+        if (Object.keys(e).length <= 0) 
+            continue
+        // console.log(e);
+        e.screenshot_count = count;
+        excepFF.afterInteraction(e);
+        await measure.collectFidelityInfo(page, url, dirname, 
+                            `${filename}_${count++}`, collectFidelityInfoOptions)        
+    }
 }
 
 // Traverse through the iframe tree to build write log
@@ -160,12 +197,20 @@ async function pageIframesInfo(iframe, parentInfo){
     }
 }
 
+/*
+    Refer to README-->Record phase for the detail of this function
+*/
 (async function(){
+    // * Step 0: Prepare for running
     program
         .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
         .option('-f --file <filename>', 'Filename prefix', 'dimension')
         .option('-a --archive <Archive>', 'Archive list to record the page', 'test')
         .option('-m, --manual', "Manual control for finishing loading the page")
+        .option('-i, --interaction', "Interact with the page")
+        .option('-w, --write', "Collect writes to the DOM")
+        .option('-s, --screenshot', "Collect screenshot and other measurements ", true)
+        .option('-r, --remove', "Remove recordings after finishing loading the page")
 
     program
         .argument("<url>")
@@ -200,7 +245,7 @@ async function pageIframesInfo(iframe, parentInfo){
     
     try {
         
-        // * Input dummy URL to get the active page being recorded
+        // * Step 1-2: Input dummy URL to get the active page being recorded
         await page.goto(
             "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
             {waitUntil: 'load'}
@@ -218,7 +263,7 @@ async function pageIframesInfo(iframe, parentInfo){
         })
         await waitTimeout(networkIdle, 2*1000) 
 
-        // * Loading actual URL
+        // * Step 3: Inject the overriding script
         const client = await recordPage.target().createCDPSession();
         let excepFF = new measure.excepFFHandler();
         await client.send('Network.enable');
@@ -231,6 +276,8 @@ async function pageIframesInfo(iframe, parentInfo){
 
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await recordPage.evaluateOnNewDocument(script);
+
+        // * Step 4: Load the page
         await recordPage.goto(
             url,
             {waitUntil: 'load'}
@@ -243,6 +290,7 @@ async function pageIframesInfo(iframe, parentInfo){
             mobile: false
         });
         
+        // * Step 5: Wait for the page to finish loading
         // ? Timeout doesn't alway work, undeterminsitically throw TimeoutError
         try {
             networkIdle = recordPage.waitForNetworkIdle({
@@ -258,37 +306,43 @@ async function pageIframesInfo(iframe, parentInfo){
         // * Log down measurements of the page
         excepFF.afterInteraction('onload')
 
-        // * Interact with the webpage
-        // if (options.interaction){
-        //     await interaction(recordPage, client, excepFF, url, dirname);
-        //     if (options.manual)
-        //         await eventSync.waitForReady();
-        // }
-        
+        // * Step 6: Interact with the webpage
+        if (options.interaction){
+            await interaction(recordPage, client, excepFF, url, dirname);
+            if (options.manual)
+                await eventSync.waitForReady();
+        }
         const finalURL = recordPage.url();
 
-        // * Record writes to HTML
+        // * Step 7: Collect the writes to the DOM
+        if (options.write){
+            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await recordPage.evaluate(() => __write_log_processed);
+            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+
+        // * Step 8: Collect the screenshots and all other measurement for checking fidelity
         const rootFrame = recordPage.mainFrame();
         const renderInfo = await pageIframesInfo(rootFrame,
             {xpath: '', dimension: {left: 0, top: 0}, prefix: ""});
-
-        // * Take screenshot
         // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
         await measure.collectFidelityInfo(recordPage, url, dirname, filename);
-
         fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
         fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
-
         await recordPage.close();
         
-        // * Download recorded archive
+        // * Step 9: Download recorded archive
         await page.goto(
             "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
             {waitUntil: 'load'}
         )
         await sleep(500);
         let ts = await clickDownload(page);
+        
+        // * Step 10: Remove recordings
+        if (options.remove)
+            await removeRecordings(page, 0)
 
         // ! Signal of the end of the program
         console.log("recorded page:", JSON.stringify({ts: ts, url: finalURL}));

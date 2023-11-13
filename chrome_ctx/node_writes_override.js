@@ -20,13 +20,15 @@ function isNodeInDocument(node) {
 }
 
 /**
-     * Class for sets of recorded dimensions of different nodes.
-     */
+ * Class for sets of recorded dimensions of different nodes.
+ */
 class DimensionSets {
     constructor() {
         this.dimension = null;
-        this.parentDimention = null;
+        this.parentDimension = null;
         this.argsDimension = [];
+        // args' outerHTML if it is a node, else just the args value
+        this.argsText = [];
     }
 
     // Check if the node has any dimension
@@ -51,10 +53,11 @@ class DimensionSets {
     // Record the dimension of the node before the write
     recordDimension(node, args) {
         this.dimension = this._getDimension(node);
-        this.parentDimention = this._getDimension(node.parentNode);
+        this.parentDimension = this._getDimension(node.parentNode);
         for (const arg of args) {
             if (arg instanceof Node)
                 this.argsDimension.push(this._getDimension(arg));
+                this.argsText.push(arg.outerHTML);
         }
     }
 
@@ -64,7 +67,7 @@ class DimensionSets {
      * @returns {boolean} true if the dimension match
      */
     isDimensionMatch(other) {
-        if (this._isDimensionChanged(this.dimension, other.dimension) || this._isDimensionChanged(this.parentDimention, other.parentDimention)) {
+        if (this._isDimensionChanged(this.dimension, other.dimension) || this._isDimensionChanged(this.parentDimension, other.parentDimension)) {
             return false;
         }
         if (this.argsDimension.length !== other.argsDimension.length) {
@@ -77,15 +80,23 @@ class DimensionSets {
         }
         return true;
     }
-}
 
-// Override Node write methods
-node_write_methods = [
-    'appendChild',
-    'insertBefore',
-    'replaceChild',
-    'removeChild'
-];
+    // Similar to isDimensionMatch, but only check if the dimension of the args match
+    // Not used at this point
+    isArgsDimensionMatch(other) {
+        if (this.argsDimension.length !== other.argsDimension.length) {
+            return false;
+        }
+        for (let i = 0; i < this.argsDimension.length; i++) {
+            if (this.argsText[i] !== other.argsText[i])
+                continue
+            if (this._isDimensionChanged(this.argsDimension[i], other.argsDimension[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
 
 function newWriteMethod(originalFn, method) {
     return function (...args) {
@@ -118,6 +129,7 @@ function newWriteMethod(originalFn, method) {
                 method: method,
                 args: viable_args,
                 args_snapshot: args_copy,
+                beforeDS: beforeDS,
                 trace: Error().stack,
                 id: wid
             }
@@ -131,13 +143,12 @@ function newWriteMethod(originalFn, method) {
         if (ableRecord) {
             let afterDS = new DimensionSets();
             afterDS.recordDimension(this, args);
+            record.afterDS = afterDS;
             // * Record only if the dimension changes
             // ! One thing to note is that the dimension of the node might not immediately change after the write (e.g. if write an image to the DOM, the dimension of the image might not be available immediately)
             // ! Might need to wait till the end of the page load for comparing the dimension
             if (!beforeDS.isDimensionMatch(afterDS)) {
                 _debug_log("write", this, method, args);
-                record.beforeDS = beforeDS;
-                record.afterDS = afterDS;
                 __write_log.push(record);
             }
             __raw_write_log.push(record);
@@ -162,6 +173,7 @@ function newSetMethod(originalFn, property) {
                 target: this,
                 method: 'set:' + property,
                 args: [value_copy],
+                beforeDS: beforeDS,
                 trace: Error().stack,
                 id: wid
             }
@@ -175,11 +187,10 @@ function newSetMethod(originalFn, property) {
         if (ableRecord) {
             let afterDS = new DimensionSets();
             afterDS.recordDimension(this, [value]);
+            record.afterDS = afterDS;
             // * Record only if the dimension changes
             if (!beforeDS.isDimensionMatch(afterDS)) {
                 _debug_log("set", this, property, value);
-                record.beforeDS = beforeDS;
-                record.afterDS = afterDS;
                 __write_log.push(record);
             }
             __raw_write_log.push(record);
@@ -188,6 +199,13 @@ function newSetMethod(originalFn, property) {
     }
 }
 
+// Override Node write methods
+node_write_methods = [
+    'appendChild',
+    'insertBefore',
+    'replaceChild',
+    'removeChild'
+];
 
 for (const method of node_write_methods) {
     const originalFn = Node.prototype[method];
