@@ -5,8 +5,8 @@ metadata = 'eot_metadata.json'
 default_archive = 'eot'
 
 call(['rm', metadata])
-call(f"rm -rf pageinfo/*", shell=True)
 call(f"rm downloads/*", shell=True)
+call(f"rm -rf writes/*", shell=True)
 
 call(['rm', '-rf', f'../collections/collections/{default_archive}'])
 call(['wb-manager', 'init', default_archive], cwd='../collections')

@@ -30,3 +30,13 @@
 9. Download the recorded warc file
 10. (Optional) Remove the recording from webrecorder
     - If the crawl is large, we need to remove given the limit space of VM.
+
+
+## Replay phase
+1. Inject the overriding script.
+2. Load the page.
+3. (Optional) If replaying on Wayback, need to remove the banner for fidelity consistency
+4. Wait for the page to be loaded.
+5. (Optional) Trigger interaction
+6. (Optional) Collect the writes to the DOM
+7. (Optional) Collect the screenshots and all other measurement for checking fidelity

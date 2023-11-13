@@ -1,30 +1,15 @@
 /*
     Wrapper for node_write_override.js and node_write_collect.js.
-    In record phase, Start the browser and load certain page
-
-    Before recording, making sure that the collection 
-    has already been created on the target browser extension
-
+    In replay phase, Start the browser and load certain page
 */
 const puppeteer = require("puppeteer")
-const fs = require('fs');
+const fs = require('fs')
 const eventSync = require('../utils/event_sync');
-const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../utils/load');
-const { program } = require('commander');
 const measure = require('../utils/measure');
+const { loadToChromeCTXWithUtils } = require('../utils/load');
+const { program } = require('commander');
 const { parse: HTMLParse } = require('node-html-parser');
 
-const http = require('http');
-// Dummy server for enable page's network and runtime before loading actual page
-try{
-    http.createServer(function (req, res) {
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.end('Hello World!');
-    }).listen(8086);
-} catch(e){}
-
-let Archive = null;
-let ArchiveFile = null; 
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -60,51 +45,36 @@ async function startChrome(){
     return browser;
 }
 
-async function clickDownload(page) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    await page.evaluate(archive => firstPageClick(archive), Archive)
-    await sleep(500);
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    let pageTs = await page.evaluate(() => secondPageDownload());
-    await eventSync.waitFile(`./downloads/${ArchiveFile}.warc`);
-    return pageTs;
-}
-// This function assumes that the archive collection is already opened
-// i.e. click_download.js:firstPageClick should already be executed
-async function removeRecordings(page, topN) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/remove_recordings.js`)
-    await page.evaluate(topN => removeRecording(topN), topN)
-}
-
-async function dummyRecording(page) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/start_recording.js`)
-    const url = "http://localhost:8086"
-    await page.evaluate((archive, url) => startRecord(archive, url), 
-                        Archive, url);
-}
-
-async function getActivePage(browser) {
-    var pages = await browser.pages();
-    var arr = [];
-    for (const p of pages) {
-        let visible = await waitTimeout(
-            p.evaluate(() => { 
-                return document.visibilityState == 'visible' 
-            }), 3000)
-        if(visible) {
-            arr.push(p);
-        }
+function origURL(url){
+    // Get part of URL that is after the last http:// or https://
+    const matches = url.split(/(http:\/\/|https:\/\/)/);
+    if (matches.length > 2) {
+        const lastMatchIndex = matches.length - 2;
+        const lastUrl = matches[lastMatchIndex] + matches[lastMatchIndex + 1];
+        return lastUrl;
     }
-    if(arr.length == 1) return arr[0];
-    // else return pages[pages.length-1]; // ! Fall back solution
+    return '';
 }
 
-async function interaction(page, cdp, excepFF, url, dirname) {
+async function interaction(page, cdp, excepFF, url, dirname){
+    // * Read path file
+    let loadEvents = [];
+    // let data = fs.readFileSync(`${dirname}/exception_failfetch_record.json`)
+    // data = JSON.parse(data).slice(1)
+    // for (const obj of data)
+    //     loadEvents.push([obj.interaction.path, obj.interaction.events])
+    // const script = fs.readFileSync("../chrome_ctx/interaction.js", 'utf8');
+    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true});
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-    await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
+    const expr = `
+    // let loadEvents = ${JSON.stringify(loadEvents)};
+    // let eli = new eventListenersIterator(loadEvents);
+    let eli = new eventListenersIterator();
+    `
+    // console.log(expr);
+    await cdp.send("Runtime.evaluate", {expression: expr, includeCommandLineAPI:true});
     let numEvents = await page.evaluate(async () => {
         eli.init();
-        // eli.shuffle();
         return eli.listeners.length;
     })
     // ! Temp
@@ -113,20 +83,16 @@ async function interaction(page, cdp, excepFF, url, dirname) {
     // })
     // fs.writeFileSync(`${dirname}/listeners.json`, JSON.stringify(origPath, null, 2));
     // ! End of temp
-    // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     let count = 1;
     for (let i = 0; i < numEvents && i < 20; i++) {
-        let e = {};
-        let p = page.evaluate(async () => await eli.triggerNext())
-            .then(r => e = r)
-        await waitTimeout(p, 3000);
+        let e = await page.evaluate(async () => await eli.triggerNext())
         if (Object.keys(e).length <= 0) 
             continue
         // console.log(e);
         e.screenshot_count = count;
         excepFF.afterInteraction(e);
-        await measure.collectFidelityInfo(page, url, dirname, 
-                            `${filename}_${count++}`, collectFidelityInfoOptions)        
+        await measure.collectFidelityInfo(page, url, dirname,
+                             `${filename}_${count++}`, collectFidelityInfoOptions)
     }
 }
 
@@ -163,7 +129,8 @@ async function pageIframesInfo(iframe, parentInfo){
     const childFrames = await iframe.childFrames();
     let childHTMLs = [], childidx = [];
     for (const childFrame of childFrames){
-        const childURL = childFrame.url();
+        const childURL = origURL(childFrame.url());
+        // console.log(childURL, childURL in htmlIframes, htmlIframes)
         if (!(childURL in htmlIframes))
             continue
         let prefix = htmlIframes[childURL].html.match(/^\s+/)
@@ -197,20 +164,16 @@ async function pageIframesInfo(iframe, parentInfo){
     }
 }
 
-/*
-    Refer to README-->Record phase for the detail of this function
-*/
 (async function(){
     // * Step 0: Prepare for running
     program
         .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
         .option('-f --file <filename>', 'Filename prefix', 'dimension')
-        .option('-a --archive <Archive>', 'Archive list to record the page', 'test')
         .option('-m, --manual', "Manual control for finishing loading the page")
         .option('-i, --interaction', "Interact with the page")
         .option('-w, --write', "Collect writes to the DOM")
+        .option('-b, --wayback', "Whether replay is from wayback machine")
         .option('-s, --screenshot', "Collect screenshot and other measurements")
-        .option('-r, --remove', "Remove recordings after finishing loading the page")
 
     program
         .argument("<url>")
@@ -219,105 +182,87 @@ async function pageIframesInfo(iframe, parentInfo){
     const options = program.opts();
     let dirname = options.dir;
     let filename = options.file;
-    Archive = options.archive;
-    ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
-    
-    // // * Update URL for potential redirection
-    // const res = await fetch(urlStr);
-    // urlStr = res.url;
-
     const browser = await startChrome();
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))
         fs.mkdirSync(dirname, { recursive: true });
-    if (fs.existsSync(`./downloads/${ArchiveFile}.warc`))
-        fs.unlinkSync(`./downloads/${ArchiveFile}.warc`)
     
     let page = await browser.newPage();
-    const client_0 = await page.target().createCDPSession();
-    await  client_0.send('Page.setDownloadBehavior', {
+    const client = await page.target().createCDPSession();
+    await  client.send('Page.setDownloadBehavior', {
         behavior: 'allow',
         downloadPath: './downloads/',
     });
-    await Promise.all([client_0.send('Network.clearBrowserCookies'), 
-                        client_0.send('Network.clearBrowserCache')]);
+    await Promise.all([client.send('Network.clearBrowserCookies'), 
+                        client.send('Network.clearBrowserCache')]);
+    // Avoid puppeteer from overriding dpr
+    await client.send('Emulation.setDeviceMetricsOverride', {
+        width: 1920,
+        height: 1080,
+        deviceScaleFactor: 0,
+        mobile: false
+    });
     
     try {
-        
-        // * Step 1-2: Input dummy URL to get the active page being recorded
-        await page.goto(
-            "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
-            {waitUntil: 'load'}
-        )
-        await dummyRecording(page, url);
-        await sleep(1000);
-        
-        let recordPage = await getActivePage(browser);
-        if (!recordPage)
-            throw new Error('Cannot find active page')
-        // Avoid puppeteer from overriding dpr
-        // ? Timeout doesn't alway work
-        let networkIdle = recordPage.waitForNetworkIdle({
-            timeout: 2*1000
-        })
-        await waitTimeout(networkIdle, 2*1000) 
-
-        // * Step 3: Inject the overriding script
-        const client = await recordPage.target().createCDPSession();
         let excepFF = new measure.excepFFHandler();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
+        await sleep(1000);
+        
+        // * Step 1: Inject the overriding script
         client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
         client.on('Network.requestWillBeSent', params => excepFF.onRequest(params))
         client.on('Network.responseReceived', params => excepFF.onFetch(params))
-        await sleep(1000);
-
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
-        await recordPage.evaluateOnNewDocument(script);
-
-        // * Step 4: Load the page
-        await recordPage.goto(
-            url,
-            {waitUntil: 'load'}
-        )
+        const timeout = options.wayback ? 200*1000 : 30*1000;
+        // console.log("Timeout: ", timeout)
+        await page.evaluateOnNewDocument(script);
         
-        await client.send('Emulation.setDeviceMetricsOverride', {
-            width: 1920,
-            height: 1080,
-            deviceScaleFactor: 0,
-            mobile: false
-        });
-        
-        // * Step 5: Wait for the page to finish loading
-        // ? Timeout doesn't alway work, undeterminsitically throw TimeoutError
+        // * Step 2: Load the page
         try {
-            networkIdle = recordPage.waitForNetworkIdle({
-                timeout: 30*1000
+            let networkIdle = page.goto(url, {
+                waitUntil: 'networkidle0'
             })
-            await waitTimeout(networkIdle, 30*1000); 
+            await waitTimeout(networkIdle, timeout); 
         } catch {}
 
+        // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
+        if (options.wayback){
+            try {
+                await page.evaluate(() => {
+                    document.querySelector("#wm-ipp-base").remove();
+                    document.querySelector("#wm-ipp-print").remove();
+                    let elements = document.querySelectorAll('*');
+                    for (const element of elements){
+                        if (element.hasAttribute('loading'))
+                            element.loading = 'eager';
+                    }
+                })
+            } catch {}
+            await sleep(2000);
+        }
+
+        // * Step 4: Wait for the page to be loaded
         if (options.manual)
             await eventSync.waitForReady();
         else
             await sleep(1000);
         excepFF.afterInteraction('onload')
 
-        // * Step 6: Interact with the webpage
+        // * Step 5: Interact with the webpage
         if (options.interaction){
-            await interaction(recordPage, client, excepFF, url, dirname);
+            await interaction(page, client, excepFF, url, dirname);
             if (options.manual)
                 await eventSync.waitForReady();
         }
-        const finalURL = recordPage.url();
-
-        // * Step 7: Collect the writes to the DOM
+        
+        // * Step 6: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
-            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await recordPage.evaluate(() => {
+            await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await page.evaluate(() => {
                 return {
                     writes: __final_write_log_processed,
                     rawWrites: __raw_write_log_processed
@@ -326,33 +271,19 @@ async function pageIframesInfo(iframe, parentInfo){
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
 
-        // * Step 8: Collect the screenshots and all other measurement for checking fidelity
+        // * Step 7: Collect the screenshot and other measurements
         if (options.screenshot){
-            const rootFrame = recordPage.mainFrame();
+            const rootFrame = page.mainFrame();
             const renderInfo = await pageIframesInfo(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: ""});
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectFidelityInfo(recordPage, url, dirname, filename);
+            await measure.collectFidelityInfo(page, url, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         }
-        await recordPage.close();
-        
-        // * Step 9: Download recorded archive
-        await page.goto(
-            "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
-            {waitUntil: 'load'}
-        )
-        await sleep(500);
-        let ts = await clickDownload(page);
-        
-        // * Step 10: Remove recordings
-        if (options.remove)
-            await removeRecordings(page, 0)
 
-        // ! Signal of the end of the program
-        console.log("recorded page:", JSON.stringify({ts: ts, url: finalURL}));
+        
     } catch (err) {
         console.error(err);
     } finally {
