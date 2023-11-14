@@ -97,6 +97,22 @@ class DimensionSets {
         }
     }
 
+    // Check if the dimensions for both parent and this are visible
+    // TODO: This is fairly strict (return false if any args dimension is 0). The reason to set it this way is to only focusing on element addition in liveweb. So false positives for fidelity check are filtered out as much as possible, and we don't care about false negatives.
+    visible() {
+        if (this.dimension == null || this.parentDimension == null)
+            return false;
+        if (this.dimension.width === 0 || this.dimension.height === 0)
+            return false;
+        if (this.parentDimension.width === 0 || this.parentDimension.height === 0)
+            return false;
+        for (const arg of this.argsDimension) {
+            if (arg.width === 0 || arg.height === 0)
+                return false;
+        }
+        return true;
+    }
+
     /**
      * Check if the dimension match with another Dimension
      * @param {DimensionSets} other
@@ -140,8 +156,9 @@ class DimensionSets {
  * Collect write logs after loading the page.
  * Note: need to override Node write methods and setters using node_write_override.js
  */
-unsafeWindow.__write_log_processed = [];
+unsafeWindow.__raw_write_log_processed = [];
 unsafeWindow.__final_write_log = [];
+unsafeWindow.__final_write_log_processed = [];
 unsafeWindow.__recording_enabled = false;
 
 // Normalize all href and src attributes in node
@@ -179,17 +196,10 @@ function _normalSRC(node) {
 }
 
 unsafeWindow.collect_writes = function () {
-    for (const record of unsafeWindow.__raw_write_log) {
-        let currentDS = new DimensionSets();
-        currentDS.recordDimension(record.target, record.args);
-        // * Check if the dimension now is the same as before the write
-        // * The reason for checking it now is to catch lazy loaded elements
-        // * For example, if an image is written to the DOM, it might not be loaded immediately.
-        if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
-            continue
-        unsafeWindow.__final_write_log.push(record);
+    // Process raw_args so that it can be stringified
+    function process_args(raw_args) {
         let args = [];
-        for (let arg of record.args) {
+        for (let arg of raw_args) {
             if (args == null || arg == undefined)
                 continue
             if (arg instanceof Element) {
@@ -204,10 +214,54 @@ unsafeWindow.collect_writes = function () {
                 args.push(arg);
             }
         }
-        // Handle img src
+        return args;
+    }
+
+    function visible(record, DS){
+        if (!DS.visible())
+            return false;
+        const styleHidden = (element) => {
+            if (!(element instanceof Node))
+                return false
+            const style = window.getComputedStyle(element);
+            if (style.visibility == 'hidden' || style.display == 'none' || style.opacity == 0)
+                return true;
+            return false
+        }
+        if (styleHidden(record.target))
+            return false
+        for (const arg of record.args){
+            if (styleHidden(arg))
+                return false
+        }
+        return true
+    }
+
+    for (const record of unsafeWindow.__raw_write_log) {
+        args = process_args(record.args);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
-        unsafeWindow.__write_log_processed.push({
+
+        unsafeWindow.__raw_write_log_processed.push({
+            xpath: getDomXPath(record.target, fullTree = true),
+            method: record.method,
+            arg: args
+        })
+
+        let currentDS = new DimensionSets();
+        currentDS.recordDimension(record.target, record.args);
+        // * Check if the dimension now is the same as before the write
+        // * The reason for checking it now is to catch lazy loaded elements
+        // * For example, if an image is written to the DOM, it might not be loaded immediately.
+        if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
+            continue
+        // ? Only include the write if the argument is still visible now.
+        // TODO: Think more about whether this is valid
+        if (!visible(record, currentDS))
+            continue
+        unsafeWindow.__final_write_log.push(record);
+        // Handle img src
+        unsafeWindow.__final_write_log_processed.push({
             xpath: getDomXPath(record.target, fullTree = true),
             method: record.method,
             arg: args

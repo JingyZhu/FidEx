@@ -62,7 +62,7 @@ class DimensionSets {
         }
     }
 
-    // CHeck if the dimensions for both parent and this are visible
+    // Check if the dimensions for both parent and this are visible
     // TODO: This is fairly strict (return false if any args dimension is 0). The reason to set it this way is to only focusing on element addition in liveweb. So false positives for fidelity check are filtered out as much as possible, and we don't care about false negatives.
     visible() {
         if (this.dimension == null || this.parentDimension == null)
