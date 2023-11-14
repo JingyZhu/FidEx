@@ -60,7 +60,7 @@ function getDomXPath(elm, fullTrace = false) {
 class DimensionSets {
     constructor() {
         this.dimension = null;
-        this.parentDimention = null;
+        this.parentDimension = null;
         this.argsDimension = [];
         // args' outerHTML if it is a node, else just the args value
         this.argsText = [];
@@ -88,7 +88,7 @@ class DimensionSets {
     // Record the dimension of the node before the write
     recordDimension(node, args) {
         this.dimension = this._getDimension(node);
-        this.parentDimention = this._getDimension(node.parentNode);
+        this.parentDimension = this._getDimension(node.parentNode);
         for (const arg of args) {
             if (arg instanceof Node){
                 this.argsDimension.push(this._getDimension(arg));
@@ -120,7 +120,7 @@ class DimensionSets {
      */
     isDimensionMatch(other) {
         if (this._isDimensionChanged(this.dimension, other.dimension)
-            || this._isDimensionChanged(this.parentDimention, other.parentDimention))
+            || this._isDimensionChanged(this.parentDimension, other.parentDimension))
             return false
         if (this.argsDimension.length !== other.argsDimension.length) {
             return false;
