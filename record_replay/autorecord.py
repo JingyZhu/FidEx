@@ -1,9 +1,11 @@
 """
-    Auto run record_writes.js
-    This is done in large-scale. So need to make sure that:
+    Auto run record.js and replay.js
+    If run on remote host with large scale, need to make sure that:
         - Crawls (warc) are uploaded and "wb-manager added" to the group server
         - Screenshots are uploaded to the group server
         - Writes are uploaded to the group server
+    If run with local host, need to make sure that:
+        - The file is run with pywb venv on.
 """
 from subprocess import PIPE, check_call, Popen
 import os
@@ -16,18 +18,19 @@ import re
 sys.path.append('../')
 from utils import upload
 
-# HOST = 'http://pistons.eecs.umich.edu:8080'
-HOST = 'http://localhost:8080'
+
+REMOTE = False
+HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_archive = 'eot-writes'
 metadata_file = 'eot-writes_metadata.json'
-arguments = '-w -s'
+arguments = ['-w', '-s']
 
 
-def record_replay(url, archive_name, upload=False):
+def record_replay(url, archive_name, remote_host=REMOTE):
     p = Popen(['node', 'record.js', '-d', f'writes/{archive_name}',
                 '-f', 'live',
                 '-a', default_archive, 
-                arguments,
+                *arguments,
                 url], stdout=PIPE)
     ts = None
     while True:
@@ -44,21 +47,25 @@ def record_replay(url, archive_name, upload=False):
         return '', url
 
     os.rename(f'downloads/{default_archive}.warc', f'downloads/{archive_name}.warc')
-    upload.upload_warc(f'downloads/{archive_name}.warc', default_archive, directory='eot-1k')
-    
+    if remote_host:
+        upload.upload_warc(f'downloads/{archive_name}.warc', default_archive, directory=default_archive)
+    else:
+        check_call(['wb-manager', 'add', default_archive, 
+                    f'../record_replay/downloads/{archive_name}.warc'], cwd='../collections')
+
     ts = ts.strip()
     archive_url = f"{HOST}/{default_archive}/{ts}/{url}"
     check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'archive',
-                arguments,
+                *arguments,
                 archive_url])
-    if upload:
+    if remote_host:
         upload.upload_write(f'writes/{archive_name}', directory=default_archive)
 
     return ts, url
 
 
-def record_replay_all_urls(data, upload=False):
+def record_replay_all_urls(data, remote_host=REMOTE):
     if not os.path.exists(metadata_file):
         json.dump({}, open(metadata_file, 'w+'), indent=2)
     metadata = json.load(open(metadata_file, 'r'))
@@ -85,7 +92,7 @@ def record_replay_all_urls(data, upload=False):
         if f"{hostname}_{count}" in seen_dir:
             continue
         archive_name = f"{hostname}_{count}"
-        ts, url = record_replay(url, archive_name)
+        ts, url = record_replay(url, archive_name, remote_host=remote_host)
         if ts == '':
             continue
         seen_dir.add(archive_name)
@@ -123,13 +130,12 @@ def replay_all_wayback():
         metadata[url]['wayback'] = wayback_url
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
-# record_replay_all_urls('../datacollect/data/eot_good_all.json', upload=False)
+record_replay_all_urls('../datacollect/data/eot_good_all.json')
 
 # * Test single URL
-test_url = "http://fmcs.gov/internet"
-test_req_url = requests.get(test_url).url # * In case of redirection
-print(test_req_url)
-test_archive = "test"
-ts, test_url = record_replay(test_url, test_archive)
-print(f'{HOST}/{default_archive}/{ts}/{test_url}')
-# replay_all_wayback()
+# test_url = "https://globe.gov/"
+# test_req_url = requests.get(test_url).url # * In case of redirection
+# print(test_req_url)
+# test_archive = "test"
+# ts, test_url = record_replay(test_url, test_archive)
+# print(f'{HOST}/{default_archive}/{ts}/{test_url}')

@@ -80,6 +80,10 @@ function collect_writes(){
         // * For example, if an image is written to the DOM, it might not be loaded immediately.
         if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
             continue
+        // ? Only include the write if the argument is still visible now.
+        // TODO: Think more about whether this is valid
+        if (!currentDS.visible())
+            continue
         __final_write_log.push(record);
         // Handle img src
         __final_write_log_processed.push({
