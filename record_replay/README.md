@@ -40,3 +40,6 @@
 5. (Optional) Trigger interaction
 6. (Optional) Collect the writes to the DOM
 7. (Optional) Collect the screenshots and all other measurement for checking fidelity
+
+## Notebooks
+- ```test_fidelity_additional_writes.ipynb```: Experimental code for checking whether the additional writes can directly indicate fidelity issues.

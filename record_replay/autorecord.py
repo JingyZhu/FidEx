@@ -130,12 +130,12 @@ def replay_all_wayback():
         metadata[url]['wayback'] = wayback_url
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
-record_replay_all_urls('../datacollect/data/eot_good_all.json')
+# record_replay_all_urls('../datacollect/data/eot_good_all.json')
 
 # * Test single URL
-# test_url = "https://globe.gov/"
-# test_req_url = requests.get(test_url).url # * In case of redirection
-# print(test_req_url)
-# test_archive = "test"
-# ts, test_url = record_replay(test_url, test_archive)
-# print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+test_url = "https://www.whitehouse.senate.gov/"
+test_req_url = requests.get(test_url).url # * In case of redirection
+print(test_req_url)
+test_archive = "test"
+ts, test_url = record_replay(test_url, test_archive)
+print(f'{HOST}/{default_archive}/{ts}/{test_url}')
