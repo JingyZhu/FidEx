@@ -16,7 +16,7 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
         })
         ```
     - Wayback doesn't record the same functionality for removing exit-icon in 2017, but recorded the same functionality earliest seen in 2022
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Redo rewriting for that line?
 
 - theftaz.azag.gov_1
@@ -33,7 +33,7 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
         - New page design works on the archive initially (till ~2018)
             - Since the page fetches language information, which triggers the code of display="", in the main frame. No problem
         - 2020 archives starts to have the same/similar behavior to today's pages. 
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Undo rewriting of iframe.contentWindow.__WB_pmw
         - Then undo replacement correspondingly within wombat.js
         - SupportedLanguage is fetched through liveweb, *maybe write the line the iframe text again? (can be hard)*
@@ -44,7 +44,7 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
     - Remove all the brackets around imports. Since static import cannot be done conditionally.
     - On Wayback
         - Old design till the end of 2022
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Syntax error --> Undo rewriting the whole js file.
 
 
@@ -91,13 +91,13 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
     - On Wayback
         - The same fix works for latest archive
         - The carousel component only exists since 2023
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Syntax error --> Undo rewriting the whole js file.
 
 - www.slideshare.net_1
     - Add a space between "$" and "extends 
         ```class $extends V``` --> ```class $ extends V``` (there are two of it in osano.js)
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Undo overriding/proxifying the class Window and Document
         - More specifically, in ```osano.js```, replace ```n.Av``` within call as ```originalDocument```, which is the original document.
             - Some more illegal invocation errors will occur later, but currently don't see any fidelity issue from there.
@@ -106,7 +106,7 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
     - Remove ```var``` from ```var today = new Date()``` in s5.js
     - On Wayback
         - The same behavior seen first on 2021-Feb
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Syntax error --> Undo rewriting for (at least) the function
             - Move the last if block outside of the scope.
 
@@ -117,10 +117,10 @@ Check whether the same fidelity issue exists on Wayback, and if so, how can the 
 
 - globe.gov_1
     - Make sure that the ```n.domain``` is the same as ```document.domain``` or the assignment is not executed.
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Redo proxy for n (not the main document but an iframe, so need to check which function to use in wombat)
         - Note that even current issue is fixed, the fidelity issue won't be fixed since getting map resources returns a 404 (non-determinism)
 
 - eta.lbl.gov_1
-    - **Sytematic way fixing**
+    - **Systematic way fixing**
         - Undo overriding/proxifying the class Window and Document. (Similar to the approach in slideshare)
