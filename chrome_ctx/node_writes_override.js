@@ -55,9 +55,10 @@ class DimensionSets {
         this.dimension = this._getDimension(node);
         this.parentDimension = this._getDimension(node.parentNode);
         for (const arg of args) {
-            if (arg instanceof Node)
+            if (arg instanceof Node){
                 this.argsDimension.push(this._getDimension(arg));
                 this.argsText.push(arg.outerHTML);
+            }
         }
     }
 

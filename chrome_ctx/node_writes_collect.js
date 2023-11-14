@@ -62,6 +62,26 @@ function collect_writes(){
         return args;
     }
 
+    function visible(record, DS){
+        if (!DS.visible())
+            return false;
+        const styleHidden = (element) => {
+            if (!(element instanceof Node))
+                return false
+            const style = window.getComputedStyle(element);
+            if (style.visibility == 'hidden' || style.display == 'none' || style.opacity == 0)
+                return true;
+            return false
+        }
+        if (styleHidden(record.target))
+            return false
+        for (const arg of record.args){
+            if (styleHidden(arg))
+                return false
+        }
+        return true
+    }
+
     for (const record of __raw_write_log) {
         args = process_args(record.args);
         if (record.method === 'setAttribute' && args[0] === 'src')
@@ -82,7 +102,7 @@ function collect_writes(){
             continue
         // ? Only include the write if the argument is still visible now.
         // TODO: Think more about whether this is valid
-        if (!currentDS.visible())
+        if (!visible(record, currentDS))
             continue
         __final_write_log.push(record);
         // Handle img src
