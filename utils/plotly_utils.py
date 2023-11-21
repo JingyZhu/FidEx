@@ -290,7 +290,7 @@ def plot_CDF(df, xtitle="", ytitle="", title="", cut=1, xrange=None, clear_bound
             pad=4
         ),
     )
-    for name, col in df.iteritems():
+    for name, col in df.items():
         length = len(col)
         sorted_col = col.sort_values()[col.notnull()]
         sorted_col = sorted_col[: int(length*cut)]
@@ -363,7 +363,7 @@ def plot_CDF_log(df, xtitle="", ytitle="", title="", cut=1, xrange=None, clear_b
     fig.show()
 
 
-def plot_bar(df, xtitle="", ytitle="", title="", idx='', stacked=False, unified=False, \
+def plot_bar(df, xtitle="", ytitle="", title="", idx='', stacked=False, yrange=None, unified=False, \
              use_pattern=False, colors=contrast_scheme, width=None):
     """
     idx: name of the key that plot has x index on
@@ -379,7 +379,7 @@ def plot_bar(df, xtitle="", ytitle="", title="", idx='', stacked=False, unified=
         df = df.div(df_sum, axis=0)
     if df.shape[1] == 2:
         colors =[colors[0], colors[-1]]
-    for i, (name, col) in enumerate(df.iteritems()):
+    for i, (name, col) in enumerate(df.items()):
         c = colors[i]
         pattern = patterns[i%len(patterns)] if use_pattern else ''
         fig.add_trace(go.Bar(name=name, x=df.index, y=col, marker_color=c,\
@@ -417,6 +417,8 @@ def plot_bar(df, xtitle="", ytitle="", title="", idx='', stacked=False, unified=
     if stacked: fig.update_layout(barmode='stack')
 
     fig.update_yaxes(showgrid=True, gridwidth=2, gridcolor='#ededed')
+    if yrange:
+        fig.update_yaxes(range=yrange)
 
     return fig
 

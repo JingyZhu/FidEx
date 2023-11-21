@@ -30,7 +30,7 @@ def _is_rewritable(headers):
             break
     if content_type is None:
         return False
-    rewritable_types = ['text/html', 'text/css', 'text/javascript', 'application/javascript']
+    rewritable_types = ['text/html', 'text/css', 'text/javascript', 'application/javascript', 'application/x-javascript']
     for rewritable_type in rewritable_types:
         if rewritable_type in content_type:
             return True
@@ -162,13 +162,14 @@ def static_match():
     # line = 'a.rc.contentWindow.postMessage' # theftaz.azag.gov
     # line = 'Re.lk.value.call(n.Av,"iframe")' # slideshare.net
     # line = 'var today = new Date()' # sewp.nasa.gov
-    line = 'n.domain!==document.domain&&(n.domain=document.domain)' # globe.gov
+    # line = 'n.domain!==document.domain&&(n.domain=document.domain)' # globe.gov
     # line = '!document.documentElement.isSameNode(documentElement)' # eta.lbl.gov
+    line = "$(document).trigger('addthis.init', addthis)" # test
 
     matched_resources = []
     i = 0
     for collection in collections:
-        files = os.listdir(f'../warc/{collection}')
+        files = os.listdir(f'../warcs/{collection}')
         for file in files:
             prefix = os.path.splitext(file)[0]
             i += 1
@@ -225,12 +226,12 @@ def dynamic_static_multimatch(all_warcs_pkl=None):
     2. Match exceptions dynamically
     """
     from check_exceptions import get_all_exceptions, categorize_exceptions
-    import requests
     all_exceptions = get_all_exceptions('eot-1k')
-    exception_map = {m['exception']: m['number'] for m in categorize_exceptions(all_exceptions)}
+    exception_map = categorize_exceptions(all_exceptions)
     all_warcs = []
     i = 0
     if all_warcs_pkl and os.path.exists(all_warcs_pkl):
+        print("Reading all_warcs.pkl")
         all_warcs = pickle.load(open('all_warcs.pkl', 'rb+'))
     else:
         for collection in collections:
@@ -259,16 +260,34 @@ def dynamic_static_multimatch(all_warcs_pkl=None):
             loc = grep_loc(scriptURL, line, column)
             if loc is None:
                 continue
+            # TODO: Temp removing too general loc
+            if loc in ['throw e', 'throw error']:
+                continue
+            # TODO End of temp
+
             line_matches = static_line_match(loc, all_warcs)
+            # TODO: This is currently just used as patching static matching with 0 matches
+            if len(line_matches) == 0:
+                line_matches.append({
+                    'warc': exception_obj['directory'],
+                    'url': scriptURL,
+                    'matches': []
+                })
+            # TODO End of patch
             
+            first_line = exception['description'].split('\n')[0]
             loc_info.append({
                 'directory': directory,
                 'exception': exception['description'],
                 'loc': loc,
                 'num_static_matches': len(line_matches),
-                'num_dynamic_matches': exception_map[exception['description'].split('\n')[0]],
-                'static_matches': line_matches
+                'num_dynamic_matches': len(set(w[0] for w in exception_map[first_line])),
+                'static_matches': line_matches,
+                'dynamic_matches': exception_map[first_line]
             })
-        json.dump(loc_info, open('loc_info.json', 'w+'), indent=2)
+        json.dump(loc_info, open('loc_info_new.json', 'w+'), indent=2)
 
-dynamic_static_multimatch(all_warcs_pkl='all_warcs.pkl')
+
+if __name__ == '__main__':
+    dynamic_static_multimatch(all_warcs_pkl='all_warcs.pkl')
+    # static_match()
