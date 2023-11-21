@@ -29,7 +29,9 @@
 
 - globe.gov_1
     - Search for line ```n.domain!==document.domain&&(n.domain=document.domain)```. Matched 48 files.
-    - TODO: Dig deeper
+    - Looked for 8 samples, all of which, target line of code not run
+        - Example checked from eot-1k: www.nist.gov_1, www.occ.treas.gov_1, www.jimmycarterlibrary.gov_1, archive.epa.gov_1, www.justice.gov_3, www.nationalbankhelp.gov_1, amberalert.ojp.gov_1, www.commerce.gov_1
+    - Search for line ```DOMException: Failed to set the 'domain' property on 'Document'``` for exception. No other archive is matched.
 
 - eta.lbl.gov_1
     - Search for line ```!document.documentElement.isSameNode(documentElement)```. Fail to match any other archives
