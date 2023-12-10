@@ -436,7 +436,7 @@ class HTMLRewriterMixin(StreamingRewriter):
             
             # * Added by jingyz
             # * Simulate webrecorder recording phase to do eager loading
-            elif tag == 'img' and attr_name == 'loading':
+            elif tag in ['img', 'iframe'] and attr_name == 'loading':
                 attr_value = 'eager'
             # *End of elif
             
