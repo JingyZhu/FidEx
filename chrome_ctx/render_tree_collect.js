@@ -15,7 +15,11 @@ function _outOfViewport(dimension) {
     return invisible || leftOut || topOut;
 }
 
-// dfs through the DOM tree
+/**
+ * dfs through the DOM tree
+ * @param {Node.ELEMENT_NODE} node 
+ * @returns {Array} Array of node info
+ */
 function _dfsVisible(node) {
     let children = [];
     let nodeInfo = null;
@@ -80,7 +84,7 @@ function _normalSRC(node){
 
 // Convert _render_tree's nodes to their tag texts within <>
 _render_tree_text = []
-_node_info = {}
+_node_info = []
 function getNodeText(node) {
     if (node.nodeType === Node.ELEMENT_NODE){
         node = _normalSRC(node);
@@ -115,17 +119,23 @@ function getNodeExtraAttr(node){
     return attrs;
 }
 
+/**
+ * Serialize dfs'ed render tree to text version that can be saved
+ */
 function _serializeRenderTree() {
-    const prefix = '  '
+    const prefix = '  ';
+    let counter = 0;
     let _dfsHelper = function(node, depth=0) {
         const nodeText = getNodeText(node.node);
         if (nodeText != null){
-            _render_tree_text.push(prefix.repeat(depth) + nodeText);
-            _node_info[nodeText] = {
+            _render_tree_text.push(prefix.repeat(depth) + `${counter}:` + nodeText);
+            _node_info.push({
+                text: nodeText,
                 xpath: getDomXPath(node.node),
                 dimension: node.dimension,
                 extraAttr: getNodeExtraAttr(node.node)
-            };
+            });
+            counter += 1;
         }
         for (let child of node.children) {
             _dfsHelper(child, depth+1);

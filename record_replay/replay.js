@@ -8,7 +8,6 @@ const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const { program } = require('commander');
-const { parse: HTMLParse } = require('node-html-parser');
 
 
 function sleep(ms) {
@@ -43,17 +42,6 @@ async function startChrome(){
     }
     const browser = await puppeteer.launch(launchOptions);
     return browser;
-}
-
-function origURL(url){
-    // Get part of URL that is after the last http:// or https://
-    const matches = url.split(/(http:\/\/|https:\/\/)/);
-    if (matches.length > 2) {
-        const lastMatchIndex = matches.length - 2;
-        const lastUrl = matches[lastMatchIndex] + matches[lastMatchIndex + 1];
-        return lastUrl;
-    }
-    return '';
 }
 
 async function interaction(page, cdp, excepFF, url, dirname){
@@ -93,74 +81,6 @@ async function interaction(page, cdp, excepFF, url, dirname){
         excepFF.afterInteraction(e);
         await measure.collectFidelityInfo(page, url, dirname,
                              `${filename}_${count++}`, collectFidelityInfoOptions)
-    }
-}
-
-// Traverse through the iframe tree to build write log
-async function pageIframesInfo(iframe, parentInfo){
-    await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
-    let renderHTML = await iframe.evaluate(() => _render_tree_text);
-    let renderMap = await iframe.evaluate(() => _node_info);
-    for (const element in renderMap){
-        let updateAttr = {
-            xpath: parentInfo.xpath + renderMap[element].xpath,
-            dimension: renderMap[element].dimension? {
-                left: parentInfo.dimension.left + renderMap[element].dimension.left,
-                top: parentInfo.dimension.top + renderMap[element].dimension.top,
-                width: renderMap[element].dimension.width,
-                height: renderMap[element].dimension.height
-            } : null
-        }
-        renderMap[element] = Object.assign(renderMap[element], updateAttr);
-    }
-    let htmlIframes = {};
-    for (let idx = 0; idx < renderHTML.length; idx++){
-        const line = renderHTML[idx];
-        const tag = HTMLParse(line.trim()).childNodes[0];
-        const info = renderMap[line.trim()]
-        if (tag.rawTagName === 'iframe'){
-            htmlIframes[tag.getAttribute('src')] = {
-                html: line,
-                idx: idx,
-                info: info
-            }
-        }
-    }
-    const childFrames = await iframe.childFrames();
-    let childHTMLs = [], childidx = [];
-    for (const childFrame of childFrames){
-        const childURL = origURL(childFrame.url());
-        // console.log(childURL, childURL in htmlIframes, htmlIframes)
-        if (!(childURL in htmlIframes))
-            continue
-        let prefix = htmlIframes[childURL].html.match(/^\s+/)
-        prefix = prefix ? prefix[0] : '';
-        let currentInfo = htmlIframes[childURL].info;
-        currentInfo = {
-            xpath: parentInfo.xpath + currentInfo.xpath,
-            dimension: {
-                left: parentInfo.dimension.left + currentInfo.dimension.left,
-                top: parentInfo.dimension.top + currentInfo.dimension.top,
-            },
-            prefix: parentInfo.prefix + '  ' + prefix
-        }
-        const childInfo = await pageIframesInfo(childFrame, currentInfo);
-        for (const [key, value] of Object.entries(childInfo.renderMap)){
-            renderMap[key] = value;
-        }
-        childHTMLs.push(childInfo.renderHTML);
-        childidx.push(htmlIframes[childURL].idx);
-    }
-    childidx.push(renderHTML.length-1)
-    for (let idx = 0; idx < renderHTML.length; idx++)
-        renderHTML[idx] = parentInfo.prefix + renderHTML[idx];
-    let newRenderHTML = renderHTML.slice(0, childidx[0]+1)
-    for(let i = 0; i < childHTMLs.length; i++){
-        newRenderHTML = newRenderHTML.concat(childHTMLs[i], renderHTML.slice(childidx[i]+1, childidx[i+1]+1));
-    }
-    return {
-        renderHTML: newRenderHTML,
-        renderMap: renderMap
     }
 }
 
@@ -274,12 +194,12 @@ async function pageIframesInfo(iframe, parentInfo){
         // * Step 7: Collect the screenshot and other measurements
         if (options.screenshot){
             const rootFrame = page.mainFrame();
-            const renderInfo = await pageIframesInfo(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: ""});
+            const renderInfo = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: ""}, true);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
             await measure.collectFidelityInfo(page, url, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
-            fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderMap, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderList, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         }
 

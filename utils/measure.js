@@ -5,9 +5,10 @@
  */
 const { fail } = require('assert');
 const fs = require('fs');
-const { loadToChromeCTX } = require('./load');
+const { loadToChromeCTX, loadToChromeCTXWithUtils} = require('./load');
 const { execSync } = require("child_process");
 const { Puppeteer } = require('puppeteer');
+const { parse: HTMLParse } = require('node-html-parser');
 
 async function getDimensions(page) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
@@ -108,6 +109,95 @@ async function collectFidelityInfo(page, url, dirname,
     // execSync(`rm ${all_images.join(" ")}`);
 }
 
+
+function _origURL(url){
+    // Get part of URL that is after the last http:// or https://
+    const matches = url.split(/(http:\/\/|https:\/\/)/);
+    if (matches.length > 2) {
+        const lastMatchIndex = matches.length - 2;
+        const lastUrl = matches[lastMatchIndex] + matches[lastMatchIndex + 1];
+        return lastUrl;
+    }
+    return '';
+}
+
+/**
+ * Collect the render tree from the page
+ * @param {iframe} iframe 
+ * @param {object} parentInfo 
+ * @param {boolean} replay Whether the render tree is collected on replay
+ */
+async function collectRenderTree(iframe, parentInfo, replay=false){
+    await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
+    let renderHTML = await iframe.evaluate(() => _render_tree_text);
+    let renderList = await iframe.evaluate(() => _node_info);
+    // * Update attributes by considering relative dimension to parent frame
+    for (const i in renderList){
+        let element = renderList[i]
+        let updateAttr = {
+            xpath: parentInfo.xpath + element.xpath,
+            dimension: element.dimension? {
+                left: parentInfo.dimension.left + element.dimension.left,
+                top: parentInfo.dimension.top + element.dimension.top,
+                width: element.dimension.width,
+                height: element.dimension.height
+            } : null
+        }
+        renderList[i] = Object.assign(renderList[i], updateAttr);
+    }
+    // * Collect child frames
+    let htmlIframes = {};
+    for (let idx = 0; idx < renderHTML.length; idx++){
+        const line = renderHTML[idx];
+        // split line with first ":" to get tag name
+        // console.log(line, line.split(/:([\s\S]+)/))
+        const tag = HTMLParse(line.split(/:([\s\S]+)/)[1].trim()).childNodes[0];
+        const info = renderList[idx]
+        if (tag.rawTagName === 'iframe'){
+            htmlIframes[tag.getAttribute('src')] = {
+                html: line,
+                idx: idx,
+                info: info
+            }
+        }
+    }
+    const childFrames = await iframe.childFrames();
+    let childHTMLs = [], childLists = [], childidx = [];
+    for (const childFrame of childFrames){
+        const childURL = replay ? _origURL(childFrame.url()) :  childFrame.url();
+        if (!(childURL in htmlIframes))
+            continue
+        let prefix = htmlIframes[childURL].html.match(/^\s+/)
+        prefix = prefix ? prefix[0] : '';
+        let currentInfo = htmlIframes[childURL].info;
+        currentInfo = {
+            xpath: parentInfo.xpath + currentInfo.xpath,
+            dimension: {
+                left: parentInfo.dimension.left + currentInfo.dimension.left,
+                top: parentInfo.dimension.top + currentInfo.dimension.top,
+            },
+            prefix: parentInfo.prefix + '  ' + prefix
+        }
+        const childInfo = await collectRenderTree(childFrame, currentInfo, replay);
+        childHTMLs.push(childInfo.renderHTML);
+        childLists.push(childInfo.renderList)
+        childidx.push(htmlIframes[childURL].idx);
+    }
+    childidx.push(renderHTML.length-1)
+    for (let idx = 0; idx < renderHTML.length; idx++)
+        renderHTML[idx] = parentInfo.prefix + renderHTML[idx];
+    let newRenderHTML = renderHTML.slice(0, childidx[0]+1)
+    let newRenderList = renderList.slice(0, childidx[0]+1)
+    for(let i = 0; i < childHTMLs.length; i++){
+        newRenderHTML = newRenderHTML.concat(childHTMLs[i], renderHTML.slice(childidx[i]+1, childidx[i+1]+1));
+        newRenderList = newRenderList.concat(childLists[i], renderList.slice(childidx[i]+1, childidx[i+1]+1));
+    }
+    return {
+        renderHTML: newRenderHTML,
+        renderList: newRenderList
+    }
+}
+
 /**
  * Collect exceptions and failed fetches during loading the page.
  */
@@ -189,5 +279,6 @@ module.exports = {
     getDimensions,
     maxWidthHeight,
     collectFidelityInfo,
+    collectRenderTree,
     excepFFHandler
 }
