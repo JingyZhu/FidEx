@@ -23,7 +23,8 @@ try{
 } catch(e){}
 
 let Archive = null;
-let ArchiveFile = null; 
+let ArchiveFile = null;
+const TIMEOUT = 300*1000;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -226,9 +227,9 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         // ? Timeout doesn't alway work, undeterminsitically throw TimeoutError
         try {
             networkIdle = recordPage.waitForNetworkIdle({
-                timeout: 30*1000
+                timeout: TIMEOUT
             })
-            await waitTimeout(networkIdle, 30*1000); 
+            await waitTimeout(networkIdle, TIMEOUT); 
         } catch {}
 
         if (options.manual)

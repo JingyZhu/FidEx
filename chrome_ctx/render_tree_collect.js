@@ -7,6 +7,8 @@ _render_tree = {};
 
 function _outOfViewport(dimension) {
     invisible = dimension.width === 0 || dimension.height === 0;
+    // * Filter elements that only take a single pixel (essentially not visible)
+    invisible = invisible || (dimension.width <=1 && dimension.height <= 1)
     leftOut = dimension.right <= 0;
     // rightOut = dimension.left >= window.innerWidth;
     topOut = dimension.bottom <= 0;

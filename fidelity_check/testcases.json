@@ -1,0 +1,57 @@
+[
+    {
+        "directory": "iccvam.niehs.nih.gov_1",
+        "url": "https://iccvam.niehs.nih.gov/",
+        "fidelity_issue": 0
+    },
+    {
+        "directory": "photojournal.jpl.nasa.gov_1",
+        "url": "https://photojournal.jpl.nasa.gov/",
+        "fidelity_issue": 0
+    },
+    {
+        "directory": "www.baaqmd.gov_1",
+        "url": "https://www.baaqmd.gov/",
+        "fidelity_issue": 1
+    },
+    {
+        "directory": "www.nist.gov_1",
+        "url": "https://www.nist.gov/pml",
+        "fidelity_issue": 0
+    },
+    {
+        "directory": "www.aoc.gov_1",
+        "url": "https://www.aoc.gov/",
+        "fidelity_issue": 0
+    },
+    {
+        "directory": "www.hq.nasa.gov_1",
+        "url": "https://www.nasa.gov/headquarters/about/",
+        "fidelity_issue": 0
+    },
+    {
+        "directory": "www.emc.ncep.noaa.gov_1",
+        "url": "https://www.emc.ncep.noaa.gov/emc_new.php",
+        "fidelity_issue": 0
+    },
+    {
+        "directory": "www.fws.gov_1",
+        "url": "https://www.fws.gov/about/region/alaska",
+        "fidelity_issue": 1
+    },
+    {
+        "directory": "www.nrel.gov_1",
+        "url": "https://www.nrel.gov/",
+        "fidelity_issue": 1
+    },
+    {
+        "directory": "ffb.treasury.gov_1",
+        "url": "https://ffb.treasury.gov/",
+        "fidelity_issue": 1
+    },
+    {
+        "directory": "www.miwd.uscourts.gov_1",
+        "url": "https://www.miwd.uscourts.gov/",
+        "fidelity_issue": 1
+    }
+]

@@ -3,6 +3,7 @@ Check if the archive preserves all the fidelity from liveweb page
 """
 import difflib
 import json
+import re
 
 def _collect_dimension(element):
     if 'dimension' not in element or element['dimension'] is None:
@@ -18,11 +19,13 @@ def _html_2_xpath(html, element):
     xpaths = []
     for line in lines:
         line = line.strip()
-        if line not in element:
-            xpaths.append(line)
-        else:
-            xpath = element[line]['xpath']
-            xpaths.append(xpath)
+        # Match the first number before :
+        idx = re.search(r'\d+:', line)
+        idx = idx.group()[:-1] if idx else None
+        if idx is None:
+            continue
+        xpath = element[int(idx)]['xpath']
+        xpaths.append(xpath)
     return xpaths
 
 
@@ -42,12 +45,13 @@ def verify(live_html, live_element, archive_html, archive_element):
             list(difflib.ndiff(live_xpaths, archive_xpaths)) if d[0] in ['-', '+']], indent=2))
         return False
     # * Currently for each element, only check the width and height
-    for element in live_element:
-        if element not in archive_element:
-            return False
-        live_dimension = _collect_dimension(live_element[element])
-        archive_dimension = _collect_dimension(archive_element[element])
+    if len(live_element) != len(archive_element):
+        print("Element number is different")
+        return False
+    for le, ae in zip(live_element, archive_element):
+        live_dimension = _collect_dimension(le)
+        archive_dimension = _collect_dimension(ae)
         if live_dimension != archive_dimension:
-            print("Dimension is different", element)
+            print("Dimension is different", le, ae)
             return False
     return True
