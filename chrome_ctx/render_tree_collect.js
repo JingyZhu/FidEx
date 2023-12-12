@@ -135,7 +135,8 @@ function _serializeRenderTree() {
                 text: nodeText,
                 xpath: getDomXPath(node.node),
                 dimension: node.dimension,
-                extraAttr: getNodeExtraAttr(node.node)
+                extraAttr: getNodeExtraAttr(node.node),
+                depth: depth,
             });
             counter += 1;
         }

@@ -15,7 +15,7 @@ function getElemId (elem) {
 function getDomXPath(elm, fullTrace=false) {
     var xPathsList = [];
     let segs = [];
-    for (; elm && elm.nodeType == 1; elm = elm.parentNode)
+    for (; elm && [1,3].includes(elm.nodeType); elm = elm.parentNode)
     // for (; elm ; elm = elm.parentNode)  // curently using this will cause exception
     { 
         let withID = false;
@@ -29,8 +29,10 @@ function getDomXPath(elm, fullTrace=false) {
         // else {
             let i = 1;
             for (sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
-                if (sib.localName == elm.localName)  i++; }; 
-                segs.unshift(`${elm.localName.toLowerCase()}[${i}]`); 
+                if (sib.nodeName == elm.nodeName)  
+                    i++;
+            };
+            segs.unshift(`${elm.nodeName.toLowerCase()}[${i}]`); 
         // };
         if (withID) // Only push new path if it has an ID
             xPathsList.push('/' + segs.join('/') );
