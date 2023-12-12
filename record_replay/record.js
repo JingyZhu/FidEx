@@ -213,7 +213,10 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         // * Step 4: Load the page
         await recordPage.goto(
             url,
-            {waitUntil: 'load'}
+            {
+                waitUntil: 'load',
+                timeout: TIMEOUT
+            }
         )
         
         await client.send('Emulation.setDeviceMetricsOverride', {

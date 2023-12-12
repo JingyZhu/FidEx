@@ -54,7 +54,7 @@ def record_replay(url, archive_name, remote_host=False):
 tests = json.load(open('testcases_positive.json', 'r'))
 metadata = {} if not os.path.exists('test_metadata.json') else json.load(open('test_metadata.json', 'r'))
 
-for i, test_obj in enumerate(tests[2:3]):
+for i, test_obj in enumerate(tests[1:2]):
     url = test_obj['url']
     test_dirr = test_obj['directory']
     print(i, url)
