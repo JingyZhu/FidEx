@@ -4,6 +4,7 @@ Check if the archive preserves all the fidelity from liveweb page
 import difflib
 import json
 import re, os
+from bs4 import BeautifulSoup
 
 def _collect_dimension(element):
     if 'dimension' not in element or element['dimension'] is None:
@@ -12,6 +13,46 @@ def _collect_dimension(element):
         'width': element['dimension']['width'],
         'height': element['dimension']['height']
     }
+
+
+class htmlElement:
+    def __init__(self, element: dict):
+        self.xpath = element['xpath']
+        self.text = element['text']
+        self.features = self.features()
+        self.dimension = _collect_dimension(element)
+    
+    def features(self):
+        """Collect tag name and other important attributes that matters to the rendering"""
+        all_rules = ['style']
+        tag_rules = {
+            'img': ['src']
+        }
+        tag = BeautifulSoup(self.text, 'html.parser').find()
+        if tag is None:
+            tagname = self.xpath.split('/')[-1].split('[')[0]
+            return (tagname)
+        tagname = tag.name
+        features = [tagname]
+        rule = tag_rules.get(tagname, []) + all_rules
+        for r in rule:
+            if r in tag.attrs:
+                features.append(tag.attrs[r])
+        return tuple(features)
+
+    def __eq__(self, other):
+        if self.text == other.text:
+            return True
+        if self.features == other.features and self.dimension == other.dimension:
+            return True
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.xpath, self.text, self.dimension.get('width', 0), self.dimension.get('height', 0)))
+
+    def __repr__(self) -> str:
+        return f"{self.xpath} {self.text} {self.dimension}"
+
 
 def _html_2_xpath(html, element):
     """Translate each line in html to xpath"""
@@ -28,15 +69,57 @@ def _html_2_xpath(html, element):
         xpaths.append(xpath)
     return xpaths
 
+def _diff_html(live_html: "List[element]", archive_html: "List[element]"):
+    """
+    Compute the diff between live_html and archive_html by computing the longest common subsequence
+    
+    Returns:
+        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
+    """
+    live_html = [htmlElement(e) for e in live_html]
+    archive_html = [htmlElement(e) for e in archive_html]
+    # Apply longest common subsequence to get the diff of live and archive htmls
+    lcs_lengths = [[0 for _ in range(len(archive_html) + 1)] for _ in range(len(live_html) + 1)]
+    for i, live_elem in enumerate(live_html, 1):
+        for j, archive_elem in enumerate(archive_html, 1):
+            if live_elem == archive_elem:
+                lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
+            else:
+                lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
+    # Backtrack to get the diff
+    lcs_live, lcs_archive = [], []
+    i, j = len(live_html), len(archive_html)
+    while i > 0 and j > 0:
+        if live_html[i-1] == archive_html[j-1]:
+            lcs_live.append(live_html[i-1].xpath)
+            lcs_archive.append(archive_html[j-1].xpath)
+            i -= 1
+            j -= 1
+        # This means live_html[i] is not in the lcs
+        elif lcs_lengths[i-1][j] > lcs_lengths[i][j-1]:
+            i -= 1
+        # Archive_html[j] is not in the lcs
+        elif lcs_lengths[i-1][j] < lcs_lengths[i][j-1]:
+            j -= 1
+        # This case can be either both live_html[i] and archive_html[j] are not in the lcs (e.g. abcx and abcy) 
+        # or both can be in (e.g. abca and abac)
+        else:
+            j -= 1
+    lcs_live.reverse()
+    lcs_archive.reverse()
+    live_diff = [e.xpath for e in live_html if e.xpath not in set(lcs_live)]
+    archive_diff = [e.xpath for e in archive_html if e.xpath not in set(lcs_archive)]
+    return live_diff, archive_diff
 
-def verify(live_element, archive_element):
+
+def verify(live_element: dict, archive_element: dict) -> bool:
     """
     Args:
         live_element (dict): element's path and dimension info in the liveweb page
         archive_element (dict): element's path and dimension info in the archive page
     
     Returns:
-        fidelity_preserved (bool): Whether the fidelity is preserved
+        fidelity_preserved: Whether the fidelity is preserved
     """
     live_xpaths = [e['xpath'] for e in live_element]
     archive_xpaths = [e['xpath'] for e in archive_element]
@@ -85,20 +168,10 @@ def _xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(live_element, archive_element):
+def diff(live_element, archive_element) -> (list, list):
     live_xpaths_map = {e['xpath']: e for e in live_element}
     archive_xpaths_map = {e['xpath']: e for e in archive_element}
-    live_xpaths = [e['xpath'] for e in live_element]
-    archive_xpaths = [e['xpath'] for e in archive_element]
-    diffs = list(difflib.ndiff(live_xpaths, archive_xpaths))
-    live_unique, archive_unique = [], []
-    for diff in diffs:
-        # Liveweb unique
-        if diff[:2] == '- ':
-            live_unique.append(diff[2:])
-        # Archive unique
-        if diff[:2] == '+ ':
-            archive_unique.append(diff[2:])
+    live_unique, archive_unique = _diff_html(live_element, archive_element)
     live_unique = _merge_xpaths(live_unique)
     live_unique_html = [_xpaths_2_text(xpaths, live_xpaths_map) for xpaths in live_unique]
     archive_unique = _merge_xpaths(archive_unique)

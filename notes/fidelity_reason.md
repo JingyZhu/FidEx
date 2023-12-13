@@ -77,6 +77,9 @@
         - **No longer right** ~~ProxyDocument seems don't work on addEventListener (no events found)~~
         - Even if it works, seems like DOMContentLoaded fired before addEventListener is called
             - Suspect this to be called by script async property
+    - **Update Dec-13-2023**
+        - Twitter timeline seems no longer supported in the page.
+        - In console, there is a "There have been recent updates to Embedded X Timelines and supported parameters." notification.
 
 - www.nato.int_1
     - Archive not have images in the slider down below the top view of the page
