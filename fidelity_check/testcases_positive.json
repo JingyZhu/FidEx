@@ -5,12 +5,30 @@
         "diff": {
             "live": [],
             "archive": [
-                {"root": "a", "numlines": 2},
-                {"root": "a", "numlines": 2},
-                {"root": "a", "numlines": 2},
-                {"root": "a", "numlines": 2},
-                {"root": "a", "numlines": 2},
-                {"root": "a", "numlines": 2}
+                {
+                    "root": "<a href=\"https://nimhd.nih.gov/disclaimer/\" title=\"External link\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://nimhd.nih.gov/disclaimer/\" title=\"External link\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://nimhd.nih.gov/disclaimer/\" title=\"External link\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://nimhd.nih.gov/disclaimer/\" title=\"External link\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://nimhd.nih.gov/disclaimer/\" title=\"External link\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://nimhd.nih.gov/disclaimer/\" title=\"External link\">",
+                    "numlines": 2
+                }
             ]
         }
     },
@@ -19,23 +37,126 @@
         "url": "https://www.slideshare.net/nasakennedy",
         "diff": {
             "live": [
-                {"root": "div", "numlines": 11},
-                {"root": "div", "numlines": 9}
+                {
+                    "root": "<div role=\"dialog\" id=\"0d65c1f7-d305-4e2f-a572-5cbc31c158a3\" aria-label=\"Cookie Consent Banner\" aria-describedby=\"0d65c1f7-d305-4e2f-a572-5cbc31c158a3__label\" class=\"osano-cm-window__dialog osano-cm-dialog osano-cm-dialog--position_bottom-right osano-cm-dialog--type_box\">",
+                    "numlines": 11
+                },
+                {
+                    "root": "<div role=\"dialog\" aria-modal=\"true\" id=\"9f206881-ad6c-4105-a892-89be99b8f42d\" aria-labelledby=\"9f206881-ad6c-4105-a892-89be99b8f42d__label\" aria-hidden=\"true\" class=\" osano-cm-window__info-dialog osano-cm-info-dialog osano-cm-info-dialog--hidden \">",
+                    "numlines": 9
+                }
             ],
             "archive": []
         }
     },
     {
         "directory": "www.nato.int_1",
-        "url": "https://www.nato.int/"
+        "url": "https://www.nato.int/",
+        "diff": {
+            "live": [
+                {
+                    "root": "<div class=\"shelf--slider\" role=\"toolbar\">",
+                    "numlines": 56
+                }
+            ],
+            "archive": [
+                {
+                    "root": "<div class=\"shelf--slider\">",
+                    "numlines": 36
+                }
+            ]
+        }
     },
     {
         "directory": "dra.gov_1",
-        "url": "https://dra.gov/"
+        "url": "https://dra.gov/",
+        "diff": {
+            "live": [
+                {
+                    "root": "<div class=\"news-carousel swiper swiper-initialized swiper-horizontal swiper-pointer-events\">",
+                    "numlines": 61
+                }
+            ],
+            "archive": [
+                {
+                    "root": "<div class=\"news-carousel swiper\">",
+                    "numlines": 47
+                }
+            ]
+        }
     },
     {
         "directory": "www.sewp.nasa.gov_1",
-        "url": "https://www.sewp.nasa.gov/"
+        "url": "https://www.sewp.nasa.gov/",
+        "diff": {
+            "live": [
+                {
+                    "root": "<li>",
+                    "numlines": 3
+                },
+                {
+                    "root": "<a href=\"https://www.sewp.nasa.gov/events/multimedia/index.shtml\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<li>",
+                    "numlines": 3
+                },
+                {
+                    "root": "<li>",
+                    "numlines": 3
+                },
+                {
+                    "root": "<li>",
+                    "numlines": 3
+                },
+                {
+                    "root": "<li>",
+                    "numlines": 1
+                },
+                {
+                    "root": "<a href=\"https://twitter.com/nasasewp\" target=\"_blank\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.facebook.com/nasa.sewp.3?fref=ts\" target=\"_blank\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.linkedin.com/company/nasa-sewp\" target=\"_blank\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.youtube.com/channel/UCGvRH2hAkXgV5BnHd9ste6A\" target=\"_blank\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://get.adobe.com/reader/\" target=\"_blank\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.sewp.nasa.gov/documents/training/sewp.shtml\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://sewpv.shufflrr.com/\" target=\"_blank\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.sewp.nasa.gov/index.shtml\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.sewp.nasa.gov/about_us.shtml\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<a href=\"https://www.sewp.nasa.gov/contact.shtml\">",
+                    "numlines": 2
+                }
+            ],
+            "archive": []
+        }
     },
     {
         "directory": "globe.gov_1",
@@ -43,6 +164,33 @@
     },
     {
         "directory": "eta.lbl.gov_1",
-        "url": "https://eta.lbl.gov/"
+        "url": "https://eta.lbl.gov/",
+        "note": "fuzzy matching causing mismatching issue",
+        "diff": {
+            "live": [
+                {
+                    "root": "<div class=\"media media--blazy media--bundle--slideshow-carousel media--slick media--responsive media--image is-b-loaded\" style=\"\" tabindex=\"0\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<div class=\"ytp-title-channel\">",
+                    "numlines": 1
+                },
+                {
+                    "root": "<div class=\"ytp-title-channel\">",
+                    "numlines": 1
+                }
+            ],
+            "archive": [
+                {
+                    "root": "<div class=\"media media--blazy media--bundle--slideshow-carousel media--slick media--loading is-b-loading media--responsive media--image\" style=\"\" tabindex=\"0\">",
+                    "numlines": 2
+                },
+                {
+                    "root": "<button class=\"ytp-watch-later-button ytp-button ytp-show-watch-later-title\" data-tooltip-opaque=\"true\" title=\"Watch later\" aria-label=\"Watch later\">",
+                    "numlines": 7
+                }
+            ]
+        }
     }
 ]

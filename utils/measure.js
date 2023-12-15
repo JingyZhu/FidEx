@@ -28,6 +28,21 @@ async function maxWidthHeight(dimen) {
 }
 
 /**
+ * Scroll to the bottom of the page.
+ * @param {*} page 
+ */
+async function scroll(page) {
+    const dimensions = await getDimensions(page);
+    let [_, height] = await maxWidthHeight(dimensions);
+    for (let i = 1; i * 1080 < height; i += 1) {
+        await page.evaluate(() => window.scrollBy(0, 1080));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await new Promise(resolve => setTimeout(resolve, 2000));
+}
+
+/**
  * Collect fidelity info of a page in a naive way.
  * @param {Puppeteer.page} page Page object of puppeteer.
  * @param {string} url URL of the page. 
@@ -40,8 +55,7 @@ async function collectFidelityInfo(page, url, dirname,
     options = { html: false, dimension: false }) {
     const dimensions = await getDimensions(page);
     let [width, height] = await maxWidthHeight(dimensions);
-    // console.log(width, height);
-
+    
     if (options.html) {
         const html = await page.evaluate(() => {
             return document.documentElement.outerHTML;
@@ -58,12 +72,13 @@ async function collectFidelityInfo(page, url, dirname,
     }
 
     // * Method 1: Capture screenshot of the whole page
-    for (let i = 1; i * 1080 < height; i += 1) {
-        await page.evaluate(() => window.scrollBy(0, 1080));
-        await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Scroll down the bottom of the page
+    // for (let i = 1; i * 1080 < height; i += 1) {
+    //     await page.evaluate(() => window.scrollBy(0, 1080));
+    //     await new Promise(resolve => setTimeout(resolve, 1000));
+    // }
+    // await page.evaluate(() => window.scrollTo(0, 0));
+    // await new Promise(resolve => setTimeout(resolve, 2000));
     await page.screenshot({
         path: `${dirname}/${filename}.png`,
         clip: {
@@ -73,40 +88,6 @@ async function collectFidelityInfo(page, url, dirname,
             height: height,
         }
     })
-
-    // * Method 2: Capture screenshot viewpoint by viewpoint, and merge
-    // let all_images = [];
-    // await page.screenshot({
-    //     path: `${dirname}/${filename}_0.png`,
-    //     clip: { 
-    //         x: 0, 
-    //         y: 0, 
-    //         width: width, 
-    //         height: 1080,
-    //     }
-    // })
-    // all_images.push(`${dirname}/${filename}_0.png`);
-    // // Scroll for lazy loading
-    // for (let i = 1; i*1080 < height; i += 1) {
-    //     await page.evaluate(() => window.scrollBy(0, 1080));
-    //     await new Promise(resolve => setTimeout(resolve, 5000));
-    //     await page.screenshot({
-    //         path: `${dirname}/${filename}_${i}.png`,
-    //         clip: { 
-    //             x: 0, 
-    //             y: i*1080, 
-    //             width: width, 
-    //             height: Math.min(1080, height - i*1080)
-    //         }
-    //     })
-    //     all_images.push(`${dirname}/${filename}_${i}.png`);
-    // }
-
-    // // Merge all images vertically
-    // execSync(`magick ${all_images.join(" ")} -append ${dirname}/${filename}.png`);
-
-    // // Remove all images from disk
-    // execSync(`rm ${all_images.join(" ")}`);
 }
 
 
@@ -129,11 +110,10 @@ function _origURL(url){
  */
 async function collectRenderTree(iframe, parentInfo, replay=false){
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
-    let renderHTML = await iframe.evaluate(() => _render_tree_text);
-    let renderList = await iframe.evaluate(() => _node_info);
+    let renderTree = await iframe.evaluate(() => _render_tree_info);
     // * Update attributes by considering relative dimension to parent frame
-    for (const i in renderList){
-        let element = renderList[i]
+    for (const i in renderTree){
+        let element = renderTree[i]
         let updateAttr = {
             xpath: parentInfo.xpath + element.xpath,
             dimension: element.dimension? {
@@ -141,28 +121,30 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
                 top: parentInfo.dimension.top + element.dimension.top,
                 width: element.dimension.width,
                 height: element.dimension.height
-            } : null
+            } : null,
+            depth: parentInfo.depth + element.depth,
         }
-        renderList[i] = Object.assign(renderList[i], updateAttr);
+        renderTree[i] = Object.assign(renderTree[i], updateAttr);
     }
     // * Collect child frames
     let htmlIframes = {};
-    for (let idx = 0; idx < renderHTML.length; idx++){
-        const line = renderHTML[idx];
+    for (let idx = 0; idx < renderTree.length; idx++){
+        const element = renderTree[idx];
+        const line = element['text'];
         // split line with first ":" to get tag name
         // console.log(line, line.split(/:([\s\S]+)/))
-        const tag = HTMLParse(line.split(/:([\s\S]+)/)[1].trim()).childNodes[0];
-        const info = renderList[idx]
+        // const tag = HTMLParse(line.split(/:([\s\S]+)/)[1].trim()).childNodes[0];
+        const tag = HTMLParse(line.trim()).childNodes[0];
         if (tag.rawTagName === 'iframe'){
             htmlIframes[tag.getAttribute('src')] = {
                 html: line,
                 idx: idx,
-                info: info
+                info: element
             }
         }
     }
     const childFrames = await iframe.childFrames();
-    let childHTMLs = [], childLists = [], childidx = [];
+    let childRenderTrees = [], childidx = [];
     for (const childFrame of childFrames){
         const childURL = replay ? _origURL(childFrame.url()) :  childFrame.url();
         if (!(childURL in htmlIframes))
@@ -176,26 +158,32 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
                 left: parentInfo.dimension.left + currentInfo.dimension.left,
                 top: parentInfo.dimension.top + currentInfo.dimension.top,
             },
-            prefix: parentInfo.prefix + '  ' + prefix
+            prefix: parentInfo.prefix + '  ' + prefix,
+            depth: parentInfo.depth + currentInfo.depth + 1,
         }
         const childInfo = await collectRenderTree(childFrame, currentInfo, replay);
-        childHTMLs.push(childInfo.renderHTML);
-        childLists.push(childInfo.renderList)
+        childRenderTrees.push(childInfo.renderTree)
         childidx.push(htmlIframes[childURL].idx);
     }
-    childidx.push(renderHTML.length-1)
-    for (let idx = 0; idx < renderHTML.length; idx++)
-        renderHTML[idx] = parentInfo.prefix + renderHTML[idx];
-    let newRenderHTML = renderHTML.slice(0, childidx[0]+1)
-    let newRenderList = renderList.slice(0, childidx[0]+1)
-    for(let i = 0; i < childHTMLs.length; i++){
-        newRenderHTML = newRenderHTML.concat(childHTMLs[i], renderHTML.slice(childidx[i]+1, childidx[i+1]+1));
-        newRenderList = newRenderList.concat(childLists[i], renderList.slice(childidx[i]+1, childidx[i+1]+1));
+    childidx.push(renderTree.length-1)
+    let newRenderTree = renderTree.slice(0, childidx[0]+1)
+    for(let i = 0; i < childRenderTrees.length; i++){
+        newRenderTree = newRenderTree.concat(childRenderTrees[i], renderTree.slice(childidx[i]+1, childidx[i+1]+1));
     }
-    return {
-        renderHTML: newRenderHTML,
-        renderList: newRenderList
+    let returnObj = {
+        renderTree: newRenderTree
     }
+    if (parentInfo.depth == 0) {
+        let renderHTML = [];
+        for (let i = 0; i < newRenderTree.length; i++){
+            let element = newRenderTree[i];
+            let line = element['text'];
+            renderHTML.push(`${'  '.repeat(element.depth)}${i}:${line}`)
+        }
+        returnObj['renderHTML'] = renderHTML
+    }
+
+    return returnObj;
 }
 
 /**
@@ -278,6 +266,7 @@ class excepFFHandler {
 module.exports = {
     getDimensions,
     maxWidthHeight,
+    scroll,
     collectFidelityInfo,
     collectRenderTree,
     excepFFHandler

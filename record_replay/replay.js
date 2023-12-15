@@ -169,7 +169,8 @@ async function interaction(page, cdp, excepFF, url, dirname){
             await eventSync.waitForReady();
         else
             await sleep(1000);
-        excepFF.afterInteraction('onload')
+        excepFF.afterInteraction('onload');
+        await measure.scroll(page);
 
         // * Step 5: Interact with the webpage
         if (options.interaction){
@@ -195,11 +196,11 @@ async function interaction(page, cdp, excepFF, url, dirname){
         if (options.screenshot){
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: ""}, true);
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
             await measure.collectFidelityInfo(page, url, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
-            fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderList, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         }
 

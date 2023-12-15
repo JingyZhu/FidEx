@@ -85,8 +85,7 @@ function _normalSRC(node){
 }
 
 // Convert _render_tree's nodes to their tag texts within <>
-_render_tree_text = []
-_node_info = []
+_render_tree_info = []
 function getNodeText(node) {
     if (node.nodeType === Node.ELEMENT_NODE){
         node = _normalSRC(node);
@@ -125,13 +124,11 @@ function getNodeExtraAttr(node){
  * Serialize dfs'ed render tree to text version that can be saved
  */
 function _serializeRenderTree() {
-    const prefix = '  ';
     let counter = 0;
     let _dfsHelper = function(node, depth=0) {
         const nodeText = getNodeText(node.node);
         if (nodeText != null){
-            _render_tree_text.push(prefix.repeat(depth) + `${counter}:` + nodeText);
-            _node_info.push({
+            _render_tree_info.push({
                 text: nodeText,
                 xpath: getDomXPath(node.node),
                 dimension: node.dimension,
