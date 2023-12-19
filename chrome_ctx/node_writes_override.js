@@ -62,31 +62,15 @@ class DimensionSets {
         }
     }
 
-    // Check if the dimensions for both parent and this are visible
-    // TODO: This is fairly strict (return false if any args dimension is 0). The reason to set it this way is to only focusing on element addition in liveweb. So false positives for fidelity check are filtered out as much as possible, and we don't care about false negatives.
-    visible() {
-        if (this.dimension == null || this.parentDimension == null)
-            return false;
-        if (this.dimension.width === 0 || this.dimension.height === 0)
-            return false;
-        if (this.parentDimension.width === 0 || this.parentDimension.height === 0)
-            return false;
-        for (const arg of this.argsDimension) {
-            if (arg.width === 0 || arg.height === 0)
-                return false;
-        }
-        return true;
-    }
-
     /**
      * Check if the dimension match with another Dimension
-     * @param {DimensionSets} other 
+     * @param {DimensionSets} other
      * @returns {boolean} true if the dimension match
      */
     isDimensionMatch(other) {
-        if (this._isDimensionChanged(this.dimension, other.dimension) || this._isDimensionChanged(this.parentDimension, other.parentDimension)) {
-            return false;
-        }
+        if (this._isDimensionChanged(this.dimension, other.dimension)
+            || this._isDimensionChanged(this.parentDimension, other.parentDimension))
+            return false
         if (this.argsDimension.length !== other.argsDimension.length) {
             return false;
         }
@@ -113,6 +97,34 @@ class DimensionSets {
         }
         return true;
     }
+
+}
+
+// Not used at this point.
+class CSSOverrider {
+    constructor() {
+        this.overriddenElement = new Set();
+    }
+
+    _overrideStyleProperties(element) {
+        for (const property of __CSSStyleProperties) {
+            // TODO: Override all CSS properties.
+        }
+
+    }
+
+    /**
+     * Override CSS of the element and all its children
+     * @param {HTMLElement} element
+     */
+    overrideElements(element) {
+        // TODO: Write this function
+        this._overrideStyleProperties(element);
+        const elements = element.querySelectorAll('*');
+        for (const element of elements) {
+            this._overrideStyleProperties(element);
+        }
+    }
 }
 
 function newWriteMethod(originalFn, method) {
@@ -129,8 +141,9 @@ function newWriteMethod(originalFn, method) {
             // ? Need to unwrap it before apply originalFn
             if (arg instanceof DocumentFragment) {
                 let children = arg.childNodes;
+                viable_args.push([])
                 for (const child of children) {
-                    viable_args.push(child);
+                    viable_args[viable_args.length - 1].push(child);
                 }
             }
             else
@@ -175,7 +188,7 @@ function newWriteMethod(originalFn, method) {
 }
 
 function newSetMethod(originalFn, property) {
-    return function(value){
+    return function (value) {
         const wid = __write_id++;
         let beforeDS = new DimensionSets();
         let record = null;

@@ -103,6 +103,7 @@ function collectWriteStack(params){
     // * Override the node write function
     const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
     await page.evaluateOnNewDocument(script);
+    await page.evaluateOnNewDocument("__trace_enabled = true");
     
     
     if (options.url){

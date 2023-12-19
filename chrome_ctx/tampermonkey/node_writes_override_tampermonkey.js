@@ -199,8 +199,9 @@ function newWriteMethod(originalFn, method) {
             // ? Need to unwrap it before apply originalFn
             if (arg instanceof DocumentFragment) {
                 let children = arg.childNodes;
+                viable_args.push([])
                 for (const child of children) {
-                    viable_args.push(child);
+                    viable_args[viable_args.length - 1].push(child);
                 }
             }
             else

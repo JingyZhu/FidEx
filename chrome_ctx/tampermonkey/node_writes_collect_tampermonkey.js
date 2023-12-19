@@ -159,7 +159,6 @@ class DimensionSets {
 unsafeWindow.__raw_write_log_processed = [];
 unsafeWindow.__final_write_log = [];
 unsafeWindow.__final_write_log_processed = [];
-unsafeWindow.__recording_enabled = false;
 
 // Normalize all href and src attributes in node
 function _normalSRC(node) {
@@ -196,6 +195,7 @@ function _normalSRC(node) {
 }
 
 unsafeWindow.collect_writes = function () {
+    unsafeWindow.__recording_enabled = false;
     // Process raw_args so that it can be stringified
     function process_args(raw_args) {
         let args = [];
@@ -243,7 +243,7 @@ unsafeWindow.collect_writes = function () {
             args[1] = record.target.src;
 
         unsafeWindow.__raw_write_log_processed.push({
-            xpath: getDomXPath(record.target, fullTree = true),
+            xpath: getDomXPath(record.target),
             method: record.method,
             arg: args
         })
@@ -257,12 +257,12 @@ unsafeWindow.collect_writes = function () {
             continue
         // ? Only include the write if the argument is still visible now.
         // TODO: Think more about whether this is valid
-        if (!visible(record, currentDS))
-            continue
+        // if (!visible(record, currentDS))
+        //     continue
         unsafeWindow.__final_write_log.push(record);
         // Handle img src
         unsafeWindow.__final_write_log_processed.push({
-            xpath: getDomXPath(record.target, fullTree = true),
+            xpath: getDomXPath(record.target),
             method: record.method,
             arg: args
         })
@@ -270,15 +270,16 @@ unsafeWindow.collect_writes = function () {
 }
 
 // Find writes that have target of element (or element's ancestors)
-unsafeWindow.find_writes = function(element) {
+unsafeWindow.find_writes = function(log, element) {
     let writes = [];
-    for (const write of unsafeWindow.__final_write_log) {
-        const target = write.target;
+    for (let i = 0; i < log.length; i++) {
+        const target = log[i].target;
         // check if target is element or the ancestor of element
-        if (target.contains(element))
+        if (target.contains(element)){
+            let write = Object.assign({}, log[i]);
+            write.idx = i;
             writes.push(write);
+        }
     }
     return writes;
 }
-
-unsafeWindow.__recording_enabled = true;
