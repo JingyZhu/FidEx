@@ -29,6 +29,47 @@ function parseStack(stack){
     return stackInfo;
 }
 
+class executionStacks {
+    requestStacks = [];
+    writeStacks = [];
+    
+    constructor(){
+        this.requestStacks = [];
+        this.writeStacks = [];
+    }
+
+    /**
+     * Collect stack trace when a request is sent
+     * @param {object} params from Network.requestWillBeSent
+     */
+    onRequestStack(params){
+        let requestStack = {
+            url: params.request.url,
+            stackInfo: []
+        }
+        let stack = params.initiator.stack;
+        requestStack.stackInfo = parseStack(stack);
+        this.requestStacks.push(requestStack);
+    }
+
+    /**
+     * Collect stack trace when a request is sent
+     * @param {object} params from Runtime.consoleAPICalled
+     */
+    onWriteStack(params){
+        if (params.type !== 'trace')
+            return;
+        let writeStack = {
+            writeID: params.args[0].value,
+            stackInfo: []
+        }
+        let stack = params.stackTrace;
+        writeStack.stackInfo = parseStack(stack);
+        this.writeStacks.push(writeStack);
+    }
+}
+
 module.exports = {
-    parseStack: parseStack
+    parseStack,
+    executionStacks
 }

@@ -6,14 +6,17 @@
     has already been created on the target browser extension
 
 */
-const puppeteer = require("puppeteer")
+const puppeteer = require("puppeteer");
 const fs = require('fs');
+const { program } = require('commander');
+
 const eventSync = require('../utils/event_sync');
 const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../utils/load');
-const { program } = require('commander');
 const measure = require('../utils/measure');
+const execution = require('../utils/execution');
 
 const http = require('http');
+const { exec } = require("child_process");
 // Dummy server for enable page's network and runtime before loading actual page
 try{
     http.createServer(function (req, res) {
@@ -196,19 +199,34 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         })
         await waitTimeout(networkIdle, 2*1000) 
 
-        // * Step 3: Inject the overriding script
+        // * Step 3: Prepare and Inject overriding script
         const client = await recordPage.target().createCDPSession();
         let excepFF = new measure.excepFFHandler();
+        let executionStacks = new execution.executionStacks();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
+        await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
+        await client.send('Emulation.setDeviceMetricsOverride', {
+            width: 1920,
+            height: 1080,
+            deviceScaleFactor: 0,
+            mobile: false
+        });
+
         client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
-        client.on('Network.requestWillBeSent', params => excepFF.onRequest(params))
+        client.on('Runtime.consoleAPICalled', params => executionStacks.onWriteStack(params))
+        client.on('Network.requestWillBeSent', params => {
+            excepFF.onRequest(params);
+            executionStacks.onRequestStack(params);
+        })
         client.on('Network.responseReceived', params => excepFF.onFetch(params))
         await sleep(1000);
 
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await recordPage.evaluateOnNewDocument(script);
+        if (options.write)
+            await recordPage.evaluateOnNewDocument("__trace_enabled = true");
 
         // * Step 4: Load the page
         await recordPage.goto(
@@ -218,13 +236,6 @@ async function interaction(page, cdp, excepFF, url, dirname) {
                 timeout: TIMEOUT
             }
         )
-        
-        await client.send('Emulation.setDeviceMetricsOverride', {
-            width: 1920,
-            height: 1080,
-            deviceScaleFactor: 0,
-            mobile: false
-        });
         
         // * Step 5: Wait for the page to finish loading
         // ? Timeout doesn't alway work, undeterminsitically throw TimeoutError
@@ -261,6 +272,8 @@ async function interaction(page, cdp, excepFF, url, dirname) {
                 }
             });
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
         }
 
         // * Step 8: Collect the screenshots and all other measurement for checking fidelity

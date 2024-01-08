@@ -88,7 +88,7 @@ function collect_writes(){
             args[1] = record.target.src;
 
         __raw_write_log_processed.push({
-            xpath: getDomXPath(record.target, fullTree = true),
+            xpath: getDomXPath(record.target),
             method: record.method,
             arg: args
         })
@@ -102,12 +102,12 @@ function collect_writes(){
             continue
         // ? Only include the write if the argument is still visible now.
         // TODO: Think more about whether this is valid
-        if (!visible(record, currentDS))
-            continue
+        // if (!visible(record, currentDS))
+        //     continue
         __final_write_log.push(record);
         // Handle img src
         __final_write_log_processed.push({
-            xpath: getDomXPath(record.target, fullTree = true),
+            xpath: getDomXPath(record.target),
             method: record.method,
             arg: args
         })

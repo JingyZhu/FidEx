@@ -2,12 +2,14 @@
     Wrapper for node_write_override.js and node_write_collect.js.
     In replay phase, Start the browser and load certain page
 */
-const puppeteer = require("puppeteer")
-const fs = require('fs')
+const puppeteer = require("puppeteer");
+const fs = require('fs');
+const { program } = require('commander');
+
 const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
+const execution = require('../utils/execution');
 const { loadToChromeCTXWithUtils } = require('../utils/load');
-const { program } = require('commander');
 
 
 function sleep(ms) {
@@ -126,19 +128,28 @@ async function interaction(page, cdp, excepFF, url, dirname){
     
     try {
         let excepFF = new measure.excepFFHandler();
+        let executionStacks = new execution.executionStacks();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
+        await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
         await sleep(1000);
         
-        // * Step 1: Inject the overriding script
+        // * Step 1: Parse and Inject the overriding script
+       
         client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
-        client.on('Network.requestWillBeSent', params => excepFF.onRequest(params))
+        client.on('Runtime.consoleAPICalled', params => executionStacks.onWriteStack(params))
+        client.on('Network.requestWillBeSent', params => {
+            excepFF.onRequest(params);
+            executionStacks.onRequestStack(params);
+        })
         client.on('Network.responseReceived', params => excepFF.onFetch(params))
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         const timeout = options.wayback ? 200*1000 : 30*1000;
         // console.log("Timeout: ", timeout)
         await page.evaluateOnNewDocument(script);
+        if (options.write)
+            await page.evaluateOnNewDocument("__trace_enabled = true");
         
         // * Step 2: Load the page
         try {
@@ -190,6 +201,8 @@ async function interaction(page, cdp, excepFF, url, dirname){
                 }
             });
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
         }
 
         // * Step 7: Collect the screenshot and other measurements
