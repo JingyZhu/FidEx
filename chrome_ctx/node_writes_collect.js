@@ -107,6 +107,7 @@ function collect_writes(){
         __final_write_log.push(record);
         // Handle img src
         __final_write_log_processed.push({
+            wid: record.id,
             xpath: getDomXPath(record.target),
             method: record.method,
             arg: args

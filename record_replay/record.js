@@ -203,6 +203,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         const client = await recordPage.target().createCDPSession();
         let excepFF = new measure.excepFFHandler();
         let executionStacks = new execution.executionStacks();
+        let exeRe = new execution.ExecutableResources();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
@@ -221,6 +222,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             executionStacks.onRequestStack(params);
         })
         client.on('Network.responseReceived', params => excepFF.onFetch(params))
+        recordPage.on('response', async response => exeRe.onResponse(response));
         await sleep(1000);
 
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
@@ -274,6 +276,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(exeRe.resources, null, 2));
         }
 
         // * Step 8: Collect the screenshots and all other measurement for checking fidelity
