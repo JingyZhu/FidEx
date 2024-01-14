@@ -27,15 +27,15 @@ function generateTestCases() {
 function compare(fileName, rowCol) {
     file = fs.readFileSync(`examples/${fileName}_url.js`, 'utf8');
     const pos = jsparse.rowCol2Pos(file, rowCol);
-    let JSP = new jsparse.JSParser(file);
-    let astLive = JSP.traverse();
+    let JSP = new jsparse.JSTextParser(file);
+    let astLive = JSP.getASTNode();
     const paths = astLive.findPath(pos);
     const live_pos = paths[paths.length-1].node;
     const live_text = JSP.text.slice(live_pos.pos, live_pos.end);
 
     file = fs.readFileSync(`examples/${fileName}_archive.js`, 'utf8');
-    JSP = new jsparse.JSParser(file);
-    astArchive = JSP.traverse();
+    JSP = new jsparse.JSTextParser(file);
+    astArchive = JSP.getASTNode();
     astArchive = astArchive.filterWayback();
     const wb_pos = astArchive.findPos(paths);
     const wb_text = JSP.text.slice(wb_pos.pos, wb_pos.end);

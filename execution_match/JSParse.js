@@ -16,7 +16,12 @@ class ASTNode {
         child.parent = this;
         this.children.push(child);
     }
-
+    
+    /**
+     * 
+     * @param {Int} pos 
+     * @returns {Array} [{idx: index of the child, node: child}]
+     */
     findPath(pos) {
         let curNode = this;
         let path = [];
@@ -109,6 +114,7 @@ class JSTextParser {
     constructor(jsFile) {
         this.sourceFile = ts.createSourceFile('jsparsed.js', jsFile, ts.ScriptTarget.Latest, true);
         this.text = this.sourceFile.text;
+        this.astNode = null;
     }
 
     getText(start, end) {
@@ -146,7 +152,9 @@ class JSTextParser {
         return info;
     }
 
-    getASTNode() {
+    getASTNode(archive=false) {
+        if (this.astNode)
+            return this.astNode;
         let traverseHelper = (node, depth=0) => {
             let info = this.collectNodeInfo(node);
             let astNode = new ASTNode(node, info);
@@ -156,7 +164,10 @@ class JSTextParser {
             });
             return astNode;
         }
-        return traverseHelper(this.sourceFile);
+        this.astNode = traverseHelper(this.sourceFile);
+        if (archive)
+            this.astNode = this.astNode.filterWayback();
+        return this.astNode;
     }
 }
 
@@ -174,10 +185,17 @@ class JSParser {
     constructor(file, mime='javascript') {
         this.file = file;
         this.mime = mime;
-        // Use for find path and pos
-        this.jsfile = file;
-        this.jsPos = {start: 0, end: file.length};
         this.jsdom = null;
+        this.javascripts = [];
+        if (mime.includes('html'))
+            this.jsdom = new JSDOM(this.file, {includeNodeLocations: true});
+        else if (mime.includes('javascript')) {
+            this.javascripts.push({
+                text: file, 
+                pos: [0, file.length],
+                jstextparser: new JSTextParser(file)
+            });
+        }
     }
 
     /**
@@ -185,16 +203,26 @@ class JSParser {
      * @param {Int} pos 
      * @returns {Object} {text: JS text, path: path to JS, start/end: start/end offset of the JS text}
      */
-    extractJS(pos) {
+    getJavascript(pos) {
+        // See if the pos is included in this.jsfiles.pos
+        for (let javascript of this.javascripts) {
+            if (pos >= javascript.pos[0] && pos < javascript.pos[1])
+                return javascript;
+        }
         const scripts = this.jsdom.window.document.querySelectorAll('script');
         let targetScript = null;
-        let result = {text: null, path: null, start: null, end: null}
+        let javascript = {
+            text: null, 
+            pos: null, 
+            jstextparser: null, 
+            path: null
+        }
         for (let script of scripts) {
             const location = this.jsdom.nodeLocation(script);
+            // ?? Why <= endOffset?
             if (pos >= location.startOffset && pos <= location.endOffset) {
                 targetScript = script;
-                result.start = location.startTag.endOffset;
-                result.end = location.endTag.startOffset;
+                javascript.pos = [location.startTag.endOffset, location.endTag.startOffset];
                 break;
             }
         }
@@ -215,9 +243,11 @@ class JSParser {
                     ix++;
             }
         }
-        result.path = jspath.reverse();
-        result.text = targetScript.textContent;
-        return result;
+        javascript.path = jspath.reverse();
+        javascript.text = targetScript.textContent;
+        javascript.jstextparser = new JSTextParser(javascript.text);
+        this.javascripts.push(javascript);
+        return javascript;
     }
 
     /**
@@ -273,18 +303,11 @@ class JSParser {
      */
     findPath(pos, archive=false) {
         let path = {jspath: null, astpath: null};
-        if (this.mime.includes('html') && this.jsdom === null) {
-            this.jsdom = new JSDOM(this.file, {includeNodeLocations: true});
-            const jsInfo = this.extractJS(pos);
-            this.jsPos = {start: jsInfo.start, end: jsInfo.end};
-            this.jsfile = jsInfo.text;
-            path.jspath = jsInfo.path;
-        }
-        const jsp = new JSTextParser(this.jsfile);
-        let ast = jsp.getASTNode();
-        if (archive)
-            ast = ast.filterWayback();
-        const astpath = ast.findPath(pos-this.jsPos.start);
+        const javascript = this.getJavascript(pos);
+        const jsp = javascript.jstextparser;
+        path.jspath = javascript.path;
+        let ast = jsp.getASTNode(archive);
+        const astpath = ast.findPath(pos-javascript.pos[0]);
         path.astpath = astpath;
         return path;
     }
@@ -296,25 +319,32 @@ class JSParser {
      * @returns {Object} {start: start offset, end: end offset}
      */
     findPos(path, archive=true) {
-        if (this.mime.includes('html') && this.jsdom === null) {
-            this.jsdom = new JSDOM(this.file, {includeNodeLocations: true});
+        // Create a deep copy of the path object
+        let pathCopy = {astpath: path.astpath, jspath: []};
+
+        let jsStart = 0;
+        if (this.mime.includes('html')) {
             if (archive)
-                path.jspath = this._adjustArchiveJSPath(path.jspath);
-            this.jsPos = this.locateJS(path.jspath);
-            this.jsfile = this.file.substring(this.jsPos.start, this.jsPos.end);
+                pathCopy.jspath = this._adjustArchiveJSPath(path.jspath);
+            jsStart = this.locateJS(pathCopy.jspath).start;
         }
-        const jsp = new JSTextParser(this.jsfile);
-        let ast = jsp.getASTNode();
-        if (archive)
-            ast = ast.filterWayback();
-        const pos = ast.findPos(path.astpath);
-        return {start: this.jsPos.start+pos.start, end: this.jsPos.start+pos.end};
+        const javascript = this.getJavascript(jsStart);
+        const jsp = javascript.jstextparser;
+        let ast = jsp.getASTNode(archive);
+        const pos = ast.findPos(pathCopy.astpath);
+        return {start: jsStart+pos.start, end: jsStart+pos.end};
     }
 
     getText() {
-        // arguments can be either (start, end) or leaf ASTNode
-        if (arguments[0] instanceof ASTNode) {
-            return this.jsfile.substring(arguments[0].start, arguments[0].end);
+        // arguments can be either (start, end) or {jspath: [],, astpath: []}
+        if (arguments[0] instanceof Object && 'jspath' in arguments[0] && 'astpath' in arguments[0]) {
+            let jsStart = 0;
+            if (this.mime.includes('html'))
+                jsStart = this.locateJS(arguments[0].jspath).start;
+            const lastNode = arguments[0].astpath[arguments[0].astpath.length-1].node;
+            const javascript = this.getJavascript(jsStart);
+            const jsp = javascript.jstextparser;
+            return jsp.getText(lastNode.start, lastNode.end);
         } else if (Number.isInteger(arguments[0]) && Number.isInteger(arguments[1])) {
             return this.file.substring(arguments[0], arguments[1]);
         }
