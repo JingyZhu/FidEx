@@ -1,5 +1,5 @@
 // Test file for JSParse.js. For each pos in liveweb js, locate the corresponding pos in archive js.
-const jsparse = require('./JSParse');
+const jsparse = require('./js-parse');
 const fs = require('fs');
 
 function generateTestCases() {

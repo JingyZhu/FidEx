@@ -181,6 +181,18 @@ function rowCol2Pos(file, rowCol, oneIdx=false) {
     return pos;
 }
 
+function pos2RowCol(file, pos, oneIdx=false) {
+    let lines = file.split('\n');
+    let curPos = 0;
+    for (let i = 0; i < lines.length; i++) {
+        if (curPos + lines[i].length + 1 > pos) {
+            return [i+oneIdx, pos-curPos+oneIdx];
+        }
+        curPos += lines[i].length + 1;
+    }
+    return null;
+}
+
 class JSParser {
     constructor(file, mime='javascript') {
         this.file = file;
@@ -357,5 +369,6 @@ module.exports = {
     JSTextParser,
     ASTNode,
     rowCol2Pos,
+    pos2RowCol,
     JSParser
 }

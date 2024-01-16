@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { program } = require('commander');
 const fetch = require('node-fetch');
-const jsparse = require('./JSParse');
+const jsparse = require('./js-parse');
 
 program
     .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
@@ -135,8 +135,12 @@ class ArchiveMatcher {
         }
         archiveJSP = this.jsparse_cache[archiveFile];
         // Find path
-        const archivePos = archiveJSP.findPos(origPath, true);
-        
+        let archivePos = archiveJSP.findPos(origPath, true);
+        archivePos = {
+            start: jsparse.pos2RowCol(archiveFile, archivePos.start),
+            end: jsparse.pos2RowCol(archiveFile, archivePos.end)
+        }
+
         return {
             archiveURL: archiveURL, 
             position: archivePos,
@@ -209,9 +213,9 @@ async function transformLiveWriteStacks(liveWriteStacks, timestamp) {
                     continue;
                 archiveStack.callFrames.push({
                     live_url: frame.url,
-                    live_text: frame.text,
+                    // live_text: frame.text,
                     archive_url: archiveFrame.archiveURL,
-                    archive_text: archiveFrame.archiveText,
+                    // archive_text: archiveFrame.archiveText,
                     archive_start: archiveFrame.position.start,
                     archive_end: archiveFrame.position.end
                 });
@@ -226,7 +230,12 @@ async function transformLiveWriteStacks(liveWriteStacks, timestamp) {
 const liveWriteStacks = JSON.parse(fs.readFileSync(`${dirname}/${filename}_writeStacks.json`, 'utf8'));
 const timestamp = '20210609170257';
 transformLiveWriteStacks(liveWriteStacks, timestamp).then((archiveWriteStacks) => {
-    fs.writeFileSync(`${dirname}/${filename}_archiveWriteStacks.json`, JSON.stringify(archiveWriteStacks));
+    fs.writeFileSync(`${dirname}/${filename}_archiveWriteStacks.json`, JSON.stringify(archiveWriteStacks, null, 2));
 });
 
 // testMatchLive2Archive();
+
+module.exports = {
+    ArchiveMatcher,
+    transformLiveWriteStacks
+}
