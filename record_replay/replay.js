@@ -128,7 +128,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
     
     try {
         let excepFF = new measure.excepFFHandler();
-        let executionStacks = new execution.executionStacks();
+        let executionStacks = new execution.ExecutionStacks();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');

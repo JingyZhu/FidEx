@@ -30,7 +30,7 @@ function parseStack(stack){
     return stackInfo;
 }
 
-class executionStacks {
+class ExecutionStacks {
     requestStacks = [];
     writeStacks = [];
     
@@ -70,6 +70,7 @@ class executionStacks {
     }
 }
 
+// ?? Currently not used since execution matching query for executables itself
 class ExecutableResources {
     resources = {};
     constructor(){
@@ -111,6 +112,5 @@ class ExecutableResources {
 
 module.exports = {
     parseStack,
-    executionStacks,
-    ExecutableResources
+    ExecutionStacks
 }
