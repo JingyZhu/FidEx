@@ -88,6 +88,7 @@ function collect_writes(){
             args[1] = record.target.src;
 
         __raw_write_log_processed.push({
+            wid: record.id,
             xpath: getDomXPath(record.target),
             method: record.method,
             arg: args

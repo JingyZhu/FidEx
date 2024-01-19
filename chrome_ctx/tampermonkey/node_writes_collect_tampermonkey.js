@@ -262,6 +262,7 @@ unsafeWindow.collect_writes = function () {
         unsafeWindow.__final_write_log.push(record);
         // Handle img src
         unsafeWindow.__final_write_log_processed.push({
+            wid: record.id,
             xpath: getDomXPath(record.target),
             method: record.method,
             arg: args

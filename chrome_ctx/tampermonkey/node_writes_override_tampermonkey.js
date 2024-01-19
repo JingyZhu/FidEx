@@ -60,6 +60,7 @@ function getDomXPath(elm, fullTrace = false) {
 /*
     Override (all) HTML Node's write methods to track the writes.
 */
+Error.stackTraceLimit = Infinity;
 unsafeWindow.__debug = false;
 unsafeWindow.__recording_enabled = true;
 unsafeWindow.__trace_enabled = false;
