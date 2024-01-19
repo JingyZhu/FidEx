@@ -81,7 +81,8 @@ class ASTNode {
         let chooseSkipNode = (node) => {
             // * Skip "_____WB$wombat$check$this$function_____(this)"
             if (node.kind === 'CallExpression' 
-                && node.info.text.includes('_____WB$wombat$check$this$function_____')
+                && node.info.text.startsWith('_____WB$wombat$check$this$function_____')
+                && node.info.argument.length == 1
                 && node.info.argument[0] === 'this') {
                 // Remove self from parent's children
                 node.parent.children.splice(node.parent.children.indexOf(node), 1, node.children[1]);
@@ -133,8 +134,9 @@ class JSTextParser {
             }
         }
         const trailingText = this.getText(textStart, node.end);
+        const fullText = this.getText(node.pos, node.end);
         let info = {
-            text: trailingText
+            text: fullText
         };
         switch (kind) {
             case 'CallExpression':
@@ -165,8 +167,9 @@ class JSTextParser {
             return astNode;
         }
         this.astNode = traverseHelper(this.sourceFile);
-        if (archive)
+        if (archive){
             this.astNode = this.astNode.filterWayback();
+        }
         return this.astNode;
     }
 }
@@ -347,20 +350,19 @@ class JSParser {
         return {start: jsStart+pos.start, end: jsStart+pos.end};
     }
 
-    getText() {
-        // arguments can be either (start, end) or {jspath: [],, astpath: []}
-        if (arguments[0] instanceof Object && 'jspath' in arguments[0] && 'astpath' in arguments[0]) {
-            let jsStart = 0;
-            if (this.mime.includes('html'))
-                jsStart = this.locateJS(arguments[0].jspath).start;
-            const lastNode = arguments[0].astpath[arguments[0].astpath.length-1].node;
-            const javascript = this.getJavascript(jsStart);
-            const jsp = javascript.jstextparser;
-            return jsp.getText(lastNode.start, lastNode.end);
-        } else if (Number.isInteger(arguments[0]) && Number.isInteger(arguments[1])) {
-            return this.file.substring(arguments[0], arguments[1]);
-        }
-        return null;
+    getTextFromPos(start, end) {
+        return this.file.substring(start, end);
+    }
+
+    getTextFromPath(path, origPos=null) {
+        let jsStart = 0;
+        if (this.mime.includes('html'))
+            jsStart = this.locateJS(path.jspath).start;
+        const lastNode = path.astpath[path.astpath.length-1].node;
+        const javascript = this.getJavascript(jsStart);
+        const jsp = javascript.jstextparser;
+        const actualStart = origPos ? origPos - jsStart : lastNode.start;
+        return jsp.getText(actualStart, lastNode.end);
     }
 }
 

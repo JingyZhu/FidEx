@@ -5,7 +5,7 @@ collections/
 env/
 __pycache__/
 html_test/
-execution_match/examples/*.js
+execution_match/*_examples/*.js
 results*
 *.json
 !fidelity_check/testcases*.json
