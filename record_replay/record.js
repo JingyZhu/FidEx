@@ -229,7 +229,8 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         await recordPage.evaluateOnNewDocument(script);
         if (options.write)
             await recordPage.evaluateOnNewDocument("__trace_enabled = true");
-
+        // // Seen clearCache Cookie not working, can pause here to manually clear them
+        // await eventSync.waitForReady();
         // * Step 4: Load the page
         await recordPage.goto(
             url,

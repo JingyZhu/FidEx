@@ -13,3 +13,14 @@
 - **Reason**
     - Chrome devtool debugger is not able to track ```window.postMessage``` across cross-orgin iframes. Because there are multiple threads, one for each iframe.
     - Here the "cross-orgin" iframe should be really "cross-origin" (e.g. localhost:8080 and localhost:8081 will be run on the same thread.)
+
+# dra.gov_1
+- Liveweb has additional swiper pagination
+- Liveweb has different (normal) swiper style
+- Only one diff final_writes: reflects the addtional swiper pagination
+    - the setInnerHTML stack does include the news-carousel.js, which triggers the exception
+
+# www.sewp.nasa.gov_1
+- Liveweb has additional link on the banner
+- Link is added by Document.writeln
+    - Not overriden by the current program.
