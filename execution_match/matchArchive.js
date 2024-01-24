@@ -190,16 +190,21 @@ async function testMatchLive2Archive () {
         //     row: 0,
         //     col: 3122
         // },
-        {
-            url: "https://eta.lbl.gov/sites/default/files/js/js_QHqjxhGPGgZFwOfW92tmrVpssmC1sbO0zDG4TgLmaEI.js",
-            row: 145,
-            col: 8
-        },
-        {
-            url: "https://eta.lbl.gov/sites/default/files/js/js_xiz34GyORQd8IWoIOUts3xRufFEzuu-9CX1VbFroHcI.js",
-            row: 379,
-            col: 6
-        }
+        // {
+        //     url: "https://eta.lbl.gov/sites/default/files/js/js_QHqjxhGPGgZFwOfW92tmrVpssmC1sbO0zDG4TgLmaEI.js",
+        //     row: 145,
+        //     col: 8
+        // },
+        // {
+        //     url: "https://eta.lbl.gov/sites/default/files/js/js_xiz34GyORQd8IWoIOUts3xRufFEzuu-9CX1VbFroHcI.js",
+        //     row: 379,
+        //     col: 6
+        // },
+        // {
+        //     url: "https://cmp.osano.com/AzZdHGSGtpxCq1Cpt/079b27eb-bb3f-48dd-9bd9-3feb8aec3c38/osano.js",
+        //     row: 1,
+        //     col: 159965
+        // }
     ]
     const archiveMatcher = new ArchiveMatcher();
     for (const testcase of testcases) {

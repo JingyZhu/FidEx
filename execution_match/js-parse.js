@@ -30,7 +30,7 @@ class ASTNode {
             found = false;
             for (let idx = 0; idx < curNode.children.length; idx++) {
                 let child = curNode.children[idx];
-                if (pos >= child.start && pos <= child.end) {
+                if (pos >= child.start && pos < child.end) {
                     path.push({idx: idx, node: child});
                     curNode = child;
                     found = true;
