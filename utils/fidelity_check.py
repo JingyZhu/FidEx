@@ -43,6 +43,7 @@ class htmlElement:
     def __eq__(self, other):
         if self.text == other.text:
             return True
+            return self.dimension == other.dimension
         if self.features == other.features and self.dimension == other.dimension:
             return True
         return False
@@ -160,7 +161,7 @@ def _merge_xpaths(xpaths):
             merged_xpaths.append([xpath])
     return merged_xpaths
 
-def _xpaths_2_text(xpaths, xpath_map):
+def xpaths_2_text(xpaths, xpath_map):
     """Transform xpaths to their text"""
     text = ''
     for xpath in xpaths:
@@ -168,14 +169,115 @@ def _xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(live_element, archive_element) -> (list, list):
+def diff(live_element, archive_element, returnHTML=False) -> (list, list):
     live_xpaths_map = {e['xpath']: e for e in live_element}
     archive_xpaths_map = {e['xpath']: e for e in archive_element}
     live_unique, archive_unique = _diff_html(live_element, archive_element)
+    
     live_unique = _merge_xpaths(live_unique)
     print("live_unique number", [len(xpaths) for xpaths in live_unique])
-    live_unique_html = [_xpaths_2_text(xpaths, live_xpaths_map) for xpaths in live_unique]
+    if returnHTML:
+        live_unique = [xpaths_2_text(xpaths, live_xpaths_map) for xpaths in live_unique]
+    
     archive_unique = _merge_xpaths(archive_unique)
     print("archive_unique number", [len(xpaths) for xpaths in archive_unique])
-    archive_unique_html = [_xpaths_2_text(xpaths, archive_xpaths_map) for xpaths in archive_unique]
-    return live_unique_html, archive_unique_html
+    if returnHTML:
+        archive_unique = [xpaths_2_text(xpaths, archive_xpaths_map) for xpaths in archive_unique]
+    return live_unique, archive_unique
+
+def associate_writes(element: dict, writes: list) -> list:
+    """
+    Associate JS writes with the input element
+    Add:    1. Parent node append self
+    Update: 1. Same node set attribute
+            2. Parent node set HTML
+    Remove: 1. Same node remove child
+
+    Args:
+        element (dict): element's path and dimension info in the liveweb page
+        writes (list): list of writes
+    
+    Returns:
+        list: list of writes that are associated with the element
+    """
+    # TODO: Potential next step
+    # In override.js, collect info for beforeIsConnected and afterIsConnected for args
+    # When collect info, also collect all args' children and there corresponding xpath
+    # When matching, even if the target element is the child of arg, we can find it out, and whether is has any visible effect.                                                
+
+    # Or we can diff the writes between live and archive first (how? may be using target and stackTrace first?)
+    # Then only associate writes within the diff parts.
+
+    # Operations that affect element if element is the target
+    target_operation = {
+        'replaceChild': None,
+        'removeChild': None,
+        'set:nodeValue': None,
+        'set:textContent': None,
+        'removeAttribute': None,
+        'removeAttributeNode': None,
+        'removeAttributeNS': None,
+        'replaceChildren': None,
+        'replaceWith': None,
+        'setAttribute': None,
+        'setAttributeNode': None,
+        'setAttributeNodeNS': None,
+        'setAttributeNS': None,
+        'setHTML': None,
+        'set:className': None,
+        'set:id': None,
+        'set:innerHTML': None
+    }
+    # {operation name: [related arguments idx]}
+    # If empty list, all arguments are related
+    args_operation = {
+        'appendChild': [0],
+        'insertBefore': [0],
+        'replaceChild': [0],
+        'removeChild': [0],
+        'after': [],
+        'append': [],
+        'before': [],
+        'remove': [],
+        'replaceChildren': [],
+        'replaceWith': [],
+    }
+    # Set HTML operation. Since there is no xpath, need to check separately
+    set_html_operation = {
+        'setHTML': None,
+        'set:innerHTML': None
+    }
+    
+    def target_operation_check(write):
+        return write['xpath'] == element['xpath']
+    
+    def args_operation_check(write, idxs):
+        args = []
+        if len(idxs) == 0:
+            args = write['arg']
+        else:
+            for idx in idxs:
+                args.append(write['arg'][idx])
+        for arg in args:
+            arg = [arg] if not isinstance(arg, list) else arg
+            for a in arg:
+                if 'xpath' in a and a['xpath'] == element['xpath']:
+                    return True
+        return False
+
+    # TODO: Implement check for set_html_operation
+    
+    related_writes, related_seen = [], set()
+    for write in writes:
+        method = write['method']
+        if method in target_operation and target_operation_check(write):
+            if write['wid'] not in related_seen:
+                related_writes.append(write)
+                related_seen.add(write['wid'])
+    for write in writes:
+        method = write['method']
+        if method in args_operation and args_operation_check(write, args_operation[method]):
+            if write['wid'] not in related_seen:
+                related_writes.append(write)
+                related_seen.add(write['wid'])
+    return related_writes        

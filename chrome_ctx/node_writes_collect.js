@@ -45,19 +45,32 @@ function collect_writes(){
     function process_args(raw_args) {
         let args = [];
         for (let arg of raw_args) {
+            let arg_info = {
+                html: null
+            }    
             if (args == null || arg == undefined)
                 continue
             if (arg instanceof Element) {
                 arg = _normalSRC(arg);
-                args.push(arg.outerHTML);
+                arg_info.html = arg.outerHTML;
+                arg_info.xpath = getDomXPath(arg);
             } else if (arg instanceof Node) {
                 if (arg.nodeName !== undefined)
-                    args.push(arg.nodeName);
+                    arg_info.html = arg.nodeName;
                 else
-                    args.push(arg.nodeType);
-            } else { // Assme it is a string
-                args.push(arg);
+                    arg_info.html = arg.nodeType;
+                arg_info.xpath = getDomXPath(arg);
+            } else if (arg instanceof Array) {
+                arg_info = [];
+                for (const a of arg) {
+                    const processed_a = process_args([a])[0];
+                    arg_info.push(processed_a);
+                }
             }
+            else { // Assme it is a string
+                arg_info.html = arg;
+            }
+            args.push(arg_info);
         }
         return args;
     }
