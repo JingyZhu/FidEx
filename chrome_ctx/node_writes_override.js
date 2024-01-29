@@ -14,6 +14,14 @@ function _debug_log(...args) {
         console.log(...args);
 }
 
+function _get_wid() {
+    const frameName = window.name;
+    if (window.name === '')
+        return `${__write_id++}`;
+    else
+        return `${__write_id++}:${frameName}`;
+}
+
 // Check if the node is in the document
 function isNodeInDocument(node) {
     return node.isConnected;
@@ -129,7 +137,7 @@ class CSSOverrider {
 
 function newWriteMethod(originalFn, method) {
     return function (...args) {
-        const wid = __write_id++;
+        const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
         const ableRecord = __recording_enabled && isNodeInDocument(this);
@@ -189,7 +197,7 @@ function newWriteMethod(originalFn, method) {
 
 function newSetMethod(originalFn, property) {
     return function (value) {
-        const wid = __write_id++;
+        const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
         const ableRecord = __recording_enabled && isNodeInDocument(this);
