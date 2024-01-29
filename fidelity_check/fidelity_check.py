@@ -5,6 +5,11 @@ import difflib
 import json
 import re, os
 from bs4 import BeautifulSoup
+from collections import defaultdict
+
+import sys
+sys.path.append('../')
+from utils import url_utils
 
 def _collect_dimension(element):
     if 'dimension' not in element or element['dimension'] is None:
@@ -185,7 +190,93 @@ def diff(live_element, archive_element, returnHTML=False) -> (list, list):
         archive_unique = [xpaths_2_text(xpaths, archive_xpaths_map) for xpaths in archive_unique]
     return live_unique, archive_unique
 
-def associate_writes(element: dict, writes: list) -> list:
+
+def generate_sig(write, live=False):
+    sig = []
+    stackInfo = write['stackInfo']
+    for stack in stackInfo:
+        sig.append([])
+        for callFrame in stack['callFrames']:
+            url = callFrame['archive_url'] if live else callFrame['url']
+            real_url = url_utils.filter_archive(url)
+            if real_url in [None, '']:
+                continue
+            line = callFrame['archive_start'][0] if live else callFrame['lineNumber']
+            col = callFrame['archive_start'][1] if live else callFrame['columnNumber']
+            frame = f'{real_url}:{line}:{col}'
+            sig[-1].append(frame)
+    return sig
+
+def diff_writes(live_writes: list, archive_writes: list):
+    """
+    Diff the writes between live and archive pages
+    Same criteria is based on write's stack trace
+
+    Args:
+        live_writes: List from live_writes.
+        archive_writes: List from archive_writes.json
+    """
+    # live_stacks_id = {w['writeID']: w for w in live_write_stacks}
+    # archive_stacks_id = {w['writeID']: w for w in archive_write_stacks}
+    live_writes = live_writes['rawWrites']
+    # for l in live_writes:
+    #     l['stackInfo'] = live_stacks_id[l['wid']]
+    archive_writes = archive_writes['rawWrites']
+    # for a in archive_writes:
+    #     a['stackInfo'] = archive_stacks_id[a['wid']]
+
+    def _tag_from_xpath(xpath):
+        return xpath.split('/')[-1].split('[')[0]
+
+    def _tag_from_arg(args):
+        if not isinstance(args, list):
+            args = [args]
+        tags = []
+        for arg in args:
+            if 'xpath' in arg:
+                tags.append(_tag_from_xpath(arg['xpath']))
+            else:
+                html = BeautifulSoup(str(arg['html']), 'html.parser')
+                tag = html.find()
+                if tag:
+                    tags.append(tag.name)
+                else:
+                    tags.append('text')
+        return tags
+
+    live_sigs, archive_sigs = defaultdict(list), defaultdict(list)
+    for write in live_writes:
+        # write_sig = generate_sig(live_stacks_id[write['wid']], live=True)
+        write_sig = [write['method']]
+        target = _tag_from_xpath(write['xpath'])
+        args = []
+        for arg in write['arg']:
+            args += _tag_from_arg(arg)
+        sig = [target] + args + write_sig
+        sig = tuple([tuple(s) if isinstance(s, list) else s for s in sig])
+        live_sigs[sig].append(write)
+    
+    for write in archive_writes:
+        # write_sig = generate_sig(archive_stacks_id[write['wid']], live=False)
+        write_sig = [write['method']]
+        target = _tag_from_xpath(write['xpath'])
+        args = []
+        for arg in write['arg']:
+            args += _tag_from_arg(arg)
+        sig = [target] + args + write_sig
+        sig = tuple([tuple(s) if isinstance(s, list) else s for s in sig])
+        archive_sigs[sig].append(write)
+    
+    live_unique, archive_unique = {}, {}
+    for sig in live_sigs:
+        if sig not in archive_sigs  or len(live_sigs[sig]) > len(archive_sigs[sig]):
+            live_unique[sig] = live_sigs[sig]
+    for sig in archive_sigs:
+        if sig not in live_sigs or len(archive_sigs[sig]) > len(live_sigs[sig]):
+            archive_unique[sig] = archive_sigs[sig]
+    return live_unique, archive_unique
+
+def associate_writes(element_xpath: str, writes: list) -> list:
     """
     Associate JS writes with the input element
     Add:    1. Parent node append self
@@ -194,7 +285,7 @@ def associate_writes(element: dict, writes: list) -> list:
     Remove: 1. Same node remove child
 
     Args:
-        element (dict): element's path and dimension info in the liveweb page
+        element (str): element's xpath
         writes (list): list of writes
     
     Returns:
@@ -249,7 +340,7 @@ def associate_writes(element: dict, writes: list) -> list:
     }
     
     def target_operation_check(write):
-        return write['xpath'] == element['xpath']
+        return write['xpath'] == element_xpath
     
     def args_operation_check(write, idxs):
         args = []
@@ -261,7 +352,9 @@ def associate_writes(element: dict, writes: list) -> list:
         for arg in args:
             arg = [arg] if not isinstance(arg, list) else arg
             for a in arg:
-                if 'xpath' in a and a['xpath'] == element['xpath']:
+                if a['html'] in ['#comment']:
+                    continue
+                if 'xpath' in a and element_xpath.startswith(a['xpath']):
                     return True
         return False
 
