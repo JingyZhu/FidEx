@@ -48,12 +48,18 @@ function skipURL(url) {
    use the given text to calibrate the start to exclude those.
 */
 function calibrateStart(file, start, end, text) {
+    let checkLength = Math.min(text.length, 128);
+    let checkText = text.substring(0, checkLength);
     let origText = file.substring(start, end);
-    for (let i = 0; i < origText.length; i++) {
-        if (origText.substring(i) == text) {
-            return start + i;
+    while (checkText.length > 0) {
+        for (let i = 0; i < origText.length; i++) {
+            if (origText.substring(i, i+checkText.length) == checkText) {
+                return start + i;
+            }
         }
-    }   
+        checkText = checkText.substring(0, checkText.length / 2);
+    }
+    throw new Error(`Cannot calibrate start ${start}, ${end}, ${text}`);
 }
 
 class ArchiveMatcher {
@@ -204,7 +210,22 @@ async function testMatchLive2Archive () {
         //     url: "https://cmp.osano.com/AzZdHGSGtpxCq1Cpt/079b27eb-bb3f-48dd-9bd9-3feb8aec3c38/osano.js",
         //     row: 1,
         //     col: 159965
-        // }
+        // },
+        // {
+        //     url: "https://public.slidesharecdn.com/v2/javascripts/packs/combined_jquery.a891397a324d1d6a77cf.js",
+        //     row: 1,
+        //     col: 3519
+        // },
+        {
+            url: "https://cmp.osano.com/AzZdHGSGtpxCq1Cpt/079b27eb-bb3f-48dd-9bd9-3feb8aec3c38/osano.js",
+            row: 1,
+            col: 172585
+        },
+        {
+            url: "https://cmp.osano.com/AzZdHGSGtpxCq1Cpt/079b27eb-bb3f-48dd-9bd9-3feb8aec3c38/osano.js",
+            row: 1,
+            col: 172585
+        }
     ]
     const archiveMatcher = new ArchiveMatcher();
     for (const testcase of testcases) {

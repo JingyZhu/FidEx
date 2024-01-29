@@ -37,6 +37,20 @@ class ASTNode {
                     break;
                 }
             }
+            if (!found && ts.isCallExpression(curNode.node)) {
+                // * Case for IIFE (Immediately Invoked Function Expression)
+                const lastChild = curNode.children[curNode.children.length-1];
+                if (pos == lastChild.end) {
+                    const dummyInvocation = ts.factory.createParenthesizedExpression(ts.factory.createIdentifier(''), undefined, []);
+                    let dummyNode = new ASTNode(dummyInvocation, {text: ''});
+                    dummyNode.start = lastChild.end;
+                    dummyNode.end = curNode.end;
+                    curNode.addChild(dummyNode);
+                    path.push({idx: curNode.children.length-1, node: dummyNode});
+                    curNode = dummyNode;
+                    break;
+                }
+            }
         }
         return path;
     }
@@ -44,6 +58,13 @@ class ASTNode {
     findPos(path) {
         let curNode = this;
         for (let step of path) {
+            if (step.idx >= curNode.children.length) {
+                const dummyInvocation = ts.factory.createCallExpression(ts.factory.createIdentifier(''), undefined, []);
+                let dummyNode = new ASTNode(dummyInvocation, {text: ''});
+                dummyNode.start = curNode.children[curNode.children.length-1].end;
+                dummyNode.end = curNode.end;
+                curNode.addChild(dummyNode);
+            }
             curNode = curNode.children[step.idx];
         }
         return {start: curNode.start, end: curNode.end};
