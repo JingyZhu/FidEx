@@ -25,11 +25,21 @@ default_archive = 'eot-writes'
 metadata_file = 'eot-writes_metadata.json'
 arguments = ['-w', '-s']
 
-
-def record_replay(url, archive_name, remote_host=REMOTE):
+def record_replay(url, archive_name, 
+                  wr_archive=default_archive, 
+                  pw_archive=default_archive,
+                  remote_host=REMOTE):
+    """
+    Args:
+        url: URL to record and replay
+        archive_name: Name of the archive to be saved
+        wr_archive: Name of the archive to save & export on webrecorder
+        pw_archive: Name of the archive to import for warc on pywb
+        remote_host: True if run on remote host, False if run on local host
+    """
     p = Popen(['node', 'record.js', '-d', f'writes/{archive_name}',
                 '-f', 'live',
-                '-a', default_archive, 
+                '-a', wr_archive, 
                 *arguments,
                 url], stdout=PIPE)
     ts = None
@@ -46,21 +56,21 @@ def record_replay(url, archive_name, remote_host=REMOTE):
     if ts is None:
         return '', url
 
-    os.rename(f'downloads/{default_archive}.warc', f'downloads/{archive_name}.warc')
+    os.rename(f'downloads/{wr_archive}.warc', f'downloads/{archive_name}.warc')
     if remote_host:
-        upload.upload_warc(f'downloads/{archive_name}.warc', default_archive, directory=default_archive)
+        upload.upload_warc(f'downloads/{archive_name}.warc', pw_archive, directory=default_archive)
     else:
-        check_call(['wb-manager', 'add', default_archive, 
+        check_call(['wb-manager', 'add', pw_archive, 
                     f'../record_replay/downloads/{archive_name}.warc'], cwd='../collections')
 
     ts = ts.strip()
-    archive_url = f"{HOST}/{default_archive}/{ts}/{url}"
+    archive_url = f"{HOST}/{pw_archive}/{ts}/{url}"
     check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'archive',
                 *arguments,
                 archive_url])
     if remote_host:
-        upload.upload_write(f'writes/{archive_name}', directory=default_archive)
+        upload.upload_write(f'writes/{archive_name}', directory=pw_archive)
 
     return ts, url
 
@@ -137,6 +147,8 @@ test_url = "https://eta.lbl.gov/"
 test_req_url = requests.get(test_url).url # * In case of redirection
 print(test_req_url)
 test_archive = "test"
-default_archive = 'test'
-ts, test_url = record_replay(test_url, test_archive)
-print(f'{HOST}/{default_archive}/{ts}/{test_url}')
+wr_archive = 'test'
+pw_archive = 'exec_match'
+ts, test_url = record_replay(test_url, test_archive, 
+                             wr_archive=wr_archive, pw_archive=pw_archive)
+print(f'{HOST}/{pw_archive}/{ts}/{test_url}')
