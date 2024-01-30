@@ -287,7 +287,7 @@ transformLiveWriteStacks(liveWriteStacks, timestamp).then((archiveWriteStacks) =
 
 // testMatchLive2Archive();
 
-module.exports = {
-    ArchiveMatcher,
-    transformLiveWriteStacks
-}
+// module.exports = {
+//     ArchiveMatcher,
+//     transformLiveWriteStacks
+// }

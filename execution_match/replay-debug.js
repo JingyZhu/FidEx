@@ -31,7 +31,7 @@ class ReplayDebugger {
         this.maxMatchStack = {matched: [0, 0], stack: null};
         this.scriptURL = {};
 
-        this.exception = null;
+        this.reason = null;
         this.keyLinesEntered = false;
     }
 
@@ -107,7 +107,7 @@ class ReplayDebugger {
     /**
      * Register function for event handlers and other preparations.
      */
-    async register(writes, targetWrite) {
+    async register(targetWrite) {
         // Initialize debugStack
         this.debugStack = [];
         for (const stackInfo of targetWrite.stackInfo) {
@@ -130,7 +130,7 @@ class ReplayDebugger {
             this.scriptURL[params.scriptId] = params.url;
         });
 
-        await this.setBreakPoints(writes);
+        await this.setBreakPoints([targetWrite]);
     }
 
     _handlePaused(params) {
@@ -138,7 +138,7 @@ class ReplayDebugger {
         const sig = this._generateTraceSig(callFrames, asyncStackTrace);
         const match = this.matchSig(sig);
         let maxMatch = this.maxMatchStack.matched;
-        console.log("Paused", sig, match)
+        // console.log("Paused", sig, match)
         if (match[0] > maxMatch[0] || 
             (match[0] == maxMatch[0] && match[1] > maxMatch[1])) {
             this.maxMatchStack = {matched: match, stack: sig};
@@ -183,21 +183,25 @@ class ReplayDebugger {
         this.client.removeAllListeners('Debugger.paused');
         this.client.on('Debugger.paused', async params => {
             const { reason } = params;
-            if (reason == 'other' && !this.keyLinesEntered) {
-                const sig = this._generateTraceSig(params.callFrames, params.asyncStackTrace);
-                if (this._sameSig(sig)) {
-                    await this._handlePausedDebug(params);
-                } else
-                    await this.client.send('Debugger.resume');
-            } else if (reason == 'exception') {
+            // * This should only be triggered after _handlePausedDebug is run
+            if (reason == 'exception') {
                 if (this.keyLinesEntered) {
-                    await this.client.send('Debugger.setPauseOnExceptions', {state: 'none'});
                     const {callFrames, asyncStackTrace} = params;
                     const sig = this._generateTraceSig(callFrames, asyncStackTrace);
-                    console.log("See exception", sig)
-                    this.exception = sig;
-                    return
-                } else
+                    console.log("Seen exception", sig)
+                    this.reason = {sig: sig, exception: params.data.description};
+                    await this.client.send('Debugger.setBreakpointsActive', {active: false});
+                    await this.client.send('Debugger.setPauseOnExceptions', {state: 'none'});
+                }
+                await this.client.send('Debugger.resume');
+                return;
+            }
+
+            if (reason == 'other' && !this.keyLinesEntered) { // * Only resume if key lines are not entered
+                const sig = this._generateTraceSig(params.callFrames, params.asyncStackTrace);
+                if (this._sameSig(sig))
+                    this._handlePausedDebug(params);
+                else
                     await this.client.send('Debugger.resume');
             }
         });
@@ -212,13 +216,15 @@ class ReplayDebugger {
         // // This prevent entering another pause handler while stepping.
         // this.client.removeAllListeners('Debugger.paused');
         await this.client.send('Debugger.setPauseOnExceptions', {state: 'all'});
-        await sleep(3000);
+        await sleep(1000);
         await this.client.send('Debugger.stepInto');
-        while (this.exception == null) {
-            await sleep(200000);
+        while (this.reason == null) {
+            await sleep(500);
             await this.client.send('Debugger.stepOver');
         }
         await this.client.send('Debugger.setBreakpointsActive', {active: false});
+        this.keyLinesEntered = false;
+        this.client.send('Debugger.resume');
     }
 
     /**

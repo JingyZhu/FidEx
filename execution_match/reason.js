@@ -141,8 +141,8 @@ async function interaction(page, cdp, excepFF, url, dirname){
         
         // * Step 2: Set debugging breakpoints
         let replayDebugger = new replaydebug.ReplayDebugger(client);
-        let test_writes = JSON.parse(fs.readFileSync(`${dirname}/${filename}_archiveWriteStacks.json`));
-        await replayDebugger.register(test_writes, test_writes[0]);
+        let test_write = JSON.parse(fs.readFileSync(`${dirname}/${filename}.json`));
+        await replayDebugger.register(test_write);
         
 
         // * Step 3: Load the page
@@ -172,12 +172,11 @@ async function interaction(page, cdp, excepFF, url, dirname){
         // * Step 5: Reload the page to start debugging
         await replayDebugger.registerDebug();
         console.log("====================================================");
-        await eventSync.waitForReady();
+        // await eventSync.waitForReady();
         try {
             let networkIdle = page.reload({waitUntil: 'load'});
             await waitTimeout(networkIdle, timeout); 
         } catch {}
-        await eventSync.waitForReady();
         
 
         // * Step 5: Wait for the page to be loaded
@@ -194,9 +193,12 @@ async function interaction(page, cdp, excepFF, url, dirname){
                 await eventSync.waitForReady();
         }
 
-        // * Step 7 (temp): Collect maxMatchedStacks
-        fs.writeFileSync(`${dirname}/${filename}_maxMatchedStacks.json`, 
-                          JSON.stringify(replayDebugger.maxMatchStack, null, 2));
+        // // * Step 7 (temp): Collect maxMatchedStacks
+        // fs.writeFileSync(`${dirname}/${filename}_maxMatchedStacks.json`, 
+        //                   JSON.stringify(replayDebugger.maxMatchStack, null, 2));
+        
+        fs.writeFileSync(`${dirname}/reason.json`, 
+                        JSON.stringify(replayDebugger.reason, null, 2));
 
         
     } catch (err) {
