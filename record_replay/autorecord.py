@@ -22,7 +22,8 @@ from utils import upload
 REMOTE = False
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_archive = 'eot-writes'
-metadata_file = 'eot-writes_metadata.json'
+# metadata_file = 'eot-writes_metadata.json'
+metadata_file = 'test_metadata.json'
 arguments = ['-w', '-s']
 
 def record_replay(url, archive_name, 
@@ -75,13 +76,14 @@ def record_replay(url, archive_name,
     return ts, url
 
 
-def record_replay_all_urls(data, remote_host=REMOTE):
+def record_replay_all_urls(data, wr_archive=default_archive,
+                           pw_archive=default_archive, remote_host=REMOTE):
     if not os.path.exists(metadata_file):
         json.dump({}, open(metadata_file, 'w+'), indent=2)
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
     urls = json.load(open(data, 'r'))
-    urls = [u['live_url'] for u in urls][:200]
+    # urls = [u['live_url'] for u in urls][:200]
 
     for i, url in list(enumerate(urls)):
         print(i, url)
@@ -102,13 +104,14 @@ def record_replay_all_urls(data, remote_host=REMOTE):
         if f"{hostname}_{count}" in seen_dir:
             continue
         archive_name = f"{hostname}_{count}"
-        ts, url = record_replay(url, archive_name, remote_host=remote_host)
+        ts, url = record_replay(url, archive_name, 
+                                wr_archive, pw_archive, remote_host=remote_host)
         if ts == '':
             continue
         seen_dir.add(archive_name)
         metadata[url] = {
             'ts': ts,
-            'archive': f'{HOST}/{default_archive}/{ts}/{url}',
+            'archive': f'{HOST}/{pw_archive}/{ts}/{url}',
             'directory': archive_name,
         }
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
@@ -141,9 +144,11 @@ def replay_all_wayback():
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
 # record_replay_all_urls('../datacollect/data/eot_good_all.json')
+# record_replay_all_urls('../datacollect/data/eot_manual_sample.json',
+#                        wr_archive='test', pw_archive='exec_match')
 
 # * Test single URL
-test_url = "https://eta.lbl.gov/"
+test_url = "https://www.globe.gov/"
 test_req_url = requests.get(test_url).url # * In case of redirection
 print(test_req_url)
 test_archive = "test"

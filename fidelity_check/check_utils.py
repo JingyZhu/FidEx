@@ -180,12 +180,12 @@ def diff(live_element, archive_element, returnHTML=False) -> (list, list):
     live_unique, archive_unique = _diff_html(live_element, archive_element)
     
     live_unique = _merge_xpaths(live_unique)
-    print("live_unique number", [len(xpaths) for xpaths in live_unique])
+    # print("live_unique number", [len(xpaths) for xpaths in live_unique])
     if returnHTML:
         live_unique = [xpaths_2_text(xpaths, live_xpaths_map) for xpaths in live_unique]
     
     archive_unique = _merge_xpaths(archive_unique)
-    print("archive_unique number", [len(xpaths) for xpaths in archive_unique])
+    # print("archive_unique number", [len(xpaths) for xpaths in archive_unique])
     if returnHTML:
         archive_unique = [xpaths_2_text(xpaths, archive_xpaths_map) for xpaths in archive_unique]
     return live_unique, archive_unique

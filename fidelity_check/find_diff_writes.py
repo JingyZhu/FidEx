@@ -1,6 +1,4 @@
 import json
-from . import check_utils
-
 
 def find_diff_elements(dirr):
     live_element = json.load(open(f"{dirr}/live_elements.json"))
@@ -57,6 +55,13 @@ def locate_key_writes(dirr):
 
 
 if __name__ == "__main__":
-    dirr = '../execution_match/examples/eta.lbl.gov_2'
+    import check_utils
+    dirr = '../record_replay/writes/test'
     key_writes = locate_key_writes(dirr)
+    live_additional = [len(w['key_related_writes']) for w in key_writes['live']]
+    archive_additional = [len(w['key_related_writes']) for w in key_writes['archive']]
+    print('live:', live_additional)
+    print('archive:', archive_additional)
     json.dump(key_writes, open(f'{dirr}/key_writes.json', 'w+'), indent=2)
+else:
+    from . import check_utils
