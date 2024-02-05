@@ -147,6 +147,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         .option('-w, --write', "Collect writes to the DOM")
         .option('-s, --screenshot', "Collect screenshot and other measurements")
         .option('-r, --remove', "Remove recordings after finishing loading the page")
+        .option('-t, --top', "Not scroll to the bottom (stay on top).")
 
     program
         .argument("<url>")
@@ -156,6 +157,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
     let dirname = options.dir;
     let filename = options.file;
     Archive = options.archive;
+    let scroll = !options.top;
     ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
     
     // // * Update URL for potential redirection
@@ -248,14 +250,15 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             })
             await waitTimeout(networkIdle, TIMEOUT); 
         } catch {}
+        if (scroll)
+            await measure.scroll(recordPage);
 
         if (options.manual)
             await eventSync.waitForReady();
         else
             await sleep(1000);
         excepFF.afterInteraction('onload');
-        await measure.scroll(recordPage);
-
+        
         // * Step 6: Interact with the webpage
         if (options.interaction){
             await interaction(recordPage, client, excepFF, url, dirname);

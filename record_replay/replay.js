@@ -96,6 +96,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         .option('-w, --write', "Collect writes to the DOM")
         .option('-b, --wayback', "Whether replay is from wayback machine")
         .option('-s, --screenshot', "Collect screenshot and other measurements")
+        .option('-t, --top', "Not scroll to the bottom (stay on top).")
 
     program
         .argument("<url>")
@@ -104,6 +105,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
     const options = program.opts();
     let dirname = options.dir;
     let filename = options.file;
+    let scroll = !options.top;
     const browser = await startChrome();
     const url = new URL(urlStr);
     
@@ -158,6 +160,8 @@ async function interaction(page, cdp, excepFF, url, dirname){
             })
             await waitTimeout(networkIdle, timeout); 
         } catch {}
+        if (scroll)
+            await measure.scroll(page);
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
@@ -181,8 +185,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         else
             await sleep(1000);
         excepFF.afterInteraction('onload');
-        await measure.scroll(page);
-
+        
         // * Step 5: Interact with the webpage
         if (options.interaction){
             await interaction(page, client, excepFF, url, dirname);
