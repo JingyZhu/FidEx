@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import random
 import re
 import multiprocessing as mp
 
@@ -14,14 +15,15 @@ class ErrorMatcher:
         self.warcs = warcs
         self.results = [] # Used for multiprocessing
 
-    def read_warcs(self, path, executable=True):
+    def read_warcs(self, path, executable=True, max_sample=0):
         files = os.listdir(path)
-        for file in files:
-            i += 1
+        if max_sample > 0:
+            files = random.sample(files, min(max_sample, len(files)))
+        for i, file in enumerate(files):
             if i % 100 == 0:
                 print("Reading warcs", i)
             file = os.path.join(path, file)
-            warc_responses = warc_io.read_warc(path, executable_only=executable)
+            warc_responses = warc_io.read_warc(file, executable_only=executable)
             self.warcs.append(warc_responses)
 
     def save_warcs(self, pkl_path):
@@ -30,20 +32,22 @@ class ErrorMatcher:
     def load_warcs(self, pkl_path):
          self.warcs = pickle.load(open(pkl_path, 'rb+'))
     
-    def match_error(self, warc, line):
-        """Abstract method for match error"""
+    def match_error(self, warc, lines, idx=0):
+        """Abstract method for match error
+        idx: index of the warc in the list
+        """
         pass
 
-    def match_error_multiproc(self, line, num_workers=1, save_file='matched_resources'):
+    def match_error_multiproc(self, lines, num_workers=1, save_file='matched_resources'):
         """Match error with multiple workers"""
         self.results = []
         def collect(result):
             self.results.extend(result)
-            if len(self.results) % 100 == 0:
+            if len(result) > 0:
                 json.dump(self.results, open(f'{save_file}.json', 'w+'), indent=2)
         with mp.Pool(num_workers) as pool:
-            for warc in self.warcs:
-                pool.apply_async(self.match_error, args=(warc, line), callback=collect)
+            for i, warc in enumerate(self.warcs):
+                pool.apply_async(self.match_error, args=(warc, lines, i), callback=collect)
             pool.close()
             pool.join()
             json.dump(self.results, open(f'{save_file}.json', 'w+'), indent=2)
@@ -51,24 +55,24 @@ class ErrorMatcher:
 
 class LineErrorMatcher(ErrorMatcher):
     """Match potential errorneous code directly by the error line"""
-    def match_error(self, warc, line):
-        line_re = re.escape(line)
+    def match_error(self, warc, lines, idx=0):
+        line_res = [re.escape(line) for line in lines]
         matched_urls = []
         for response in warc['responses']:
-            if not warc_io.executable(response['headers']):
-                continue
             matches = []
             try:
                 body = response['body'].decode()
             except:
                 # print('Failed decoding body for url', response['url'])
                 continue
-            for m in re.finditer(line_re, body):
-                matches.append({
-                    'text': m.group(),
-                    'start': m.start(), 
-                    'end': m.end()
-                })
+            for i, line_re in enumerate(line_res):
+                for m in re.finditer(line_re, body):
+                    matches.append({
+                        'line': lines[i],
+                        'text': m.group(),
+                        'start': m.start(), 
+                        'end': m.end()
+                    })
             if len(matches) > 0:
                 matched_urls.append({
                     'warc': warc['warc'],
@@ -79,16 +83,14 @@ class LineErrorMatcher(ErrorMatcher):
 
 class ASTErrorMatcher(ErrorMatcher):
     """Match potential errorneous code by the AST"""
-    def match_error(self, warc, line):
-        jst_parser = js_parse.JSTextParser(line)
-        line_ast = jst_parser.get_ast_node()
+    def match_error(self, warc, lines, idx=0):
+        lines_ast = [js_parse.JSTextParser(line).get_ast_node() for line in lines]
         # * Line will be wrapped with Program --> Statements
-        line_ast = line_ast.children[0].children[0]
-        ast_hash = hash(line_ast)
+        lines_ast = [ast.children[0].children[0] for ast in lines_ast]
+        ast_hashes = [hash(line_ast) for line_ast in lines_ast]
         matched_urls = []
-        print(len(warc['responses']))
         for response in warc['responses']:
-            print("Matching error", response['url'])
+            print(idx, "Matching js", response['url'])
             matches = []
             try:
                 body = response['body'].decode()
@@ -101,12 +103,14 @@ class ASTErrorMatcher(ErrorMatcher):
                 continue
             body_ast = body_jst.get_ast_node()
             for node in body_ast:
-                if hash(node) == ast_hash:
-                    matches.append({
-                        'text': body_jst.get_text(node.start, node.end),
-                        'start': node.start,
-                        'end': node.end
-                    })
+                for i, ast_hash in enumerate(ast_hashes):
+                    if hash(node) == ast_hash:
+                        matches.append({
+                            'line': lines[i],
+                            'text': body_jst.get_text(node.start, node.end),
+                            'start': node.start,
+                            'end': node.end
+                        })
             if len(matches) > 0:
                 matched_urls.append({
                     'warc': warc['warc'],

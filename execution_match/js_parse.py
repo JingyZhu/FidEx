@@ -18,11 +18,11 @@ class ASTNode:
         self.keywords = {
             'window',
             'contentWindow',
-            'postMessage'
+            'postMessage',
             'document',
             'isSameNode',
             'call',
-            'value'
+            'value',
         }
     
     def add_child(self, child):
