@@ -3,70 +3,12 @@ import re, os, pickle
 import json
 import requests
 
+import sys
+sys.path.append('../')
+from utils import url_utils
+
 ARCHIVE_HOST = 'http://pistons.eecs.umich.edu:8080/eot-1k'
 
-
-def _filter_archive(archive_url):
-    pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
-    match = re.search(pattern, archive_url)
-    if match:
-        return match.group(2)
-    else:
-        return None
-
-def _get_ts(archive_url):
-    pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
-    match = re.search(pattern, archive_url)
-    if match:
-        return match.group(1)
-    else:
-        return None
-
-def _is_rewritable(headers):
-    content_type = None
-    for header in headers:
-        if header.lower() == 'content-type':
-            content_type = headers[header]
-            break
-    if content_type is None:
-        return False
-    rewritable_types = ['text/html', 'text/css', 'text/javascript', 'application/javascript', 'application/x-javascript']
-    for rewritable_type in rewritable_types:
-        if rewritable_type in content_type:
-            return True
-    return False
-
-def read_warc(path, rewritten=False):
-    """
-    Parse a warc file into responses
-    
-    rewritten: whether the responses are already rewritten by the pywb
-    """
-    responses = []
-    with open(path, 'rb') as stream:
-        for record in ArchiveIterator(stream):
-            if (record.rec_type == 'response'):
-                url = record.rec_headers.get_header('WARC-Target-URI')
-                ts = record.rec_headers.get_header('WARC-Date')
-                ts = ts.replace('T', ' ').replace('Z', '').replace('-', '').replace(':', '').replace(' ', '')
-                ts = ts.split('.')[0]
-                headers = dict(record.http_headers.headers)
-                if not rewritten or _is_rewritable(headers):
-                    body = record.content_stream().read()
-                else:
-                    r = requests.get(f'{ARCHIVE_HOST}/{ts}/{url}')
-                    headers = r.headers
-                    body = r.content
-                responses.append({
-                    'url': url,
-                    'ts': ts,
-                    'headers': headers,
-                    'body': body
-                })
-    return {
-        'warc': path,
-        'responses': responses
-    }
 
 def extract_response_from_warc(warc_path, url):
     """Extract certain response of a URL from a warc file"""
@@ -131,8 +73,8 @@ def dynamic_exception_match(exception, write, warc_responses):
                 if not re.search(exception_re, exception_obj['description']):
                     continue
                 resource = exception_obj['scriptURL']
-                ts = _get_ts(resource)
-                resource = _filter_archive(resource)
+                ts = url_utils.get_ts(resource)
+                resource = url_utils.filter_archive(resource)
                 line, column = exception_obj['line'], exception_obj['column']
                 body = resources_map[resource]['body'].decode()
                 ts = resources_map[resource]['ts']

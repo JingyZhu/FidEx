@@ -24,7 +24,7 @@ def executable(headers):
             break
     if content_type is None:
         return False
-    executable_types = ['javascript', 'html']
+    executable_types = ['javascript']
     for executable_type in executable_types:
         if executable_type in content_type:
             return True

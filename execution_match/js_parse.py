@@ -1,5 +1,7 @@
 """Python implementation of js-parse for abling to multiprocess"""
 import esprima
+import sys
+sys.setrecursionlimit(3000)
 
 class ASTNode:
     def __init__(self, node, info):
@@ -12,6 +14,16 @@ class ASTNode:
         self.info = info
         self.children = []
         self.parent = None
+        self.hash = None
+        self.keywords = {
+            'window',
+            'contentWindow',
+            'postMessage'
+            'document',
+            'isSameNode',
+            'call',
+            'value'
+        }
     
     def add_child(self, child):
         self.children.append(child)
@@ -41,9 +53,9 @@ class ASTNode:
 
     def __str__(self):
         return f'Kind: {self.kind} '           \
-             + f'Start: {self.start_rowcol} '  \
-             + f'End: {self.end_rowcol} '      \
-             + f'Info: {self.info}'
+            #  + f'Start: {self.start_rowcol} '  \
+            #  + f'End: {self.end_rowcol} '      \
+            #  + f'Info: {self.info}'
 
     def __repr__(self):
         return self.__str__()
@@ -59,10 +71,29 @@ class ASTNode:
         # TODO: Implement this function
         pass
 
+    def __hash__(self) -> int:
+        """Hash the node based on merkle tree method"""
+        if self.hash:
+            return self.hash
+        child_hashes = hash(tuple(self.children))
+        hash_list = [self.kind]
+        if self.kind == 'Identifier':
+            if self.node.name in self.keywords:
+                hash_list.append(self.node.name)
+        self_hash = hash(tuple(hash_list))
+        self.hash = hash((self_hash, child_hashes))
+        return self.hash
+
+    def __iter__(self):
+        """Iterate self and children"""
+        yield self
+        for child in self.children:
+            yield from child
+
 
 class JSTextParser:
     def __init__(self, js_file):
-        self.sourceile = esprima.parseScript(js_file, {'loc': True, 'range': True})
+        self.source_file = esprima.parseScript(js_file, {'loc': True, 'range': True, 'tolerant': True})
         self.text = js_file
         self.ast_node = None
 
@@ -97,15 +128,35 @@ class JSTextParser:
                     ast_node.add_child(child_node)
             return ast_node
 
-        self.ast_node = traverse_helper(self.sourceile)
+        self.ast_node = traverse_helper(self.source_file)
         if archive:
             self.ast_node = self.ast_node.filter_wayback()
         return self.ast_node
 
 
 if __name__ == '__main__':
-    program = "const x = 10;"
-    parser = JSTextParser(program)
+    program_1 = "document.documentElement.isSameNode(documentElement)"
+    parser = JSTextParser(program_1)
     ast_node = parser.get_ast_node()
-    path = ast_node.find_path(12)
-    print(path[-1])
+    assert(len(ast_node.children) == 1)
+    ast_node = ast_node.children[0]
+    assert(len(ast_node.children) == 1)
+    ast_node = ast_node.children[0]
+    # path = ast_node.find_path(12)
+    # print(path[-1])
+    ast_node.print_all()
+    print(hash(ast_node))
+
+    program_2 = """if (!document.documentElement.isSameNode(documentElement)) {
+      opts.root = documentElement;
+    }"""
+    parser = JSTextParser(program_2)
+    ast_node = parser.get_ast_node()
+    stack = [ast_node]
+    while len(stack):
+        cur_node = stack.pop()
+        print("\n\n")
+        cur_node.print_all()
+        print(cur_node.kind, hash(cur_node))
+        for child in cur_node.children:
+            stack.append(child)

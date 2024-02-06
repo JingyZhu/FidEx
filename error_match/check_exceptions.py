@@ -29,7 +29,7 @@ def categorize_exceptions(exceptions):
     exception_map = {k: list(v) for k, v in exception_map.items()}
     return exception_map
 
-if '__name__' == '__main__':
+if __name__ == '__main__':
     all_exceptions = get_all_exceptions('eot-1k')
     json.dump(all_exceptions, open('all_exceptions_eot-1k.json', 'w+'), indent=2)
     exception_map = categorize_exceptions(all_exceptions)
