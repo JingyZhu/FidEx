@@ -1,4 +1,5 @@
 from warcio.archiveiterator import ArchiveIterator
+from urllib.parse import urlsplit
 
 ARCHIVE_HOST = 'http://pistons.eecs.umich.edu:8080/eot-1k'
 
@@ -16,17 +17,22 @@ def _is_rewritable(headers):
             return True
     return False
 
-def executable(headers):
-    content_type = None
-    for header in headers:
-        if header.lower() == 'content-type':
-            content_type = headers[header]
-            break
-    if content_type is None:
-        return False
-    executable_types = ['javascript']
-    for executable_type in executable_types:
-        if executable_type in content_type:
+def executable(url, headers):
+    if headers:
+        content_type = None
+        for header in headers:
+            if header.lower() == 'content-type':
+                content_type = headers[header]
+                break
+        if content_type is None:
+            return False
+        executable_types = ['javascript']
+        for executable_type in executable_types:
+            if executable_type in content_type:
+                return True
+    else:
+        path = urlsplit(url).path
+        if path.endswith('.js'):
             return True
     return False
 
@@ -46,8 +52,10 @@ def read_warc(file, executable_only=True):
                 ts = record.rec_headers.get_header('WARC-Date')
                 ts = ts.replace('T', ' ').replace('Z', '').replace('-', '').replace(':', '').replace(' ', '')
                 ts = ts.split('.')[0]
-                headers = dict(record.http_headers.headers)
-                if executable_only and not executable(headers):
+                headers = None
+                if record.http_headers and record.http_headers.headers:
+                    headers = dict(record.http_headers.headers)
+                if executable_only and not executable(url, headers):
                     continue
                 body = record.content_stream().read()
                 responses.append({
