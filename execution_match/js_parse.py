@@ -20,6 +20,7 @@ class ASTNode:
             'contentWindow',
             'postMessage',
             'document',
+            'domain',
             'isSameNode',
             'call',
             'value',

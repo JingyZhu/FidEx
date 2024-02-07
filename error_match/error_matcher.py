@@ -32,7 +32,8 @@ class ErrorMatcher:
     def load_warcs(self, pkl_path):
          self.warcs = pickle.load(open(pkl_path, 'rb+'))
     
-    def match_error(self, warc, lines, idx=0):
+    @staticmethod
+    def match_error(warc, lines, idx=0):
         """Abstract method for match error
         idx: index of the warc in the list
         """
@@ -45,17 +46,20 @@ class ErrorMatcher:
             self.results.extend(result)
             if len(result) > 0:
                 json.dump(self.results, open(f'{save_file}.json', 'w+'), indent=2)
-        with mp.Pool(num_workers) as pool:
-            for i, warc in enumerate(self.warcs):
-                pool.apply_async(self.match_error, args=(warc, lines, i), callback=collect)
-            pool.close()
-            pool.join()
-            json.dump(self.results, open(f'{save_file}.json', 'w+'), indent=2)
+        """Iterate 500 a time"""
+        for i in range(0, len(self.warcs), 500):
+            with mp.Pool(num_workers) as pool:
+                for j, warc in enumerate(self.warcs[i:min(i+500,len(self.warcs))]):
+                    pool.apply_async(self.match_error, args=(warc, lines, i+j), callback=collect)
+                pool.close()
+                pool.join()
+                json.dump(self.results, open(f'{save_file}.json', 'w+'), indent=2)
         return self.results
 
 class LineErrorMatcher(ErrorMatcher):
     """Match potential errorneous code directly by the error line"""
-    def match_error(self, warc, lines, idx=0):
+    @staticmethod
+    def match_error(warc, lines, idx=0):
         line_res = [re.escape(line) for line in lines]
         matched_urls = []
         for response in warc['responses']:
@@ -83,7 +87,8 @@ class LineErrorMatcher(ErrorMatcher):
 
 class ASTErrorMatcher(ErrorMatcher):
     """Match potential errorneous code by the AST"""
-    def match_error(self, warc, lines, idx=0):
+    @staticmethod
+    def match_error(warc, lines, idx=0):
         lines_ast = [js_parse.JSTextParser(line).get_ast_node() for line in lines]
         # * Line will be wrapped with Program --> Statements
         lines_ast = [ast.children[0].children[0] for ast in lines_ast]
