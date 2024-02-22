@@ -25,7 +25,28 @@ class ErrorMatcher:
             file = os.path.join(path, file)
             warc_responses = warc_io.read_warc(file, executable_only=executable)
             self.warcs.append(warc_responses)
+    
+    @staticmethod
+    def _read_response(idx, file, executable):
+        # print(idx, file)
+        if idx % 100 == 0:
+            print("Reading warcs", idx)
+        warc_responses = warc_io.response_2_warc(file, executable_only=executable)
+        return warc_responses
 
+    def read_responses(self, path, executable=True, max_sample=0, num_workers=1):
+        files = os.listdir(path)
+        if max_sample > 0:
+            files = random.sample(files, min(max_sample, len(files)))
+        def _collect(warc_responses):
+            self.warcs.append(warc_responses)
+        with mp.Pool(num_workers) as pool:
+            for i, file in enumerate(files):
+                file = os.path.join(path, file)
+                pool.apply_async(self._read_response, args=(i, file, executable), callback=_collect)
+            pool.close()
+            pool.join()
+            
     def save_warcs(self, pkl_path):
         pickle.dump(self.warcs, open(pkl_path, 'wb+'))
     
@@ -73,7 +94,7 @@ class LineErrorMatcher(ErrorMatcher):
                 for m in re.finditer(line_re, body):
                     matches.append({
                         'line': lines[i],
-                        'text': m.group(),
+                        'text': body[max(0, m.start()-20):min(m.end()+20, len(body))],
                         'start': m.start(), 
                         'end': m.end()
                     })
