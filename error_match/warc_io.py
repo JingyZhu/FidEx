@@ -22,7 +22,7 @@ def _is_rewritable(headers):
             return True
     return False
 
-def executable(url, headers):
+def is_target(url, headers, target_types):
     if headers:
         content_type = None
         for header in headers:
@@ -31,21 +31,19 @@ def executable(url, headers):
                 break
         if content_type is None:
             return False
-        executable_types = ['javascript']
-        for executable_type in executable_types:
-            if executable_type in content_type:
-                return True
-    else:
         path = urlsplit(url).path
-        if path.endswith('.js'):
-            return True
+        for target_type in target_types:
+            if target_type in content_type:
+                return True
+            elif path.endswith(target_type):
+                return True
     return False
 
-def read_warc(file, executable_only=True):
+def read_warc(file, target_types=None):
     """Parse a warc file into responses
     
     Args:
-        executable_only: return only executable content
+        target_types: return only content in the list. If None, all resources are returned
     
     Returns: {warc_path, responses:[{'url', 'ts', 'headers', 'body'}]}
     """
@@ -61,7 +59,7 @@ def read_warc(file, executable_only=True):
                 headers = {'Content-Type':  content_type}
                 if record.http_headers and record.http_headers.headers:
                     headers = dict(record.http_headers.headers)
-                if executable_only and not executable(url, headers):
+                if target_types and not is_target(url, headers, target_types):
                     continue
                 body = record.content_stream().read()
                 responses.append({
@@ -75,12 +73,12 @@ def read_warc(file, executable_only=True):
         'responses': responses
     }
 
-def response_2_warc(response_file, executable_only=True):
+def response_2_warc(response_file, target_types=None):
     """Parse a response into a warc record
     
     Args:
         response_file: response json file from responses/
-        executable_only: return only executable content
+        target_types: return only content in the list. If None, all resources are returned
     
     Returns: warc record
     """
@@ -96,8 +94,8 @@ def response_2_warc(response_file, executable_only=True):
         ts = re.sub('\D', '', ts)
         headers = obj['headers']
         body = obj['body']
-        if executable_only and not executable(url, headers):
-            continue
+        if target_types and not is_target(url, headers, target_types):
+            continue    
         record = {
             'url': url,
             'ts': ts,

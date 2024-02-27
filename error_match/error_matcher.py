@@ -15,7 +15,7 @@ class ErrorMatcher:
         self.warcs = warcs
         self.results = [] # Used for multiprocessing
 
-    def read_warcs(self, path, executable=True, max_sample=0):
+    def read_warcs(self, path, max_sample=0, **kwargs):
         files = os.listdir(path)
         if max_sample > 0:
             files = random.sample(files, min(max_sample, len(files)))
@@ -23,18 +23,17 @@ class ErrorMatcher:
             if i % 100 == 0:
                 print("Reading warcs", i)
             file = os.path.join(path, file)
-            warc_responses = warc_io.read_warc(file, executable_only=executable)
+            warc_responses = warc_io.read_warc(file, **kwargs)
             self.warcs.append(warc_responses)
     
     @staticmethod
-    def _read_response(idx, file, executable):
-        # print(idx, file)
+    def _read_response(idx, file, target_types=None):
         if idx % 100 == 0:
             print("Reading warcs", idx)
-        warc_responses = warc_io.response_2_warc(file, executable_only=executable)
+        warc_responses = warc_io.response_2_warc(file, target_types)
         return warc_responses
 
-    def read_responses(self, path, executable=True, max_sample=0, num_workers=1):
+    def read_responses(self, path, max_sample=0, num_workers=1, **kwargs):
         files = os.listdir(path)
         if max_sample > 0:
             files = random.sample(files, min(max_sample, len(files)))
@@ -43,7 +42,7 @@ class ErrorMatcher:
         with mp.Pool(num_workers) as pool:
             for i, file in enumerate(files):
                 file = os.path.join(path, file)
-                pool.apply_async(self._read_response, args=(i, file, executable), callback=_collect)
+                pool.apply_async(self._read_response, args=(i, file), kwds=kwargs, callback=_collect)
             pool.close()
             pool.join()
             
@@ -60,7 +59,7 @@ class ErrorMatcher:
         """
         pass
 
-    def match_error_multiproc(self, lines, num_workers=1, save_file='matched_resources'):
+    def match_error_multiproc(self, lines, num_workers=1, save_file='matched_resources', **kwargs):
         """Match error with multiple workers"""
         self.results = []
         def collect(result):
@@ -71,17 +70,23 @@ class ErrorMatcher:
         for i in range(0, len(self.warcs), 500):
             with mp.Pool(num_workers) as pool:
                 for j, warc in enumerate(self.warcs[i:min(i+500,len(self.warcs))]):
-                    pool.apply_async(self.match_error, args=(warc, lines, i+j), callback=collect)
+                    pool.apply_async(self.match_error, args=(warc, lines, i+j), kwds=kwargs, callback=collect)
                 pool.close()
                 pool.join()
                 json.dump(self.results, open(f'{save_file}.json', 'w+'), indent=2)
         return self.results
 
 class LineErrorMatcher(ErrorMatcher):
-    """Match potential errorneous code directly by the error line"""
+    """
+    Match potential errorneous code directly by the error line
+    is_re: is the provided lines is in regular expression format
+    """
     @staticmethod
-    def match_error(warc, lines, idx=0):
-        line_res = [re.escape(line) for line in lines]
+    def match_error(warc, lines, idx=0, is_re=False):
+        if is_re:
+            line_res = lines
+        else:
+            line_res = [re.escape(line) for line in lines]
         matched_urls = []
         for response in warc['responses']:
             matches = []
@@ -102,6 +107,31 @@ class LineErrorMatcher(ErrorMatcher):
                 matched_urls.append({
                     'warc': warc['warc'],
                     'url': response['url'],
+                    'matches': matches
+                })
+        return matched_urls
+
+class FilenameErrorMatcher(ErrorMatcher):
+    """Match potential errorneous code by the filename"""
+    @staticmethod
+    def match_error(warc, filenames, idx=0, is_re=False):
+        if is_re:
+            filename_res = filenames
+        else:
+            filename_res = [re.escape(filename) for filename in filenames]
+        matched_urls = []
+        for response in warc['responses']:
+            matches = []
+            url = response['url']
+            for i, filename_re in enumerate(filename_res):
+                if re.search(filename_re, url):
+                    matches.append({
+                        'filename': filenames[i],
+                        'url': url
+                    })
+            if len(matches) > 0:
+                matched_urls.append({
+                    'warc': warc['warc'],
                     'matches': matches
                 })
         return matched_urls
