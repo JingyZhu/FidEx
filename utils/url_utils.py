@@ -1,5 +1,8 @@
 import re
+from urllib.parse import urlsplit
+from publicsuffixlist import PublicSuffixList
 
+    
 def filter_archive(archive_url):
     pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
     match = re.search(pattern, archive_url)
@@ -7,6 +10,20 @@ def filter_archive(archive_url):
         return match.group(2)
     else:
         return None
+class HostExtractor:
+    def __init__(self):
+        self.psl = PublicSuffixList()
+    
+    def extract(self, url, wayback=False):
+        """
+        Wayback: Whether the url is got from wayback
+        """
+        if wayback:
+            url = filter_archive(url)
+        if 'http://' not in url and 'https://' not in url:
+            url = 'http://' + url
+        hostname = urlsplit(url).netloc.strip('.').split(':')[0]
+        return self.psl.privatesuffix(hostname)
 
 def get_ts(archive_url):
     pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
