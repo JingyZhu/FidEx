@@ -6,10 +6,27 @@ import json
 import re, os
 from bs4 import BeautifulSoup
 from collections import defaultdict
+import cv2
+import numpy as np
 
 import sys
 sys.path.append('../')
 from utils import url_utils
+
+def compare_screenshot(live_img, archive_img):
+    if not os.path.exists(live_img) or not os.path.exists(archive_img):
+        return -1
+    img1 = cv2.imread(live_img)
+    img2 = cv2.imread(archive_img)
+    height = min(img1.shape[0], img2.shape[0])
+    width = min([img1.shape[1], img2.shape[1]])
+    img1 = img1[:height,:width,:]
+    img2 = img2[:height,:width,:]
+    diff = img1 - img2
+    total = img1.shape[0]*img1.shape[1]*img1.shape[2]
+    same = np.count_nonzero(diff == 0)
+    return same / total
+
 
 def _collect_dimension(element):
     if 'dimension' not in element or element['dimension'] is None:
@@ -29,7 +46,7 @@ class htmlElement:
     
     def features(self):
         """Collect tag name and other important attributes that matters to the rendering"""
-        all_rules = ['style']
+        all_rules = []
         tag_rules = {
             'img': ['src']
         }
@@ -39,10 +56,26 @@ class htmlElement:
             return (tagname)
         tagname = tag.name
         features = [tagname]
-        rule = tag_rules.get(tagname, []) + all_rules
-        for r in rule:
+        rules = tag_rules.get(tagname, []) + all_rules
+        for r in rules:
             if r in tag.attrs:
                 features.append(tag.attrs[r])
+        # * Add style
+        def _filter_style(style):
+            new_style = []
+            filter_keys = ['background-image']
+            for s in style.split(';'):
+                to_filter = False
+                for k in filter_keys:
+                    if k in s.split(':')[0]:
+                        to_filter = True
+                        break
+                if not to_filter:
+                    new_style.append(s)
+            return ';'.join(new_style)
+        if 'style' in tag.attrs:
+            style = _filter_style(tag.attrs['style'])
+            features.append(style)
         return tuple(features)
 
     def __eq__(self, other):

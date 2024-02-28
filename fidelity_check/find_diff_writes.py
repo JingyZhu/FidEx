@@ -1,10 +1,34 @@
 import json
 
-def find_diff_elements(dirr):
+def find_diff_elements(dirr) -> (list, list):
+    """Find the unique elements between live and archive
+    
+    Args:
+        dirr: directory including live_elements.json and archive_elements.json
+    
+    Returns:
+        live_unique & archive_unique: [[xpaths that share the same prefix (essentially same component)]
+    """
     live_element = json.load(open(f"{dirr}/live_elements.json"))
     archive_element = json.load(open(f"{dirr}/archive_elements.json"))
     live_unique, archive_unique = check_utils.diff(live_element, archive_element, returnHTML=False)
     return live_unique, archive_unique
+
+def fidelity_issue(dirr) -> (bool, (list, list)):
+    """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
+    live_unique, archive_unique = find_diff_elements(dirr)
+    return len(live_unique) + len(archive_unique) > 0, (live_unique, archive_unique)
+
+def fidelity_issue_screenshot(dirr) -> (bool, float):
+    """Screenshot-based method to check fidelity issue
+    
+    Returns:
+        (if fidelity issue, similarity score between live and archive screenshots)
+    """
+    live_screenshot = f"{dirr}/live.png"
+    archive_screenshot = f"{dirr}/archive.png"
+    simi = check_utils.compare_screenshot(live_screenshot, archive_screenshot)
+    return simi < 1, simi
 
 def collect_diff_writes(dirr):
     live_writes = json.load(open(f'{dirr}/live_writes.json', 'r'))

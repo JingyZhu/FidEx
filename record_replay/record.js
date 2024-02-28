@@ -99,7 +99,7 @@ async function getActivePage(browser) {
         }
     }
     if(arr.length == 1) return arr[0];
-    // else return pages[pages.length-1]; // ! Fall back solution
+    else return pages[pages.length-1]; // ! Fall back solution
 }
 
 async function interaction(page, cdp, excepFF, url, dirname) {
