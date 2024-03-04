@@ -1,7 +1,12 @@
 const reverter = require('./reverter');
+const fs = require('fs');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function waitTimeout(event, ms) {
+    return Promise.race([event, sleep(ms)]);
 }
 
 function skipJS(url) {
@@ -65,6 +70,7 @@ class ExceptionInspector {
         this.client = client;
         this.scriptInfo = {};
         this.exceptions = [];
+        this._seenExceptions = new Set();
         this.recordVar = true;
     }
 
@@ -84,16 +90,25 @@ class ExceptionInspector {
                 `
             }
             code += 'return "Unknown";'
-            code = `(() => {${code}})();`
+            code = `(() => {
+                try{
+                    ${code}
+                } catch { return "Unknown"; }
+            })();`
             return code;
         }
-        const result = await this.client.send('Debugger.evaluateOnCallFrame', {
+       const result = await this.client.send('Debugger.evaluateOnCallFrame', {
             callFrameId: callFrame.callFrameId,
             expression: template(variable.name)
         });
+        // console.log("DecideProxyType", variable.name, result.result.value);
         return result.result.value;
     }
 
+    /** 
+     * Return only variables that are proxified
+     * @returns [{name, type}]
+     */
     _getProxifiedVars(variables) {
         let proxifiedVars = [];
         for (const variable of variables) {
@@ -114,11 +129,14 @@ class ExceptionInspector {
      * @param {Boolean} recordVar Whether to record the variable status
      */
     async _recordException(params, recordVar){
-        console.log("Detected exception", params.data.description.split('\n')[0]);
         const {callFrames, data} = params;
         let info = new ExceptionInfo(data.className, data.description);
+        if (this._seenExceptions.has(data.description))
+            return;
+        console.log("Detected exception", params.data.description.split('\n')[0]);
         for (const frame of callFrames){
             const {location, scopeChain} = frame;
+            let seenVars = new Set();
             const url = this.scriptInfo[location.scriptId].url;
             if (skipJS(url))
                 continue;
@@ -131,12 +149,18 @@ class ExceptionInspector {
                   objectId: object.objectId,
                 });
                 for (const varProp of properties.result){
+                    // TODO: Currently, this is just including the first variable found.
+                    // TODO: But this should actually be ranked on scope (block > global, etc). Might need to revisit this.
+                    if (seenVars.has(varProp.name))
+                        continue;
                     const proxyType = await this._decideProxyType(varProp, frame);
                     info.addVar(varProp, type, proxyType);
+                    seenVars.add(varProp.name);
                 }
             }
         }
         this.exceptions.push(info);
+        this._seenExceptions.add(data.description);
     }
     /**
      * 
@@ -154,7 +178,12 @@ class ExceptionInspector {
         
         await this.client.removeAllListeners('Debugger.paused');
         this.client.on('Debugger.paused', async params => {
-            await this._recordException(params, this.recordVar);
+            try {
+                await this._recordException(params, this.recordVar);
+            } catch (e) {
+                console.log("Error recording exception", e);
+            }
+            // await sleep(1000);
             await this.client.send('Debugger.resume');
         });
     }
@@ -165,6 +194,7 @@ class ExceptionInspector {
 
     reset(recordVar=true) {
         this.exceptions = []
+        this._seenExceptions = new Set();
         this.scriptInfo = {}
         this.recordVar = recordVar;
     }
@@ -205,6 +235,7 @@ class Overrider {
                     body: Buffer.from(resource).toString('base64')
                 });
                 console.log("Sent Fetch.fulfillRequest", params.request.url);
+                fs.writeFileSync('test/overrided.js', resource);
             } catch (e) {
                 console.log("Error sending Fetch.fulfillRequest", e);
             }
@@ -253,7 +284,10 @@ class ExceptionHandler {
             return count;
         }
         let targetCount = calcNumDesc(description, this.exceptions[this.exceptions.length-1]);
+        let i = 0
         for (const frame of exception.frames){
+            // i += 1;
+            // if (i < 5) continue
             const source = frame.source;
             if (source == null) {
                 console.log(`Cannot find source for ${frame.url}`);
@@ -261,14 +295,20 @@ class ExceptionHandler {
             }
             const revert = new reverter.Reverter(source);
             const startLoc = {line: frame.line+1, column: frame.column+1};
+            console.log("Revert location", startLoc, frame.url)
             const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
             const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
+            if (updatedCode === source)
+                continue;
             await this.overrider.clearOverrides();
             await this.overrider.overrideResources({[frame.url]: updatedCode});
             this.inspector.reset({recordVar: false});
-            await this.page.reload({waitUntil: 'networkidle0'});
+            try {
+                let networkIdle = this.page.reload({waitUntil: 'networkidle0',timeout: 0})
+                await waitTimeout(networkIdle, 60*1000);
+            } catch(e) {console.log("Reload exception", e)}
             let newCount = calcNumDesc(description, this.inspector.exceptions);
-            this.inspector.reset();
+            this.inspector.reset({recordVar: false});
             if (newCount < targetCount) {
                 console.log("Fixed first exception");
                 return;

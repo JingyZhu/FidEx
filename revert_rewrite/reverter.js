@@ -7,6 +7,7 @@
  */
 const esprima = require('esprima');
 const fs = require('fs');
+const { delimiter } = require('path');
 
 const HEADER = `
 let __document = document;
@@ -21,7 +22,9 @@ class Reverter {
     constructor(code) {
         this.code = code;
         this.source = esprima.parseScript(code, { loc: true, range: true});
-        this.targetType = ['ExpressionStatement', 'IfStatement'];
+        // * BlockStatement is less ideal. It is used as the final backup
+        this.statementType = ['ExpressionStatement', 'IfStatement', 'ReturnStatement'];
+        this.parentType = ['SequenceExpression', 'BlockStatement'];
     }
 
     /**
@@ -44,19 +47,27 @@ class Reverter {
                         continue;
                     // * First recurse to the lowest level so that we can get the minimal statements
                     findMinimal(v);
-                    if (statements === null && this.targetType.includes(v.type))
-                        statements = value_list;
+                    // Statements already set. No need to continue
+                    if (statements !== null)
+                        continue;
+                    if (this.statementType.includes(v.type)) {
+                        statements = {parentType: null, value: value_list};
+                    }
+                    else if (this.parentType.includes(node.type)) {
+                        statements = {parentType: node.type, value: value_list};
+                    }
                 }
             }
         }
         findMinimal(this.source);
         let afterStatements = [];
-        for (let i = 0; i < statements.length; i++) {
-            if (statements[i].range[1] > startIdx) {
-                afterStatements.push(statements[i]);
+        for (let i = 0; i < statements.value.length; i++) {
+            if (statements.value[i].range[1] > startIdx) {
+                afterStatements.push(statements.value[i]);
             }
         }
-        return afterStatements;
+        statements.value = afterStatements;
+        return statements;
     }
 
     /**
@@ -89,44 +100,55 @@ class Reverter {
     /**
      * 
      * @param {object} startLoc {line: number, column: number} 1-indexed
-     * @param {object} variables {name: string, type: string} 
+     * @param {object} variables {name: string, type: string} Variables that we want to revert
      * @param {number} numStatements 
      * @returns 
      */
     revertVariable(startLoc, variables, numStatements=1) {
         const startIdx = this._loc2idx(startLoc);
-        console.log("line", this.code.slice(startIdx, startIdx+30))
-        let afterStatements = this._findStatements(startIdx);
-        afterStatements = afterStatements.slice(0, numStatements);
-        let varInStms = this._variablesInStatements(variables, afterStatements);
-        let beforeLines = [], afterLines = [];
+        console.log("line to override", this.code.slice(startIdx, startIdx+30), '...')
+        let statements = this._findStatements(startIdx);
+        statements.value = statements.value.slice(0, numStatements);
+        let varInStms = this._variablesInStatements(variables, statements.value);
+        // * If no variable to revert, return the original code
+        if (varInStms.length === 0) {
+            console.log("No variable to revert");
+            return this.code;
+        }
+        let headers = [], beforeLines = [], afterLines = [];
         for (const variable of varInStms) {
             let {name, type} = variable;
-            let before = `
-            let __temp__${name} = ${name};
-            ${name} = __${type};`
+            
+            let header = `let __temp__${name} = null;\n`
+            headers.push(header);
+
+            let before =  `__temp__${name} = ${name}, ${name} = __${type}` 
+                         + (statements.parentType === 'SequenceExpression' ? ',':'') 
             beforeLines.push(before);
-            let after = `${name} = __temp__${name};`
+            
+            let after = statements.parentType === 'SequenceExpression' ? 
+                        `,\n${name} = __temp__${name}` : `\n${name} = __temp__${name};`
             afterLines.push(after);
         }
+        const customHeaders = headers.join('');
         const beforeRevert = `
             // Added by jingyz
-            ${beforeLines.join('')}
+            ${beforeLines.join('\n')}
             // End of addition
         `
         const afterRevert = `
             // Added by jingyz
-            ${afterLines.join(' ')}
+            ${afterLines.join('')}
             // End of addition
         `
-        const start = afterStatements[0].range[0];
-        const end = afterStatements[numStatements-1].range[1];
+        const start = statements.value[0].range[0];
+        const end = statements.value[numStatements-1].range[1];
         let newCode = this.code.slice(0, start) 
                   + beforeRevert 
                   + this.code.slice(start, end) 
                   + afterRevert 
                   + this.code.slice(end);
-        return HEADER + newCode;
+        return HEADER + customHeaders + newCode;
     }
 }
 
@@ -135,16 +157,26 @@ module.exports = {
 }
 
 function testReverter() {
-    const code = fs.readFileSync('test/funcall.js', 'utf-8');
+    const code = fs.readFileSync('test/test.js', 'utf-8');
 
-    let loc = {line: 22, column: 5};
+    let loc = {line: 1128, column: 15};
     let variables = [
-        {name: 'document', type: 'document'},
+        {name: 'C', type: 'document'},
         {name: 'window', type: 'window'}
     ]
     const reverter = new Reverter(code);
     newCode = reverter.revertVariable(loc, variables, 1)
-    fs.writeFileSync('test/funcall_reverted.js', newCode);
+    console.log(newCode);
+}
+
+function testFindStatements(startLoc) {
+    const code = fs.readFileSync('test/test.js', 'utf-8');
+    const reverter = new Reverter(code);
+    const startIdx = reverter._loc2idx(startLoc);
+    console.log("line to override", reverter.code.slice(startIdx, startIdx+30), '...')
+    let statements = reverter._findStatements(startIdx).value;
+    console.log(reverter.code.slice(statements[0].range[0], statements[statements.length-1].range[1]));
 }
 
 // testReverter()
+// testFindStatements({line: 1128, column: 15})

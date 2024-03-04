@@ -128,16 +128,17 @@ async function interaction(page, cdp, excepFF, url, dirname){
         await client.send('Debugger.enable');
         await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
         await sleep(500);
-        const timeout = options.wayback ? 200*1000 : 300*1000;
+        const timeout = options.wayback ? 200*1000 : 60*1000;
 
         // * Step 1: Set listner and handlers for exceptions
         let exceptionHandler = new exceptionHandle.ExceptionHandler(page, client);
-        await exceptionHandler.registerInspect();
+        await exceptionHandler.registerInspect('all');
         
         // * Step 2: Load the page
         try {
             let networkIdle = page.goto(url, {
-                waitUntil: 'networkidle0'
+                waitUntil: 'networkidle0',
+                timeout: 0
             })
             await waitTimeout(networkIdle, timeout); 
         } catch {}
@@ -159,14 +160,14 @@ async function interaction(page, cdp, excepFF, url, dirname){
             await sleep(2000);
         }
 
+        // ! Temp
+        await exceptionHandler.fixFirstException();
+
         // * Step 4: Wait for the page to be loaded
         if (options.manual)
             await eventSync.waitForReady();
         else
             await sleep(1000);
-        
-        // ! Temp
-        await exceptionHandler.fixFirstException();
         
     } catch (err) {
         console.error(err);
