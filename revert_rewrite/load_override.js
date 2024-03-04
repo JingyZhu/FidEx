@@ -131,10 +131,9 @@ async function interaction(page, cdp, excepFF, url, dirname){
         const timeout = options.wayback ? 200*1000 : 300*1000;
 
         // * Step 1: Set listner and handlers for exceptions
-        let exceptionInspector = new exceptionHandle.ExceptionInspector(client);
-        exceptionInspector.setExceptionBreakpoint('uncaught');
+        let exceptionHandler = new exceptionHandle.ExceptionHandler(page, client);
+        await exceptionHandler.registerInspect();
         
-
         // * Step 2: Load the page
         try {
             let networkIdle = page.goto(url, {
@@ -142,6 +141,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
             })
             await waitTimeout(networkIdle, timeout); 
         } catch {}
+        exceptionHandler.collectExceptions();
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
@@ -165,12 +165,8 @@ async function interaction(page, cdp, excepFF, url, dirname){
         else
             await sleep(1000);
         
-        // * Step 5: Interact with the webpage
-        if (options.interaction){
-            await interaction(page, client, excepFF, url, dirname);
-            if (options.manual)
-                await eventSync.waitForReady();
-        }
+        // ! Temp
+        await exceptionHandler.fixFirstException();
         
     } catch (err) {
         console.error(err);
