@@ -108,70 +108,70 @@ def _html_2_xpath(html, element):
         xpaths.append(xpath)
     return xpaths
 
-def _diff_html(live_html: "List[element]", archive_html: "List[element]"):
+def _diff_html(left_html: "List[element]", right_html: "List[element]"):
     """
-    Compute the diff between live_html and archive_html by computing the longest common subsequence
+    Compute the diff between left_html and right_html by computing the longest common subsequence
     
     Returns:
         (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
     """
-    live_html = [htmlElement(e) for e in live_html]
-    archive_html = [htmlElement(e) for e in archive_html]
+    left_html = [htmlElement(e) for e in left_html]
+    right_html = [htmlElement(e) for e in right_html]
     # Apply longest common subsequence to get the diff of live and archive htmls
-    lcs_lengths = [[0 for _ in range(len(archive_html) + 1)] for _ in range(len(live_html) + 1)]
-    for i, live_elem in enumerate(live_html, 1):
-        for j, archive_elem in enumerate(archive_html, 1):
-            if live_elem == archive_elem:
+    lcs_lengths = [[0 for _ in range(len(right_html) + 1)] for _ in range(len(left_html) + 1)]
+    for i, left_elem in enumerate(left_html, 1):
+        for j, right_elem in enumerate(right_html, 1):
+            if left_elem == right_elem:
                 lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
             else:
                 lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
     # Backtrack to get the diff
     lcs_live, lcs_archive = [], []
-    i, j = len(live_html), len(archive_html)
+    i, j = len(left_html), len(right_html)
     while i > 0 and j > 0:
-        if live_html[i-1] == archive_html[j-1]:
-            lcs_live.append(live_html[i-1].xpath)
-            lcs_archive.append(archive_html[j-1].xpath)
+        if left_html[i-1] == right_html[j-1]:
+            lcs_live.append(left_html[i-1].xpath)
+            lcs_archive.append(right_html[j-1].xpath)
             i -= 1
             j -= 1
-        # This means live_html[i] is not in the lcs
+        # This means left_html[i] is not in the lcs
         elif lcs_lengths[i-1][j] > lcs_lengths[i][j-1]:
             i -= 1
         # Archive_html[j] is not in the lcs
         elif lcs_lengths[i-1][j] < lcs_lengths[i][j-1]:
             j -= 1
-        # This case can be either both live_html[i] and archive_html[j] are not in the lcs (e.g. abcx and abcy) 
+        # This case can be either both left_html[i] and right_html[j] are not in the lcs (e.g. abcx and abcy) 
         # or both can be in (e.g. abca and abac)
         else:
             j -= 1
     lcs_live.reverse()
     lcs_archive.reverse()
-    live_diff = [e.xpath for e in live_html if e.xpath not in set(lcs_live)]
-    archive_diff = [e.xpath for e in archive_html if e.xpath not in set(lcs_archive)]
-    return live_diff, archive_diff
+    left_diff = [e.xpath for e in left_html if e.xpath not in set(lcs_live)]
+    right_diff = [e.xpath for e in right_html if e.xpath not in set(lcs_archive)]
+    return left_diff, right_diff
 
 
-def verify(live_element: dict, archive_element: dict) -> bool:
+def verify(left_element: dict, right_element: dict) -> bool:
     """
     Args:
-        live_element (dict): element's path and dimension info in the liveweb page
-        archive_element (dict): element's path and dimension info in the archive page
+        left_element (dict): element's path and dimension info in the liveweb page
+        right_element (dict): element's path and dimension info in the archive page
     
     Returns:
         fidelity_preserved: Whether the fidelity is preserved
     """
-    live_xpaths = [e['xpath'] for e in live_element]
-    archive_xpaths = [e['xpath'] for e in archive_element]
-    if live_xpaths != archive_xpaths:
+    left_xpaths = [e['xpath'] for e in left_element]
+    right_xpaths = [e['xpath'] for e in right_element]
+    if left_xpaths != right_xpaths:
         print("html not same")
         print(json.dumps([d for d in
-            list(difflib.ndiff(live_xpaths, archive_xpaths)) if d[0] in ['-', '+']], indent=2))
+            list(difflib.ndiff(left_xpaths, right_xpaths)) if d[0] in ['-', '+']], indent=2))
         return False
     # * Currently for each element, only check the width and height
-    if len(live_element) != len(archive_element):
+    if len(left_element) != len(right_element):
         print("Element number is different")
         return False
-    for le, ae in zip(live_element, archive_element):
+    for le, ae in zip(left_element, right_element):
         live_dimension = _collect_dimension(le)
         archive_dimension = _collect_dimension(ae)
         if live_dimension != archive_dimension:
@@ -207,21 +207,21 @@ def xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(live_element, archive_element, returnHTML=False) -> (list, list):
-    live_xpaths_map = {e['xpath']: e for e in live_element}
-    archive_xpaths_map = {e['xpath']: e for e in archive_element}
-    live_unique, archive_unique = _diff_html(live_element, archive_element)
+def diff(left_element, right_element, returnHTML=False) -> (list, list):
+    left_xpaths_map = {e['xpath']: e for e in left_element}
+    right_xpaths_map = {e['xpath']: e for e in right_element}
+    left_unique, right_unique = _diff_html(left_element, right_element)
     
-    live_unique = _merge_xpaths(live_unique)
-    # print("live_unique number", [len(xpaths) for xpaths in live_unique])
+    left_unique = _merge_xpaths(left_unique)
+    # print("left_unique number", [len(xpaths) for xpaths in left_unique])
     if returnHTML:
-        live_unique = [xpaths_2_text(xpaths, live_xpaths_map) for xpaths in live_unique]
+        left_unique = [xpaths_2_text(xpaths, left_xpaths_map) for xpaths in left_unique]
     
-    archive_unique = _merge_xpaths(archive_unique)
-    # print("archive_unique number", [len(xpaths) for xpaths in archive_unique])
+    right_unique = _merge_xpaths(right_unique)
+    # print("right_unique number", [len(xpaths) for xpaths in right_unique])
     if returnHTML:
-        archive_unique = [xpaths_2_text(xpaths, archive_xpaths_map) for xpaths in archive_unique]
-    return live_unique, archive_unique
+        right_unique = [xpaths_2_text(xpaths, right_xpaths_map) for xpaths in right_unique]
+    return left_unique, right_unique
 
 
 def generate_sig(write, live=False):
@@ -240,23 +240,17 @@ def generate_sig(write, live=False):
             sig[-1].append(frame)
     return sig
 
-def diff_writes(live_writes: list, archive_writes: list):
+def diff_writes(left_writes: list, right_writes: list):
     """
     Diff the writes between live and archive pages
     Same criteria is based on write's stack trace
 
     Args:
-        live_writes: List from live_writes.
-        archive_writes: List from archive_writes.json
+        left_writes: List from left_writes
+        right_writes: List from right_writes
     """
-    # live_stacks_id = {w['writeID']: w for w in live_write_stacks}
-    # archive_stacks_id = {w['writeID']: w for w in archive_write_stacks}
-    live_writes = live_writes['rawWrites']
-    # for l in live_writes:
-    #     l['stackInfo'] = live_stacks_id[l['wid']]
-    archive_writes = archive_writes['rawWrites']
-    # for a in archive_writes:
-    #     a['stackInfo'] = archive_stacks_id[a['wid']]
+    left_writes = left_writes['rawWrites']
+    right_writes = right_writes['rawWrites']
 
     def _tag_from_xpath(xpath):
         return xpath.split('/')[-1].split('[')[0]
@@ -277,8 +271,8 @@ def diff_writes(live_writes: list, archive_writes: list):
                     tags.append('text')
         return tags
 
-    live_sigs, archive_sigs = defaultdict(list), defaultdict(list)
-    for write in live_writes:
+    left_sigs, right_sigs = defaultdict(list), defaultdict(list)
+    for write in left_writes:
         # write_sig = generate_sig(live_stacks_id[write['wid']], live=True)
         write_sig = [write['method']]
         target = _tag_from_xpath(write['xpath'])
@@ -287,9 +281,9 @@ def diff_writes(live_writes: list, archive_writes: list):
             args += _tag_from_arg(arg)
         sig = [target] + args + write_sig
         sig = tuple([tuple(s) if isinstance(s, list) else s for s in sig])
-        live_sigs[sig].append(write)
+        left_sigs[sig].append(write)
     
-    for write in archive_writes:
+    for write in right_writes:
         # write_sig = generate_sig(archive_stacks_id[write['wid']], live=False)
         write_sig = [write['method']]
         target = _tag_from_xpath(write['xpath'])
@@ -298,16 +292,16 @@ def diff_writes(live_writes: list, archive_writes: list):
             args += _tag_from_arg(arg)
         sig = [target] + args + write_sig
         sig = tuple([tuple(s) if isinstance(s, list) else s for s in sig])
-        archive_sigs[sig].append(write)
+        right_sigs[sig].append(write)
     
-    live_unique, archive_unique = {}, {}
-    for sig in live_sigs:
-        if sig not in archive_sigs  or len(live_sigs[sig]) > len(archive_sigs[sig]):
-            live_unique[sig] = live_sigs[sig]
-    for sig in archive_sigs:
-        if sig not in live_sigs or len(archive_sigs[sig]) > len(live_sigs[sig]):
-            archive_unique[sig] = archive_sigs[sig]
-    return live_unique, archive_unique
+    left_unique, right_unique = {}, {}
+    for sig in left_sigs:
+        if sig not in right_sigs  or len(left_sigs[sig]) > len(right_sigs[sig]):
+            left_unique[sig] = left_sigs[sig]
+    for sig in right_sigs:
+        if sig not in left_sigs or len(right_sigs[sig]) > len(left_sigs[sig]):
+            right_unique[sig] = right_sigs[sig]
+    return left_unique, right_unique
 
 def associate_writes(element_xpath: str, writes: list) -> list:
     """
