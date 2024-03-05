@@ -271,10 +271,11 @@ class ExceptionHandler {
         }
     }
 
-    async fixFirstException() {
-        console.log("Start fixing first exception")
-        const exception = this.exceptions[this.exceptions.length-1][0];
-        const description = exception.description.split('\n')[0];
+    /**
+     * Keep trying fixing exceptions until seen first fixed exception
+     * @returns Index of the fixed exception (-1) if nothing can be fixed
+     */
+    async fixException() {
         let calcNumDesc = (desc, exceptions) => {
             let count = 0;
             for (const excep of exceptions){
@@ -283,37 +284,45 @@ class ExceptionHandler {
             }
             return count;
         }
-        let targetCount = calcNumDesc(description, this.exceptions[this.exceptions.length-1]);
-        let i = 0
-        for (const frame of exception.frames){
-            // i += 1;
-            // if (i < 5) continue
-            const source = frame.source;
-            if (source == null) {
-                console.log(`Cannot find source for ${frame.url}`);
-                continue;
-            }
-            const revert = new reverter.Reverter(source);
-            const startLoc = {line: frame.line+1, column: frame.column+1};
-            console.log("Revert location", startLoc, frame.url)
-            const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
-            const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
-            if (updatedCode === source)
-                continue;
-            await this.overrider.clearOverrides();
-            await this.overrider.overrideResources({[frame.url]: updatedCode});
-            this.inspector.reset({recordVar: false});
-            try {
-                let networkIdle = this.page.reload({waitUntil: 'networkidle0',timeout: 0})
-                await waitTimeout(networkIdle, 60*1000);
-            } catch(e) {console.log("Reload exception", e)}
-            let newCount = calcNumDesc(description, this.inspector.exceptions);
-            this.inspector.reset({recordVar: false});
-            if (newCount < targetCount) {
-                console.log("Fixed first exception");
-                return;
+        const latestExceptions = this.exceptions[this.exceptions.length-1];
+        for (let i = 0; i < latestExceptions.length; i++) {
+            const exception = latestExceptions[i];
+            const description = exception.description.split('\n')[0];
+            console.log("Start fixing exception:", i, 'out of', latestExceptions.length-1, '\ndescription:', description);
+            let targetCount = calcNumDesc(description, latestExceptions);
+            let j = 0
+            for (const frame of exception.frames){
+                // j += 1;
+                // if (j < 5) continue
+                const source = frame.source;
+                if (source == null || !reverter.isRewritten(source)) {
+                    console.log(`Cannot find source for ${frame.url}, or source is not rewritten`);
+                    continue;
+                }
+                const revert = new reverter.Reverter(source);
+                const startLoc = {line: frame.line+1, column: frame.column+1};
+                console.log("Revert location", startLoc, frame.url)
+                const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
+                const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
+                if (updatedCode === source)
+                    continue;
+                await this.overrider.clearOverrides();
+                await this.overrider.overrideResources({[frame.url]: updatedCode});
+                this.inspector.reset({recordVar: false});
+                try {
+                    let networkIdle = this.page.reload({waitUntil: 'networkidle0',timeout: 0})
+                    await waitTimeout(networkIdle, 60*1000);
+                } catch(e) {console.log("Reload exception", e)}
+                let newCount = calcNumDesc(description, this.inspector.exceptions);
+                this.inspector.reset({recordVar: false});
+                if (newCount < targetCount) {
+                    console.log("Fixed exception", i);
+                    return i;
+                }
+                break;
             }
         }
+        return -1;
     }
 
 }

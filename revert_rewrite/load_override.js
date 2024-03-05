@@ -161,7 +161,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         }
 
         // ! Temp
-        await exceptionHandler.fixFirstException();
+        await exceptionHandler.fixException();
 
         // * Step 4: Wait for the page to be loaded
         if (options.manual)

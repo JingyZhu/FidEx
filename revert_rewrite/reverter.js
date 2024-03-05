@@ -5,6 +5,7 @@
  * unproxied version before the line, and 2. then assign the variable back 
  * after the line.
  */
+// TODO: Think about how to revert HTML rewriting (or is it even valuable?)
 const esprima = require('esprima');
 const fs = require('fs');
 const { delimiter } = require('path');
@@ -17,6 +18,21 @@ let __location = location;
 let __parent = parent;
 let __frames = frames;
 `
+
+/**
+ * Determine if the code has been rewritten
+ * Currently it is just checking if certain keyword is in the code
+ * In the future might need to do more fine-grained AST analysis
+ * @param {String} code 
+ */
+function isRewritten(code) {
+    const keywords = ['_____WB$wombat$assign$function_____', '__WB_pmw']
+    for (const keyword of keywords) {
+        if (!code.includes(keyword))
+            return false;
+    }
+    return true;
+}
 
 class Reverter {
     constructor(code) {
@@ -153,7 +169,8 @@ class Reverter {
 }
 
 module.exports = {
-    Reverter
+    Reverter,
+    isRewritten
 }
 
 function testReverter() {
