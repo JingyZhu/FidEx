@@ -80,8 +80,8 @@ async function interaction(page, cdp, excepFF, url, dirname){
         // console.log(e);
         e.screenshot_count = count;
         excepFF.afterInteraction(e);
-        await measure.collectFidelityInfo(page, url, dirname,
-                             `${filename}_${count++}`, collectFidelityInfoOptions)
+        await measure.collectNaiveInfo(page, dirname,
+                             `${filename}_${count++}`, collectNaiveInfoOptions)
     }
 }
 

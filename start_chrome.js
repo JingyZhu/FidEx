@@ -104,7 +104,7 @@ async function getActivePage(browser) {
     if (options.screenshot){
         while (true){
             let page = await getActivePage(browser);
-            await measure.collectFidelityInfo(page, '', 'temp', 'dimension');
+            await measure.collectNaiveInfo(page, 'temp', 'dimension');
             await eventSync.waitForReady();
         }
     }

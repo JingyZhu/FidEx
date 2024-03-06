@@ -128,8 +128,8 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         // console.log(e);
         e.screenshot_count = count;
         excepFF.afterInteraction(e);
-        await measure.collectFidelityInfo(page, url, dirname, 
-                            `${filename}_${count++}`, collectFidelityInfoOptions)        
+        await measure.collectNaiveInfo(page, dirname, 
+                            `${filename}_${count++}`, collectNaiveInfoOptions)        
     }
 }
 
@@ -289,7 +289,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectFidelityInfo(recordPage, url, dirname, filename);
+            await measure.collectNaiveInfo(recordPage, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));

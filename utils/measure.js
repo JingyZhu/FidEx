@@ -50,9 +50,9 @@ async function scroll(page) {
  * @param {string} filename 
  * @param {object} options 
  */
-async function collectFidelityInfo(page, url, dirname,
+async function collectNaiveInfo(page, dirname,
     filename = "dimension",
-    options = { html: false, dimension: false }) {
+    options = { html: false }) {
     const dimensions = await getDimensions(page);
     let [width, height] = await maxWidthHeight(dimensions);
     
@@ -63,15 +63,7 @@ async function collectFidelityInfo(page, url, dirname,
         fs.writeFileSync(`${dirname}/${filename}.html`, html);
     }
 
-    if (options.dimension) {
-        const results = {
-            "url": url,
-            "dimensions": JSON.parse(dimensions)
-        }
-        fs.writeFileSync(`${dirname}/${filename}.json`, JSON.stringify(results, null, 2));
-    }
-
-    // * Method 1: Capture screenshot of the whole page
+    // * Capture screenshot of the whole page
     // Scroll down the bottom of the page
     // for (let i = 1; i * 1080 < height; i += 1) {
     //     await page.evaluate(() => window.scrollBy(0, 1080));
@@ -107,6 +99,7 @@ function _origURL(url){
  * @param {iframe} iframe 
  * @param {object} parentInfo 
  * @param {boolean} replay Whether the render tree is collected on replay
+ * @returns {object} renderTree {renderTree: [], renderHTML: string}
  */
 async function collectRenderTree(iframe, parentInfo, replay=false){
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
@@ -188,6 +181,7 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
 
 /**
  * Collect exceptions and failed fetches during loading the page.
+ * TODO: Doesn't fit well with the current file. Might need to move to another file.
  */
 class excepFFHandler {
     exceptions = [];
@@ -267,7 +261,7 @@ module.exports = {
     getDimensions,
     maxWidthHeight,
     scroll,
-    collectFidelityInfo,
+    collectNaiveInfo,
     collectRenderTree,
     excepFFHandler
 }
