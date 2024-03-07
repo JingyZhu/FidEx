@@ -1,0 +1,16 @@
+<html>
+    <script>
+        const resourceMapping = {
+            'http://localhost:8079': '/updates.json'
+        }
+
+        window.addEventListener('message', async function(event) {
+            if (!(event.origin in resourceMapping))
+                return;
+
+            let response = await fetch(resourceMapping[event.origin]);
+            response = await response.json(); 
+            event.source.postMessage(response, event.origin);
+        }, false);
+    </script>
+</html>
