@@ -51,7 +51,7 @@ function collect_writes(){
             if (args == null || arg == undefined)
                 continue
             if (arg instanceof Element) {
-                arg = _normalSRC(arg);
+                try { arg = _normalSRC(arg); } catch {}
                 arg_info.html = arg.outerHTML;
                 arg_info.xpath = getDomXPath(arg);
             } else if (arg instanceof Node) {

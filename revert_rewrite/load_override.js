@@ -8,6 +8,8 @@ const { program } = require('commander');
 const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
 const exceptionHandle = require('./exception-handle');
+const execution = require('../utils/execution');
+const { loadToChromeCTXWithUtils } = require('../utils/load');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -43,51 +45,25 @@ async function startChrome(){
     return browser;
 }
 
-async function interaction(page, cdp, excepFF, url, dirname){
-    // * Read path file
-    let loadEvents = [];
-    // let data = fs.readFileSync(`${dirname}/exception_failfetch_record.json`)
-    // data = JSON.parse(data).slice(1)
-    // for (const obj of data)
-    //     loadEvents.push([obj.interaction.path, obj.interaction.events])
-    // const script = fs.readFileSync("../chrome_ctx/interaction.js", 'utf8');
-    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true});
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-    const expr = `
-    // let loadEvents = ${JSON.stringify(loadEvents)};
-    // let eli = new eventListenersIterator(loadEvents);
-    let eli = new eventListenersIterator();
-    `
-    // console.log(expr);
-    await cdp.send("Runtime.evaluate", {expression: expr, includeCommandLineAPI:true});
-    let numEvents = await page.evaluate(async () => {
-        eli.init();
-        return eli.listeners.length;
-    })
-    // ! Temp
-    // let origPath = await page.evaluate(async () => {
-    //     return eli.origPath;
-    // })
-    // fs.writeFileSync(`${dirname}/listeners.json`, JSON.stringify(origPath, null, 2));
-    // ! End of temp
-    let count = 1;
-    for (let i = 0; i < numEvents && i < 20; i++) {
-        let e = await page.evaluate(async () => await eli.triggerNext())
-        if (Object.keys(e).length <= 0) 
-            continue
-        // console.log(e);
-        e.screenshot_count = count;
-        excepFF.afterInteraction(e);
-        await measure.collectFidelityInfo(page, url, dirname,
-                             `${filename}_${count++}`, collectFidelityInfoOptions)
-    }
+async function removeWaybackBanner(page){
+    try {
+        await page.evaluate(() => {
+            document.querySelector("#wm-ipp-base").remove();
+            document.querySelector("#wm-ipp-print").remove();
+            let elements = document.querySelectorAll('*');
+            for (const element of elements){
+                if (element.hasAttribute('loading'))
+                    element.loading = 'eager';
+            }
+        })
+    } catch {}
 }
+
 
 (async function(){
     // * Step 0: Prepare for running
     program
         .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
-        .option('-f --file <filename>', 'Filename prefix', 'dimension')
         .option('-m, --manual', "Manual control for finishing loading the page")
         .option('-i, --interaction', "Interact with the page")
         .option('-b, --wayback', "Whether replay is from wayback machine")
@@ -98,7 +74,6 @@ async function interaction(page, cdp, excepFF, url, dirname){
     program.parse();
     const options = program.opts();
     let dirname = options.dir;
-    let filename = options.file;
     const browser = await startChrome();
     const url = new URL(urlStr);
     
@@ -130,11 +105,11 @@ async function interaction(page, cdp, excepFF, url, dirname){
         await sleep(500);
         const timeout = options.wayback ? 200*1000 : 60*1000;
 
-        // * Step 1: Set listner and handlers for exceptions
-        let exceptionHandler = new exceptionHandle.ExceptionHandler(page, client);
-        await exceptionHandler.registerInspect('all');
+        // * Step 1: Prepare recording for exceptions
+        let exceptionHandler = new exceptionHandle.ExceptionHandler(page, client, dirname);
+        await exceptionHandler.prepare(exceptionType='all');
         
-        // * Step 2: Load the page
+        // * Step 2: Load the page and collect exception
         try {
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0',
@@ -142,21 +117,11 @@ async function interaction(page, cdp, excepFF, url, dirname){
             })
             await waitTimeout(networkIdle, timeout); 
         } catch {}
-        exceptionHandler.collectExceptions();
+        await exceptionHandler.collectExceptions();
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
-            try {
-                await page.evaluate(() => {
-                    document.querySelector("#wm-ipp-base").remove();
-                    document.querySelector("#wm-ipp-print").remove();
-                    let elements = document.querySelectorAll('*');
-                    for (const element of elements){
-                        if (element.hasAttribute('loading'))
-                            element.loading = 'eager';
-                    }
-                })
-            } catch {}
+            await removeWaybackBanner(page);
             await sleep(2000);
         }
 

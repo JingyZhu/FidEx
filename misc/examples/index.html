@@ -16,9 +16,8 @@
             response = await response.json();
             for (const update of response) {
                 const element = mapping[update.type].call(document, update.value);
-                for (const [key, value] of Object.entries(update.attributes)) {
-                    element.setAttribute(key, value);
-                }
+                for (const [key, value] of Object.entries(update.attributes))
+                    element[key] = value;
                 document.getElementById('target').appendChild(element);
             }
         }

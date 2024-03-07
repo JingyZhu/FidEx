@@ -1,5 +1,8 @@
 const reverter = require('./reverter');
 const fs = require('fs');
+const execution = require('../utils/execution');
+const { loadToChromeCTXWithUtils } = require('../utils/load');
+const measure = require('../utils/measure');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -249,26 +252,67 @@ class Overrider {
     }
 }
 
+class PageRecorder {
+    constructor(page, client) {
+        this.page = page;
+        this.client = client;
+    }
+
+    async prepareLogging() {
+        const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+        await this.page.evaluateOnNewDocument(script);
+        // await this.page.evaluateOnNewDocument("__trace_enabled = true");
+    }
+
+    async record(dirname, filename) {
+        await loadToChromeCTXWithUtils(this.page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+        const writeLog = await this.page.evaluate(() => {
+            return {
+                writes: __final_write_log_processed,
+                rawWrites: __raw_write_log_processed
+            }
+        });
+        fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+        
+        const rootFrame = this.page.mainFrame();
+        const renderInfo = await measure.collectRenderTree(rootFrame,
+            {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
+        // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+        await measure.collectNaiveInfo(this.page, dirname, filename);
+        fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
+    }
+}
+
 class ExceptionHandler {
-    constructor(page, client){
+    constructor(page, client, dirname='.', timeout=60){
         this.page = page;
         this.client = client;
         this.inspector = new ExceptionInspector(client);
         this.overrider = new Overrider(client);
+        this.recorder = new PageRecorder(page, client);
+        this.dirname = dirname;
+        this.timeout = timeout;
         this.exceptions = [];
     }
-
-    async registerInspect(exceptionType='uncaught') {
+    
+    /**
+     * Register inspect for exception
+     * Override node write method to log
+     * @param {*} exceptionType 
+     */
+    async prepare(exceptionType='uncaught') {
         await this.inspector.setExceptionBreakpoint(exceptionType);
+        await this.recorder.prepareLogging();
     }
 
-    collectExceptions() {
+    async collectExceptions() {
         this.exceptions.push([]);
         for (let exception of this.inspector.exceptions){
             for (let frame of exception.frames)
                 frame.source = this.inspector.getSource(frame.scriptId);
             this.exceptions[this.exceptions.length-1].push(exception);
         }
+        await this.recorder.record(this.dirname, 'initial');
     }
 
     /**
@@ -311,8 +355,9 @@ class ExceptionHandler {
                 this.inspector.reset({recordVar: false});
                 try {
                     let networkIdle = this.page.reload({waitUntil: 'networkidle0',timeout: 0})
-                    await waitTimeout(networkIdle, 60*1000);
+                    await waitTimeout(networkIdle, this.timeout*1000);
                 } catch(e) {console.log("Reload exception", e)}
+                await this.recorder.record(this.dirname, `exception_${i}`);
                 let newCount = calcNumDesc(description, this.inspector.exceptions);
                 this.inspector.reset({recordVar: false});
                 if (newCount < targetCount) {
