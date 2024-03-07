@@ -9,9 +9,10 @@ execution_match/*_examples/*.js
 revert_rewrite/test/*
 results*
 *.json
-!fidelity_check/testcases*.json
 *.png
 *.jpg
 *.html
 *.warc
 *.log
+!fidelity_check/testcases*.json
+!misc/examples/*

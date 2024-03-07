@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <div id="target"></div>
+    <button id="button">Show some update</button>
+
+    <script>
+        const mapping = {
+            'img': Document.prototype.createElement,
+            'text': Document.prototype.createTextNode,
+        }
+        async function getUpdates() {
+            const hostname = new URL(document.location.href).host;
+            document.getElementById('target').innerHTML = '';
+            let response = await fetch(`http://${hostname}/updates.json`);
+            response = await response.json();
+            for (const update of response) {
+                const element = mapping[update.type].call(document, update.value);
+                for (const [key, value] of Object.entries(update.attributes)) {
+                    element.setAttribute(key, value);
+                }
+                document.getElementById('target').appendChild(element);
+            }
+        }
+        document.getElementById('button').addEventListener('click', getUpdates);
+    </script>
+  </body>

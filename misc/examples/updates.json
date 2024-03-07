@@ -1,0 +1,14 @@
+[
+    {
+        "type": "img",
+        "value": "img",
+        "attributes": {
+            "src": "update.jpg"
+        }
+    },
+    {
+        "type": "text",
+        "value": "This is an update",
+        "attributes": {}
+    }
+]

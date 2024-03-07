@@ -4,12 +4,12 @@
 */
 loadUtils = true;
 
-archiveHost = "localhost:8080";
+archiveHosts = ["localhost:8080"];
 archiveiFrame = "iframe#replay_iframe";
 
 function isArchive() {
-    let host = new URL(document.URL).host;
-    return host == archiveHost;
+    let host = new URL(location.href).host;
+    return archiveHosts.includes(host);
 }
 
 function _normalURL(url) {
