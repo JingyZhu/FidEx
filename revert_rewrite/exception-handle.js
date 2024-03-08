@@ -3,6 +3,11 @@ const fs = require('fs');
 const execution = require('../utils/execution');
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
+const { Logger } = require('../utils/logger');
+const { exit } = require('process');
+
+const logger = new Logger();
+logger.level = 'verbose';
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -131,22 +136,27 @@ class ExceptionInspector {
      * @param {Debugger.Paused} params from debugger.Paused
      * @param {Boolean} recordVar Whether to record the variable status
      */
-    async _recordException(params, recordVar){
+    async _recordException(params){
         const {callFrames, data} = params;
         let info = new ExceptionInfo(data.className, data.description);
         if (this._seenExceptions.has(data.description))
             return;
-        console.log("Detected exception", params.data.description.split('\n')[0]);
+        logger.log("ExceptionInspector._recordException:", "Detected exception", params.data.description.split('\n')[0]);
         for (const frame of callFrames){
             const {location, scopeChain} = frame;
             let seenVars = new Set();
+            // * Potential trailing handlers
+            if (!(location.scriptId in this.scriptInfo)) return;
             const url = this.scriptInfo[location.scriptId].url;
             if (skipJS(url))
                 continue;
             info.addFrame(url, location.scriptId, location.lineNumber, location.columnNumber);
-            if (!recordVar)
+            if (!this.recordVar)
                 continue;
             for (const scope of scopeChain) {
+                // * Potential trailing handlers
+                if (!this.recordVar)
+                    continue;
                 const {object, type} = scope;
                 const properties = await this.client.send('Runtime.getProperties', {
                   objectId: object.objectId,
@@ -154,12 +164,17 @@ class ExceptionInspector {
                 for (const varProp of properties.result){
                     // TODO: Currently, this is just including the first variable found.
                     // TODO: But this should actually be ranked on scope (block > global, etc). Might need to revisit this.
-                    if (seenVars.has(varProp.name))
+                    if (seenVars.has(varProp.name) || !this.recordVar)
                         continue;
                     const proxyType = await this._decideProxyType(varProp, frame);
                     info.addVar(varProp, type, proxyType);
                     seenVars.add(varProp.name);
                 }
+            }
+            const source = this.scriptInfo[location.scriptId].source;
+            if (source && reverter.isRewritten(source)) {
+                logger.verbose("ExceptionInspector._recordException:", "Found first script rewriten on stack", url);
+                break;
             }
         }
         this.exceptions.push(info);
@@ -174,7 +189,9 @@ class ExceptionInspector {
             // * First add the URL, since getting the source is async
             this.scriptInfo[params.scriptId] = {url: params.url, source: null};
             const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
-            this.scriptInfo[params.scriptId].source = scriptSource;
+            // * After coming back, the scriptInfo might be emptied.
+            if (params.scriptId in this.scriptInfo)
+                this.scriptInfo[params.scriptId].source = scriptSource;
         });
 
         await this.client.send('Debugger.setPauseOnExceptions', {state: type});
@@ -184,22 +201,32 @@ class ExceptionInspector {
             try {
                 await this._recordException(params, this.recordVar);
             } catch (e) {
-                console.log("Error recording exception", e);
+                logger.warn("Error:", "Debugger.pasued recording exception", e);
             }
             // await sleep(1000);
-            await this.client.send('Debugger.resume');
+            try {
+                await this.client.send('Debugger.resume');
+            } catch (e) {}
         });
+    }
+
+    async unsetExceptionBreakpoint(){
+        await this.client.send('Debugger.setPauseOnExceptions', {state: 'none'});
+        await this.client.removeAllListeners('Debugger.paused');
+        await this.client.removeAllListeners('Debugger.scriptParsed');
     }
 
     getSource(scriptId) {
         return this.scriptInfo[scriptId].source;
     }
 
-    reset(recordVar=true) {
+    async reset(recordVar=true, type='uncaught') {
+        await this.unsetExceptionBreakpoint();
         this.exceptions = []
         this._seenExceptions = new Set();
         this.scriptInfo = {}
         this.recordVar = recordVar;
+        await this.setExceptionBreakpoint(type=type)
     }
 }
 
@@ -225,7 +252,7 @@ class Overrider {
         await this.client.send('Fetch.enable', {
             patterns: urlPatterns
         });
-        console.log("Overriding", urlPatterns);
+        logger.log("Overrider.overrideResources:", "Overriding", urlPatterns);
 
         this.client.on('Fetch.requestPaused', async (params) => {
             const url = params.request.url;
@@ -237,10 +264,10 @@ class Overrider {
                     responseHeaders: params.responseHeaders,
                     body: Buffer.from(resource).toString('base64')
                 });
-                console.log("Sent Fetch.fulfillRequest", params.request.url);
+                logger.verbose("Overrider.overrideResources:", "Sent Fetch.fulfillRequest", params.request.url);
                 fs.writeFileSync('test/overrided.js', resource);
             } catch (e) {
-                console.log("Error sending Fetch.fulfillRequest", e);
+                logger.warn("Error: sending Fetch.fulfillRequest", e);
             }
         });
     }
@@ -281,6 +308,10 @@ class PageRecorder {
         await measure.collectNaiveInfo(this.page, dirname, filename);
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
     }
+
+    async fidelityCheck(dirname, left, right) {
+
+    }
 }
 
 class ExceptionHandler {
@@ -301,6 +332,7 @@ class ExceptionHandler {
      * @param {*} exceptionType 
      */
     async prepare(exceptionType='uncaught') {
+        this.exceptionType = exceptionType;
         await this.inspector.setExceptionBreakpoint(exceptionType);
         await this.recorder.prepareLogging();
     }
@@ -331,40 +363,40 @@ class ExceptionHandler {
         const latestExceptions = this.exceptions[this.exceptions.length-1];
         for (let i = 0; i < latestExceptions.length; i++) {
             const exception = latestExceptions[i];
+            // Debug use
+            // if (i < 6) continue
             const description = exception.description.split('\n')[0];
-            console.log("Start fixing exception:", i, 'out of', latestExceptions.length-1, '\ndescription:', description);
+            logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 'out of', latestExceptions.length-1, '\n  description:', description);
             let targetCount = calcNumDesc(description, latestExceptions);
-            let j = 0
             for (const frame of exception.frames){
-                // j += 1;
-                // if (j < 5) continue
                 const source = frame.source;
                 if (source == null || !reverter.isRewritten(source)) {
-                    console.log(`Cannot find source for ${frame.url}, or source is not rewritten`);
+                    logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
                     continue;
                 }
                 const revert = new reverter.Reverter(source);
                 const startLoc = {line: frame.line+1, column: frame.column+1};
-                console.log("Revert location", startLoc, frame.url)
+                logger.verbose("ExceptionHandler.fixException:", "Revert location", startLoc, frame.url)
                 const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
                 const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
+                /// Debug use
+                // fs.writeFileSync('test/updated.js', updatedCode);
+                // return;
                 if (updatedCode === source)
                     continue;
                 await this.overrider.clearOverrides();
                 await this.overrider.overrideResources({[frame.url]: updatedCode});
-                this.inspector.reset({recordVar: false});
+                await this.inspector.reset(false, this.exceptionType);
                 try {
                     let networkIdle = this.page.reload({waitUntil: 'networkidle0',timeout: 0})
                     await waitTimeout(networkIdle, this.timeout*1000);
-                } catch(e) {console.log("Reload exception", e)}
+                } catch(e) {logger.warn("ExceptionHandler.fixException:", "Reload exception", e)}
                 await this.recorder.record(this.dirname, `exception_${i}`);
                 let newCount = calcNumDesc(description, this.inspector.exceptions);
-                this.inspector.reset({recordVar: false});
-                if (newCount < targetCount) {
-                    console.log("Fixed exception", i);
-                    return i;
-                }
-                break;
+                if (newCount >= targetCount)
+                    break;
+                logger.log("ExceptionHandler.fixException:", "Fixed exception", i);
+                return i;
             }
         }
         return -1;

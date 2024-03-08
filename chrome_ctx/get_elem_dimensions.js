@@ -22,8 +22,9 @@ function _normalURL(url) {
 }
 
 function getDimensions() {
-    const pageDocument = isArchive() ? 
-        document.querySelector(archiveiFrame).contentDocument: document;
+    // const pageDocument = isArchive() ? 
+    //     document.querySelector(archiveiFrame).contentDocument: document;
+    const pageDocument = document;
     const all_elements = pageDocument.querySelectorAll("*");
     let element_dimension = {};
     for (const element of all_elements) {

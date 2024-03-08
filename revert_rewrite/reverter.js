@@ -8,7 +8,9 @@
 // TODO: Think about how to revert HTML rewriting (or is it even valuable?)
 const esprima = require('esprima');
 const fs = require('fs');
-const { delimiter } = require('path');
+const { Logger } = require('../utils/logger');
+
+let logger = new Logger();
 
 const HEADER = `
 let __document = document;
@@ -122,13 +124,13 @@ class Reverter {
      */
     revertVariable(startLoc, variables, numStatements=1) {
         const startIdx = this._loc2idx(startLoc);
-        console.log("line to override", this.code.slice(startIdx, startIdx+30), '...')
+        logger.log("Reverter.revertVariable:", "line to override", this.code.slice(startIdx, startIdx+30), '...')
         let statements = this._findStatements(startIdx);
         statements.value = statements.value.slice(0, numStatements);
         let varInStms = this._variablesInStatements(variables, statements.value);
         // * If no variable to revert, return the original code
         if (varInStms.length === 0) {
-            console.log("No variable to revert");
+            logger.log("Reverter.revertVariable:", "No variable to revert");
             return this.code;
         }
         let headers = [], beforeLines = [], afterLines = [];
@@ -174,9 +176,8 @@ module.exports = {
 }
 
 function testReverter() {
-    const code = fs.readFileSync('test/test.js', 'utf-8');
-
-    let loc = {line: 1128, column: 15};
+    const code = fs.readFileSync('test/override.js', 'utf-8');
+    let loc = {line: 393, column: 179};
     let variables = [
         {name: 'C', type: 'document'},
         {name: 'window', type: 'window'}
