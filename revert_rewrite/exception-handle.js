@@ -1,10 +1,10 @@
 const reverter = require('./reverter');
 const fs = require('fs');
-const execution = require('../utils/execution');
+const { spawn } = require('child_process');
+
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
 const { Logger } = require('../utils/logger');
-const { exit } = require('process');
 
 const logger = new Logger();
 logger.level = 'verbose';
@@ -34,10 +34,11 @@ class ExceptionInfo {
      * @param {string} type from data.className
      * @param {string} description from data.description
      */
-    constructor(type, description){
+    constructor(type, description, uncaught){
         this.type = type;
         this.description = description;
         this.frames = []; // [frame[var]]
+        this.uncaught = uncaught;
     }
 
     addFrame(url, scriptId, line, column) {
@@ -138,10 +139,12 @@ class ExceptionInspector {
      */
     async _recordException(params){
         const {callFrames, data} = params;
-        let info = new ExceptionInfo(data.className, data.description);
-        if (this._seenExceptions.has(data.description))
+        const description = "description" in data ? data.description : "";
+        let info = new ExceptionInfo(data.className, description, params.data.uncaught);
+        if (this._seenExceptions.has(description))
             return;
-        logger.log("ExceptionInspector._recordException:", "Detected exception", params.data.description.split('\n')[0]);
+        const firstLine = description != "" ? description.split('\n')[0] : "";
+        logger.log("ExceptionInspector._recordException:", "Detected exception", firstLine);
         for (const frame of callFrames){
             const {location, scopeChain} = frame;
             let seenVars = new Set();
@@ -178,7 +181,7 @@ class ExceptionInspector {
             }
         }
         this.exceptions.push(info);
-        this._seenExceptions.add(data.description);
+        this._seenExceptions.add(description);
     }
     /**
      * 
@@ -309,8 +312,40 @@ class PageRecorder {
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
     }
 
+    /**
+     * 
+     * @returns {object} {has_issue: boolean, left_unique: Array, right_unique: Array}
+     */
     async fidelityCheck(dirname, left, right) {
+        const pythonProcess = spawn('python', ['../fidelity_check/js_fidelity_check.py']);
+        pythonProcess.stdin.write(JSON.stringify({
+            'dir': dirname,
+            'left': left,
+            'right': right
+        }));
+        pythonProcess.stdin.end();
+        let data = await new Promise((resolve, reject) => {
+            let outputData = '';
+            pythonProcess.stdout.on('data', (dataChunk) => {
+                outputData += dataChunk.toString();
+            });
 
+            let errorData = '';
+            pythonProcess.stderr.on('data', (errorChunk) => {
+                errorData += errorChunk.toString();
+            });
+
+            pythonProcess.on('close', (code) => {
+                if (code === 0) {
+                    resolve(outputData);
+                } else {
+                    console.log(errorData); // Log the complete error message
+                    reject(new Error(`Process exited with code ${code}: ${errorData}`));
+                }
+            });
+        });
+        data = JSON.parse(data.toString());
+        return data;
     }
 }
 
@@ -324,6 +359,7 @@ class ExceptionHandler {
         this.dirname = dirname;
         this.timeout = timeout;
         this.exceptions = [];
+        this.log = [];
     }
     
     /**
@@ -374,14 +410,20 @@ class ExceptionHandler {
                     logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
                     continue;
                 }
+                // * Revert the file
                 const revert = new reverter.Reverter(source);
                 const startLoc = {line: frame.line+1, column: frame.column+1};
                 logger.verbose("ExceptionHandler.fixException:", "Revert location", startLoc, frame.url)
                 const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
                 const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
-                /// Debug use
-                // fs.writeFileSync('test/updated.js', updatedCode);
-                // return;
+                this.log.push({
+                    type: 'revert',
+                    url: frame.url,
+                    startLoc: startLoc,
+                    original: source,
+                    updated: updatedCode
+                })
+
                 if (updatedCode === source)
                     continue;
                 await this.overrider.clearOverrides();
@@ -396,7 +438,17 @@ class ExceptionHandler {
                 if (newCount >= targetCount)
                     break;
                 logger.log("ExceptionHandler.fixException:", "Fixed exception", i);
-                return i;
+                const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}`);
+                this.log.push({
+                    type: 'fidelity',
+                    exception: i,
+                    description: description,
+                    fidelity: fidelity.different
+                })
+                if (fidelity.different) {
+                    logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
+                    return i;
+                }
             }
         }
         return -1;
@@ -406,5 +458,6 @@ class ExceptionHandler {
 
 
 module.exports = {
+    PageRecorder,
     ExceptionHandler
 };

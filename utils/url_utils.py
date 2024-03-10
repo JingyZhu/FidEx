@@ -10,6 +10,7 @@ def filter_archive(archive_url):
         return match.group(2)
     else:
         return None
+
 class HostExtractor:
     def __init__(self):
         self.psl = PublicSuffixList()

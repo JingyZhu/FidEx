@@ -175,18 +175,6 @@ module.exports = {
     isRewritten
 }
 
-function testReverter() {
-    const code = fs.readFileSync('test/override.js', 'utf-8');
-    let loc = {line: 393, column: 179};
-    let variables = [
-        {name: 'C', type: 'document'},
-        {name: 'window', type: 'window'}
-    ]
-    const reverter = new Reverter(code);
-    newCode = reverter.revertVariable(loc, variables, 1)
-    console.log(newCode);
-}
-
 function testFindStatements(startLoc) {
     const code = fs.readFileSync('test/test.js', 'utf-8');
     const reverter = new Reverter(code);

@@ -126,7 +126,12 @@ async function removeWaybackBanner(page){
         }
 
         // ! Temp
-        await exceptionHandler.fixException();
+        const fixedIdx = await exceptionHandler.fixException();
+        let result = {
+            fixedIdx: fixedIdx,
+            log: exceptionHandler.log
+        }
+        fs.writeFileSync(`${dirname}/result_log.json`, JSON.stringify(result, null, 2));
 
         // * Step 4: Wait for the page to be loaded
         if (options.manual)
