@@ -17,8 +17,8 @@ const examples = {
 }
 
 function testReverterVar() {
-    const code = fs.readFileSync('test/overrided.js', 'utf-8');
-    let loc = {line: 103, column: 2336};
+    const code = fs.readFileSync('test/override.html', 'utf-8');
+    let loc = {line: 255, column: 1};
     let variables = [
         {name: 'C', type: 'document'},
         {name: 'window', type: 'window'}
