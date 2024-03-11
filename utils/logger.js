@@ -5,12 +5,19 @@ class Logger {
         this.level = 'log';
     }
 
+    _colorize(msg, color) {
+        if (process.stdout.isTTY)
+            return `${color}${msg}\x1b[0m`;
+        else
+            return msg
+    }
+
     log(...args) {
         let idx = this.levels.indexOf('log');
         if (idx < this.levels.indexOf(this.level))
             return;
         const [firstArg, ...remainingArgs] = args;
-        console.log(`${this.colors[idx]}${firstArg}\x1b[0m`, ...remainingArgs);
+        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
     }
 
     debug(...args) {
@@ -18,7 +25,7 @@ class Logger {
         if (idx < this.levels.indexOf(this.level))
             return;
         const [firstArg, ...remainingArgs] = args;
-        console.log(`${this.colors[idx]}${firstArg}\x1b[0m`, ...remainingArgs);
+        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
     }
 
     verbose(...args) {
@@ -26,7 +33,7 @@ class Logger {
         if (idx < this.levels.indexOf(this.level))
             return;
         const [firstArg, ...remainingArgs] = args;
-        console.log(`${this.colors[idx]}${firstArg}\x1b[0m`, ...remainingArgs);
+        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
     }
 
     warn(...args) {
@@ -34,7 +41,7 @@ class Logger {
         if (idx < this.levels.indexOf(this.level))
             return;
         const [firstArg, ...remainingArgs] = args;
-        console.log(`${this.colors[idx]}${firstArg}\x1b[0m`, ...remainingArgs);
+        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
     }
 
     error(...args) {
@@ -42,7 +49,7 @@ class Logger {
         if (idx < this.levels.indexOf(this.level))
             return;
         const [firstArg, ...remainingArgs] = args;
-        console.log(`${this.colors[idx]}${firstArg}\x1b[0m`, ...remainingArgs);
+        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
     }
 }
 

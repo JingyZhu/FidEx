@@ -44,6 +44,7 @@ class ExceptionInfo {
     addFrame(url, scriptId, line, column) {
         this.frames.push({
             scriptId: scriptId,
+            source: null, // WIll be assigned later on collectExceptions
             url: url,
             line: line,
             column: column,
@@ -150,10 +151,10 @@ class ExceptionInspector {
             let seenVars = new Set();
             // * Potential trailing handlers
             if (!(location.scriptId in this.scriptInfo)) return;
-            const url = this.scriptInfo[location.scriptId].url;
+            const { url, lineOffset } = this.scriptInfo[location.scriptId];
             if (skipJS(url))
                 continue;
-            info.addFrame(url, location.scriptId, location.lineNumber, location.columnNumber);
+            info.addFrame(url, location.scriptId, location.lineNumber-lineOffset, location.columnNumber);
             if (!this.recordVar)
                 continue;
             for (const scope of scopeChain) {
@@ -190,11 +191,12 @@ class ExceptionInspector {
     async setExceptionBreakpoint(type='uncaught'){
         this.client.on('Debugger.scriptParsed', async params => {
             // * First add the URL, since getting the source is async
-            this.scriptInfo[params.scriptId] = {url: params.url, source: null};
+            this.scriptInfo[params.scriptId] = {url: params.url, source: null, lineOffset: params.startLine};
             const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
             // * After coming back, the scriptInfo might be emptied.
-            if (params.scriptId in this.scriptInfo)
+            if (params.scriptId in this.scriptInfo) {
                 this.scriptInfo[params.scriptId].source = scriptSource;
+            }
         });
 
         this.client.on('Runtime.exceptionThrown', params => {
