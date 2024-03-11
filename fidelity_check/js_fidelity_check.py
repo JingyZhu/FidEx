@@ -6,13 +6,14 @@ import sys
 import find_diff_writes
 
 if __name__ == '__main__':
-    data = json.load(sys.stdin.read())
+    data = json.load(sys.stdin)
     dirr = data['dir']
-    has_issue, (live_unique, archive_unique) = find_diff_writes.fidelity_issue(dirr)
+    left, right = data['left'], data['right']
+    has_issue, (left_unique, right_unique) = find_diff_writes.fidelity_issue(dirr, left, right)
     sys.stdout.write(json.dumps({
-        'has_issue': has_issue,
-        'live_unique': live_unique,
-        'archive_unique': archive_unique
+        'different': has_issue,
+        'left_unique': left_unique,
+        'right_unique': right_unique
     }))
     sys.stdout.flush()
         

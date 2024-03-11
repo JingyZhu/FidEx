@@ -28,5 +28,15 @@ function testReverterVar() {
     console.log(newCode);
 }
 
+function testReverterAddId() {
+    let reverter = new Reverter("");
+    let url = 'http://web.archive.org/web/20080915214854if_/sali.house.gov/';
+    console.log(reverter._addId(url));
+    url = 'http://localhost:8080/test/20080915214854/https://google.com/';
+    console.log(reverter._addId(url));
+    url = 'https://pistons.eecs.umich.edu/test/20080915214854js_/https://google.com';
+    console.log(reverter._addId(url));
+}
+
 // testPageRecorderFidelityCheck()
 testReverterVar()

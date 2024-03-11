@@ -197,6 +197,17 @@ class ExceptionInspector {
                 this.scriptInfo[params.scriptId].source = scriptSource;
         });
 
+        this.client.on('Runtime.exceptionThrown', params => {
+            let detail = params.exceptionDetails;
+            const description = detail.exception.description;
+            logger.verbose("ExceptionInspector:", "thrown exception", description.split('\n')[0]);
+            if (!description || !description.startsWith('SyntaxError'))
+                return;
+            let info = new ExceptionInfo('SyntaxError', description, true);
+            info.addFrame(detail.url, detail.scriptId, detail.lineNumber, detail.columnNumber);
+            this.exceptions.push(info);
+        })
+
         await this.client.send('Debugger.setPauseOnExceptions', {state: type});
         
         await this.client.removeAllListeners('Debugger.paused');
@@ -217,6 +228,7 @@ class ExceptionInspector {
         await this.client.send('Debugger.setPauseOnExceptions', {state: 'none'});
         await this.client.removeAllListeners('Debugger.paused');
         await this.client.removeAllListeners('Debugger.scriptParsed');
+        await this.client.removeAllListeners('Runtime.exceptionThrown');
     }
 
     getSource(scriptId) {
@@ -236,14 +248,20 @@ class ExceptionInspector {
 class Overrider {
     constructor(client){
         this.client = client;
+        this.syntaxErrorOverrides = {}
     }
 
     /**
      * @param {Object} mapping {url: resourceText}
      */
     async overrideResources(mapping){
+        let totalMapping = {};
         let urlPatterns = [];
-        for (const url in mapping){
+        for (const [url, resource] of Object.entries(this.syntaxErrorOverrides))
+            totalMapping[url] = resource;
+        for (const [url, resource] of Object.entries(mapping))
+            totalMapping[url] = resource;
+        for (const url in totalMapping){
             const resourceType = '';
             const requestStage = 'Response';
             urlPatterns.push({
@@ -259,7 +277,7 @@ class Overrider {
 
         this.client.on('Fetch.requestPaused', async (params) => {
             const url = params.request.url;
-            const resource = mapping[url];
+            const resource = totalMapping[url];
             try{
                 await this.client.send('Fetch.fulfillRequest', {
                     requestId: params.requestId,
@@ -376,11 +394,103 @@ class ExceptionHandler {
     async collectExceptions() {
         this.exceptions.push([]);
         for (let exception of this.inspector.exceptions){
-            for (let frame of exception.frames)
-                frame.source = this.inspector.getSource(frame.scriptId);
+            if (exception.type !== 'SyntaxError') 
+                for (let frame of exception.frames)
+                    frame.source = this.inspector.getSource(frame.scriptId);
             this.exceptions[this.exceptions.length-1].push(exception);
         }
+        // Sort the exceptions by their type, uncaught first, then caught
+        this.exceptions[this.exceptions.length-1].sort((a, b) => b.uncaught-a.uncaught);
         await this.recorder.record(this.dirname, 'initial');
+    }
+
+    findRevert(source, frame) {
+        let revert = null;
+        try {
+            revert = new reverter.Reverter(source);
+        } catch {return source;}
+        const startLoc = {line: frame.line+1, column: frame.column+1};
+        logger.verbose("ExceptionHandler.fixException:", "Revert location", startLoc, frame.url)
+        const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
+        const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
+        this.log.push({
+            type: 'revert',
+            url: frame.url,
+            startLoc: startLoc,
+            original: source,
+            updated: updatedCode
+        })
+        return updatedCode;
+    }
+
+    /**
+     * @param {object} overrideMap {url: resourceText} 
+     * @returns {Number} If the reload is successful 
+     */
+    async reloadWithOverride(overrideMap) {
+        await this.overrider.clearOverrides();
+        await this.overrider.overrideResources(overrideMap);
+        await this.inspector.reset(false, this.exceptionType);
+        try {
+            await this.page.reload({waitUntil: 'networkidle0', timeout: this.timeout*1000})
+        } catch(e) {
+            logger.warn("ExceptionHandler.fixException:", "Reload exception", e)
+            return false;
+        }   
+        return true
+    }
+
+    _calcExceptionDesc(desc, exceptions){
+        let count = 0;
+        for (const excep of exceptions){
+            if (excep.description.split('\n')[0].includes(desc))
+                count++;
+        }
+        return count;
+    }
+
+    /**
+     * Fix all the files that invoke SyntaxError
+     * These fixes will be put in Overrider, and overide everytime
+     * @returns {Boolean} Whether the fix is successful
+     */
+    async fixSyntaxError() {
+        let result = {
+            fixed: false,
+            fixedExcep: false
+        }
+
+        const latestExceptions = this.exceptions[this.exceptions.length-1];
+        const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError');
+        if (syntaxErrorExceptions.length == 0)
+            return result;
+
+        let revert = new reverter.Reverter("");
+        for (const syntaxExcep of syntaxErrorExceptions) {
+            const url = syntaxExcep.frames[0].url;
+            const overrideContent = await revert.revertFile2Original(url);
+            this.overrider.syntaxErrorOverrides[url] = overrideContent;
+        }
+        
+        const success = await this.reloadWithOverride({});
+        if (!success)
+            return result;
+        await this.recorder.record(this.dirname, 'exception_SE');
+        let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions);        
+        if (newCount >= syntaxErrorExceptions.length)
+            return result;
+        result.fixed = true;
+        const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE`);
+        if (fidelity.different) {
+            logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
+            result.fixed = true;
+        }
+        this.log.push({
+            type: 'fidelity',
+            exception: 'SyntaxError',
+            fidelity: fidelity.different
+        })
+        return result;
     }
 
     /**
@@ -388,56 +498,47 @@ class ExceptionHandler {
      * @returns Index of the fixed exception (-1) if nothing can be fixed
      */
     async fixException() {
-        let calcNumDesc = (desc, exceptions) => {
-            let count = 0;
-            for (const excep of exceptions){
-                if (excep.description.split('\n')[0] == desc)
-                    count++;
-            }
-            return count;
-        }
-        const latestExceptions = this.exceptions[this.exceptions.length-1];
+        const syntaxFix = await this.fixSyntaxError();
+        if (syntaxFix.fixed)
+            return "SE";
+        const latestExceptions = this.exceptions[this.exceptions.length-1].filter(excep => excep.type != 'SyntaxError');
+        // for (const excep of latestExceptions){ console.log(excep.uncaught)}
+        // * 1: Iterate throught exceptions
         for (let i = 0; i < latestExceptions.length; i++) {
             const exception = latestExceptions[i];
             // Debug use
             // if (i < 6) continue
             const description = exception.description.split('\n')[0];
             logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 'out of', latestExceptions.length-1, '\n  description:', description);
-            let targetCount = calcNumDesc(description, latestExceptions);
+            let targetCount = this._calcExceptionDesc(description, latestExceptions);
+            // * 2: Iterate throught frames
+            // * For each frame, only try looking the top frame that can be reverted
+            // * Break the loop no matter what the result of the loop is
             for (const frame of exception.frames){
                 const source = frame.source;
                 if (source == null || !reverter.isRewritten(source)) {
                     logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
                     continue;
                 }
-                // * Revert the file
-                const revert = new reverter.Reverter(source);
-                const startLoc = {line: frame.line+1, column: frame.column+1};
-                logger.verbose("ExceptionHandler.fixException:", "Revert location", startLoc, frame.url)
-                const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
-                const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
-                this.log.push({
-                    type: 'revert',
-                    url: frame.url,
-                    startLoc: startLoc,
-                    original: source,
-                    updated: updatedCode
-                })
-
-                if (updatedCode === source)
+                
+                const updatedCode = this.findRevert(source, frame);
+                if (updatedCode === source) {
+                    logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
                     continue;
-                await this.overrider.clearOverrides();
-                await this.overrider.overrideResources({[frame.url]: updatedCode});
-                await this.inspector.reset(false, this.exceptionType);
-                try {
-                    let networkIdle = this.page.reload({waitUntil: 'networkidle0',timeout: 0})
-                    await waitTimeout(networkIdle, this.timeout*1000);
-                } catch(e) {logger.warn("ExceptionHandler.fixException:", "Reload exception", e)}
+                }
+
+                const overrideMap = {[frame.url]: updatedCode}
+                const success = await this.reloadWithOverride(overrideMap);
+                if (!success)
+                    continue;
+
                 await this.recorder.record(this.dirname, `exception_${i}`);
-                let newCount = calcNumDesc(description, this.inspector.exceptions);
+                let newCount = this._calcExceptionDesc(description, this.inspector.exceptions);
+                // * Not fix anything
                 if (newCount >= targetCount)
                     break;
                 logger.log("ExceptionHandler.fixException:", "Fixed exception", i);
+                
                 const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}`);
                 this.log.push({
                     type: 'fidelity',
@@ -445,10 +546,10 @@ class ExceptionHandler {
                     description: description,
                     fidelity: fidelity.different
                 })
-                if (fidelity.different) {
-                    logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
-                    return i;
-                }
+                if (!fidelity.different)
+                    break;
+                logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
+                return i;
             }
         }
         return -1;

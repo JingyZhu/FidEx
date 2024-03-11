@@ -8,6 +8,7 @@
 // TODO: Think about how to revert HTML rewriting (or is it even valuable?)
 const esprima = require('esprima');
 const fs = require('fs');
+const fetch = require('node-fetch');
 const { Logger } = require('../utils/logger');
 
 let logger = new Logger();
@@ -167,6 +168,30 @@ class Reverter {
                   + afterRevert 
                   + this.code.slice(end);
         return HEADER + customHeaders + newCode;
+    }
+
+    _addId(url) {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/');
+        if (pathParts.length < 3) {
+            throw new Error(`URL does not contain a collection`);
+        }
+        let ts = pathParts[2];
+        if (isNaN(parseInt(ts[ts.length - 1]))) {
+            ts = ts.replace(/[^0-9]*$/, 'id_');
+        } else {
+            ts += 'id_';
+        }
+        pathParts[2] = ts;
+        urlObj.pathname = pathParts.join('/');
+        return urlObj.toString();
+    }
+
+    async revertFile2Original(url) {
+        const origURL = this._addId(url);
+        // Fetch origURL and return the content
+        const res = await fetch(origURL);
+        return await res.text();
     }
 }
 
