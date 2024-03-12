@@ -37,6 +37,16 @@ function isRewritten(code) {
     return true;
 }
 
+function loc2idx(code, loc, one_indexed=true) {
+    let lines = code.split('\n');
+    let {line, column} = loc;
+    let idx = 0;
+    for (let i = 0; i < line-one_indexed; i++)
+        idx += lines[i].length + 1;
+    idx += column - one_indexed;
+    return idx;
+}
+
 class Reverter {
     constructor(code) {
         this.code = code;
@@ -150,10 +160,8 @@ class Reverter {
             afterLines.push(after);
         }
         const customHeaders = headers.join('');
-        const beforeRevert = `
-            // Added by jingyz
-            ${beforeLines.join('\n')}
-            // End of addition
+        const beforeRevert = ` /* Added by jingyz */ ${beforeLines.join('\n')}
+            /* End of addition */
         `
         const afterRevert = `
             // Added by jingyz
@@ -196,6 +204,7 @@ class Reverter {
 }
 
 module.exports = {
+    loc2idx,
     Reverter,
     isRewritten
 }

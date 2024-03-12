@@ -10,7 +10,7 @@ input_file = 'second_all_sampled_200.json'
 data = json.load(open(input_file, 'r'))
 
 def run_load_override():
-    for i, datum in enumerate(data[:5]):
+    for i, datum in enumerate(data):
         hostname, archive_url = datum['hostname'], datum['archive_url']
         print(i, archive_url)
         # Try removing the directory (it is fine the if the directory does not exist)
@@ -34,10 +34,18 @@ def run_load_override():
         f.close()
 
 def count_results():
-    for datum in data[:10]:
+    count = []
+    for datum in data:
         hostname = datum['hostname']
         if os.path.exists(f'writes/{hostname}/result_log.json'):
             result = json.load(open(f'writes/{hostname}/result_log.json', 'r'))
             print(hostname, result['fixedIdx'])
+            if result['fixedIdx'] != -1:
+                count.append(hostname)
+        else:
+            print(hostname, 'No result log')
+    print(len(count))
+    json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
 run_load_override()
+# count_results()

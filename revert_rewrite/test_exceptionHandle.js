@@ -12,7 +12,7 @@ async function testPageRecorderFidelityCheck() {
 const examples = {
     potential_fidelity_syntax_error: "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118022223/https://ircalc.usps.com/",
     fidelity_uncaught_exception: "https://web.archive.org/web/20080915214854/sali.house.gov/",
-    fidelity_uncaught_exception: "http://localhost:8080/exec_match/20240129135149/https://eta.lbl.gov/",
+    fidelity_uncaught_exception: "http://pistons.eecs.umich.edu:8080/eot-1k/20240129135149/https://eta.lbl.gov/",
     potential_fidelity_syntax_error: "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118025017/http:/suicideprevention.nv.gov/"
 }
 

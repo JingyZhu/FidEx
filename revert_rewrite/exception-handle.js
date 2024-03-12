@@ -33,6 +33,7 @@ class ExceptionInfo {
      * 
      * @param {string} type from data.className
      * @param {string} description from data.description
+     * @param {boolean} uncaught from data.uncaught
      */
     constructor(type, description, uncaught){
         this.type = type;
@@ -79,6 +80,7 @@ class ExceptionInspector {
     constructor(client){
         this.client = client;
         this.scriptInfo = {};
+        this.resources = {};
         this.exceptions = [];
         this._seenExceptions = new Set();
         this.recordVar = true;
@@ -151,10 +153,12 @@ class ExceptionInspector {
             let seenVars = new Set();
             // * Potential trailing handlers
             if (!(location.scriptId in this.scriptInfo)) return;
-            const { url, lineOffset } = this.scriptInfo[location.scriptId];
+            const { url, startLine } = this.scriptInfo[location.scriptId];
             if (skipJS(url))
                 continue;
-            info.addFrame(url, location.scriptId, location.lineNumber-lineOffset, location.columnNumber);
+            // TODO: If the location has the same line as startLine (both !=0), need also to calc column number
+            // TODO: Currently doesn't look necessary.
+            info.addFrame(url, location.scriptId, location.lineNumber-startLine, location.columnNumber);
             if (!this.recordVar)
                 continue;
             for (const scope of scopeChain) {
@@ -191,7 +195,14 @@ class ExceptionInspector {
     async setExceptionBreakpoint(type='uncaught'){
         this.client.on('Debugger.scriptParsed', async params => {
             // * First add the URL, since getting the source is async
-            this.scriptInfo[params.scriptId] = {url: params.url, source: null, lineOffset: params.startLine};
+            this.scriptInfo[params.scriptId] = {
+                url: params.url, 
+                source: null, 
+                startLine: params.startLine,
+                startColumn: params.startColumn,
+                endLine: params.endLine,
+                endColumn: params.endColumn
+            };
             const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
             // * After coming back, the scriptInfo might be emptied.
             if (params.scriptId in this.scriptInfo) {
@@ -233,10 +244,6 @@ class ExceptionInspector {
         await this.client.removeAllListeners('Runtime.exceptionThrown');
     }
 
-    getSource(scriptId) {
-        return this.scriptInfo[scriptId].source;
-    }
-
     async reset(recordVar=true, type='uncaught') {
         await this.unsetExceptionBreakpoint();
         this.exceptions = []
@@ -254,7 +261,12 @@ class Overrider {
     }
 
     /**
-     * @param {Object} mapping {url: resourceText}
+     * @param {Object} mapping 
+     * {url: {
+     *   source: string,
+     *   start: {line, column}, (null if not set)
+     *   end: {line, column} (null if not set)
+     * }}
      */
     async overrideResources(mapping){
         let totalMapping = {};
@@ -279,7 +291,17 @@ class Overrider {
 
         this.client.on('Fetch.requestPaused', async (params) => {
             const url = params.request.url;
-            const resource = totalMapping[url];
+            let resource = totalMapping[url].source;
+            if (totalMapping[url].start && totalMapping[url].end) {
+                const { body, base64Encoded } = await this.client.send('Fetch.getResponseBody', {
+                    requestId: params.requestId
+                });
+                let original = base64Encoded ? Buffer.from(body, 'base64').toString() : body;
+                // * Replace original's start to end with resource
+                const startIdx = reverter.loc2idx(original, totalMapping[url].start);
+                const endIdx = reverter.loc2idx(original, totalMapping[url].end);
+                resource = original.slice(0, startIdx) + resource + original.slice(endIdx);
+            }
             try{
                 await this.client.send('Fetch.fulfillRequest', {
                     requestId: params.requestId,
@@ -288,7 +310,6 @@ class Overrider {
                     body: Buffer.from(resource).toString('base64')
                 });
                 logger.verbose("Overrider.overrideResources:", "Sent Fetch.fulfillRequest", params.request.url);
-                fs.writeFileSync('test/overrided.js', resource);
             } catch (e) {
                 logger.warn("Error: sending Fetch.fulfillRequest", e);
             }
@@ -396,13 +417,32 @@ class ExceptionHandler {
     async collectExceptions() {
         this.exceptions.push([]);
         for (let exception of this.inspector.exceptions){
-            if (exception.type !== 'SyntaxError') 
-                for (let frame of exception.frames)
-                    frame.source = this.inspector.getSource(frame.scriptId);
+            if (exception.type !== 'SyntaxError') { 
+                for (let frame of exception.frames) {
+                    const sourceObj = this.inspector.scriptInfo[frame.scriptId];
+                    frame.source = {
+                        source: sourceObj.source,
+                        start: null,
+                        end: null
+                    }
+                    const numLines = sourceObj.source.split('\n').length;
+                    // * Script is part of the file not the whole page.
+                    if (sourceObj.startLine != 0 || sourceObj.endLine != numLines-1) {
+                        frame.source.start = {line: sourceObj.startLine, column: sourceObj.startColumn},
+                        frame.source.end = {line: sourceObj.endLine, column: sourceObj.endColumn}
+                    }
+                }
+            }
             this.exceptions[this.exceptions.length-1].push(exception);
         }
         // Sort the exceptions by their type, uncaught first, then caught
         this.exceptions[this.exceptions.length-1].sort((a, b) => b.uncaught-a.uncaught);
+        this.log.push({
+            type: 'exception_dist',
+            uncaught: this.exceptions[this.exceptions.length-1].filter(excep => excep.uncaught).length,
+            caught: this.exceptions[this.exceptions.length-1].filter(excep => !excep.uncaught).length,
+            syntaxError: this.exceptions[this.exceptions.length-1].filter(excep => excep.type == 'SyntaxError').length 
+        })
         await this.recorder.record(this.dirname, 'initial');
     }
 
@@ -471,7 +511,11 @@ class ExceptionHandler {
         for (const syntaxExcep of syntaxErrorExceptions) {
             const url = syntaxExcep.frames[0].url;
             const overrideContent = await revert.revertFile2Original(url);
-            this.overrider.syntaxErrorOverrides[url] = overrideContent;
+            this.overrider.syntaxErrorOverrides[url] = {
+                source: overrideContent,
+                start: null,
+                end: null
+            };
         }
         
         const success = await this.reloadWithOverride({});
@@ -481,7 +525,7 @@ class ExceptionHandler {
         let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions);        
         if (newCount >= syntaxErrorExceptions.length)
             return result;
-        result.fixed = true;
+        result.fixedExcep = true;
         const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE`);
         if (fidelity.different) {
             logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
@@ -517,7 +561,7 @@ class ExceptionHandler {
             // * For each frame, only try looking the top frame that can be reverted
             // * Break the loop no matter what the result of the loop is
             for (const frame of exception.frames){
-                const source = frame.source;
+                const source = frame.source.source;
                 if (source == null || !reverter.isRewritten(source)) {
                     logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
                     continue;
@@ -529,7 +573,7 @@ class ExceptionHandler {
                     continue;
                 }
 
-                const overrideMap = {[frame.url]: updatedCode}
+                let overrideMap = {[frame.url]: frame.source}
                 const success = await this.reloadWithOverride(overrideMap);
                 if (!success)
                     continue;
