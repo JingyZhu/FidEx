@@ -7,7 +7,7 @@ const { program } = require('commander');
 
 const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
-const exceptionHandle = require('./exception-handle');
+const errorFix = require('./error-fix');
 const execution = require('../utils/execution');
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 
@@ -106,8 +106,8 @@ async function removeWaybackBanner(page){
         const timeout = options.wayback ? 200*1000 : 60*1000;
 
         // * Step 1: Prepare recording for exceptions
-        let exceptionHandler = new exceptionHandle.ExceptionHandler(page, client, dirname);
-        await exceptionHandler.prepare(exceptionType='all');
+        let exceptionHandler = new errorFix.ExceptionHandler(page, client, dirname);
+        await exceptionHandler.prepare(url, exceptionType='all');
         
         // * Step 2: Load the page and collect exception
         try {
@@ -126,7 +126,8 @@ async function removeWaybackBanner(page){
         }
 
         // ! Temp
-        const fixedIdx = await exceptionHandler.fixException();
+        const fixedIdx = await exceptionHandler.fixNetwork();
+        // let fixedIdx = await exceptionHandler.fixException();
         let result = {
             fixedIdx: fixedIdx,
             log: exceptionHandler.log

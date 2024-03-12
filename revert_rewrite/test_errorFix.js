@@ -1,9 +1,9 @@
-const exceptionHandle = require('./exception-handle');
+const errorFix = require('./error-fix');
 const reverter = require('./reverter');
 const fs = require('fs');
 
 async function testPageRecorderFidelityCheck() {
-    const pageRecorder = new exceptionHandle.PageRecorder(null, null);
+    const pageRecorder = new errorFix.PageRecorder(null, null);
     const check = await pageRecorder.fidelityCheck('writes/test', 'initial', 'exception_2');
     console.log("Check", check);
 }
@@ -29,14 +29,27 @@ function testReverterVar() {
 }
 
 function testReverterAddId() {
-    let reverter = new Reverter("");
+    let revert = new reverterReverter("");
     let url = 'http://web.archive.org/web/20080915214854if_/sali.house.gov/';
-    console.log(reverter._addId(url));
+    console.log(revert._addId(url));
     url = 'http://localhost:8080/test/20080915214854/https://google.com/';
-    console.log(reverter._addId(url));
+    console.log(revert._addId(url));
     url = 'https://pistons.eecs.umich.edu/test/20080915214854js_/https://google.com';
-    console.log(reverter._addId(url));
+    console.log(revert._addId(url));
+}
+
+function testReverterAddHostname() {
+    let revert = new reverter.Reverter("");
+    let url = 'http://web.archive.org/web/20080915214854if_///_layout/test.css';
+    console.log(revert._addHostname(url, 'example.com'));
+    url = 'http://localhost:8080/test/20080915214854/http:/google.com/';
+    console.log(revert._addHostname(url, 'example.com'));
+    url = 'https://pistons.eecs.umich.edu/test/20080915214854js_//google.com';
+    console.log(revert._addHostname(url, 'example.com'));
+    url = 'http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118094106js_/http:///_layouts/1033/init.js?rev=BJDmyeIV5jS04CPkRq4Ldg%3D%3D';
+    console.log(revert._addHostname(url, 'bve.ky.gov'));
 }
 
 // testPageRecorderFidelityCheck()
-testReverterVar()
+// testReverterVar()
+testReverterAddHostname()

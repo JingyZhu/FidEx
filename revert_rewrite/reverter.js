@@ -10,6 +10,7 @@ const esprima = require('esprima');
 const fs = require('fs');
 const fetch = require('node-fetch');
 const { Logger } = require('../utils/logger');
+const path = require('path');
 
 let logger = new Logger();
 
@@ -199,6 +200,44 @@ class Reverter {
         const origURL = this._addId(url);
         // Fetch origURL and return the content
         const res = await fetch(origURL);
+        return await res.text();
+    }
+
+    _addHostname(url, hostname) {
+        let urlObj = new URL(url);
+        // Collect path from the third slash
+        const pathParts = urlObj.pathname.split('/');
+        if (pathParts.length < 3) 
+            return url;
+        let origURL = pathParts.slice(3).join('/');
+        // Remove the starting http(s):/ or http(s)://
+        origURL = origURL.replace(/^(https?:\/\/?)/, '');
+        if (!origURL.startsWith('/')) 
+            return url;
+        // Collect origURL from the first non-slash
+        let idx = 0;
+        while (origURL[idx] === '/') 
+            idx++;
+        origURL = origURL.slice(idx);
+        origURL = `http://${hostname}/${origURL}`;
+        urlObj.pathname = `${pathParts.slice(0, 3).join('/')}/${origURL}`;
+        return urlObj.toString();
+    }
+
+    /**
+     *  
+     * @returns {string/null}
+     */
+    async revert404response(url, hostname) {
+        const newURL = this._addHostname(url, hostname);
+        if (newURL === url) 
+            return null;
+        // Fetch origURL and return the content
+        const res = await fetch(newURL);
+        // If the response is 404, return null
+        console.log("NewURL", newURL);
+        if (res.status === 404) 
+            return null;
         return await res.text();
     }
 }

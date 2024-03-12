@@ -72,7 +72,7 @@ class ExceptionInfo {
 }
 
 
-class ExceptionInspector {
+class ErrorInspector {
     /**
      * 
      * @param {Object} client created from page.target().createCDPSession() 
@@ -84,6 +84,9 @@ class ExceptionInspector {
         this.exceptions = [];
         this._seenExceptions = new Set();
         this.recordVar = true;
+
+        this._requestURL = {};
+        this.responseStatus = {};
     }
 
     /**
@@ -147,7 +150,7 @@ class ExceptionInspector {
         if (this._seenExceptions.has(description))
             return;
         const firstLine = description != "" ? description.split('\n')[0] : "";
-        logger.log("ExceptionInspector._recordException:", "Detected exception", firstLine);
+        logger.log("ErrorInspector._recordException:", "Detected exception", firstLine);
         for (const frame of callFrames){
             const {location, scopeChain} = frame;
             let seenVars = new Set();
@@ -181,7 +184,7 @@ class ExceptionInspector {
             }
             const source = this.scriptInfo[location.scriptId].source;
             if (source && reverter.isRewritten(source)) {
-                logger.verbose("ExceptionInspector._recordException:", "Found first script rewriten on stack", url);
+                logger.verbose("ErrorInspector._recordException:", "Found first script rewriten on stack", url);
                 break;
             }
         }
@@ -213,7 +216,7 @@ class ExceptionInspector {
         this.client.on('Runtime.exceptionThrown', params => {
             let detail = params.exceptionDetails;
             const description = detail.exception.description;
-            logger.verbose("ExceptionInspector:", "thrown exception", description.split('\n')[0]);
+            logger.verbose("ErrorInspector:", "thrown exception", description.split('\n')[0]);
             if (!description || !description.startsWith('SyntaxError'))
                 return;
             let info = new ExceptionInfo('SyntaxError', description, true);
@@ -244,6 +247,16 @@ class ExceptionInspector {
         await this.client.removeAllListeners('Runtime.exceptionThrown');
     }
 
+    setNetworkListener(){
+        this.client.on('Network.requestWillBeSent', params => {
+            this._requestURL[params.requestId] = params.request.url;
+        });
+        this.client.on('Network.responseReceived', params => {
+            const url = this._requestURL[params.requestId];
+            this.responseStatus[url] = params.response.status;
+        })
+    }
+
     async reset(recordVar=true, type='uncaught') {
         await this.unsetExceptionBreakpoint();
         this.exceptions = []
@@ -258,6 +271,7 @@ class Overrider {
     constructor(client){
         this.client = client;
         this.syntaxErrorOverrides = {}
+        this.networkOverrides = {}
     }
 
     /**
@@ -272,6 +286,8 @@ class Overrider {
         let totalMapping = {};
         let urlPatterns = [];
         for (const [url, resource] of Object.entries(this.syntaxErrorOverrides))
+            totalMapping[url] = resource;
+        for (const [url, resource] of Object.entries(this.networkOverrides))
             totalMapping[url] = resource;
         for (const [url, resource] of Object.entries(mapping))
             totalMapping[url] = resource;
@@ -303,6 +319,7 @@ class Overrider {
                 resource = original.slice(0, startIdx) + resource + original.slice(endIdx);
             }
             try{
+                // TODO: For responseHeaders, if the content-type doesn't exist, need to add the content-type for restrict MIME
                 await this.client.send('Fetch.fulfillRequest', {
                     requestId: params.requestId,
                     responseCode: 200,
@@ -394,7 +411,7 @@ class ExceptionHandler {
     constructor(page, client, dirname='.', timeout=60){
         this.page = page;
         this.client = client;
-        this.inspector = new ExceptionInspector(client);
+        this.inspector = new ErrorInspector(client);
         this.overrider = new Overrider(client);
         this.recorder = new PageRecorder(page, client);
         this.dirname = dirname;
@@ -406,11 +423,15 @@ class ExceptionHandler {
     /**
      * Register inspect for exception
      * Override node write method to log
+     * @param {string} url The URL that will be loaded
      * @param {*} exceptionType 
      */
-    async prepare(exceptionType='uncaught') {
+    async prepare(url, exceptionType='uncaught') {
+        const origURL = new URL(url).pathname.split('/').slice(3).join('/');
+        this.hostname = new URL(origURL).hostname;
         this.exceptionType = exceptionType;
         await this.inspector.setExceptionBreakpoint(exceptionType);
+        this.inspector.setNetworkListener();
         await this.recorder.prepareLogging();
     }
 
@@ -476,7 +497,7 @@ class ExceptionHandler {
         try {
             await this.page.reload({waitUntil: 'networkidle0', timeout: this.timeout*1000})
         } catch(e) {
-            logger.warn("ExceptionHandler.fixException:", "Reload exception", e)
+            logger.warn("ExceptionHandler.reloadWithOverride:", "Reload exception", e)
             return false;
         }   
         return true
@@ -489,6 +510,50 @@ class ExceptionHandler {
                 count++;
         }
         return count;
+    }
+
+    /**
+     * Fix all the files that gives 404
+     * One reason found for 404 is that the path is not constructed correctly (e.g. ///)
+     * Fix is done by adding the default hostname if URL doesn't look reasonable.
+     * These fixes will be put in Overrider, and overide everytime
+     * @returns {Boolean} Whether the fix is successful
+     */
+    async fixNetwork() {
+        let result = {
+            fixed: false,
+            fixedExcep: false
+        }
+        let revert = new reverter.Reverter("");
+        for (const [url, status] of Object.entries(this.inspector.responseStatus)){
+            console.log(url, status)
+            if (status != 404)
+                continue;
+            const overrideContent = await revert.revert404response(url, this.hostname);
+            if (overrideContent === null)
+                continue;
+            console.log("AHA")
+            this.overrider.networkOverrides[url] = {
+                source: overrideContent,
+                start: null,
+                end: null
+            };
+        }
+        const success = await this.reloadWithOverride({});
+        if (!success)
+            return result;
+        await this.recorder.record(this.dirname, 'exception_NW');
+        const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_NW`);
+        if (fidelity.different) {
+            logger.log("ExceptionHandler.fixNetwork:", "Fixed fidelity issue");
+            result.fixed = true;
+        }
+        this.log.push({
+            type: 'fidelity',
+            exception: 'Network404',
+            fidelity: fidelity.different
+        })
+        return 'NW'
     }
 
     /**
