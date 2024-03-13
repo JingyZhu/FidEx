@@ -257,6 +257,11 @@ class ErrorInspector {
         })
     }
 
+    unsetNetworkListener(){
+        this.client.removeAllListeners('Network.requestWillBeSent');
+        this.client.removeAllListeners('Network.responseReceived');
+    }
+
     async reset(recordVar=true, type='uncaught') {
         await this.unsetExceptionBreakpoint();
         this.exceptions = []
@@ -264,6 +269,9 @@ class ErrorInspector {
         this.scriptInfo = {}
         this.recordVar = recordVar;
         await this.setExceptionBreakpoint(type=type)
+        this.unsetNetworkListener();
+        this._requestURL = {};
+        this.responseStatus = {};
     }
 }
 
@@ -490,10 +498,10 @@ class ExceptionHandler {
      * @param {object} overrideMap {url: resourceText} 
      * @returns {Number} If the reload is successful 
      */
-    async reloadWithOverride(overrideMap) {
+    async reloadWithOverride(overrideMap, recordVar=false) {
         await this.overrider.clearOverrides();
         await this.overrider.overrideResources(overrideMap);
-        await this.inspector.reset(false, this.exceptionType);
+        await this.inspector.reset(recordVar, this.exceptionType);
         try {
             await this.page.reload({waitUntil: 'networkidle0', timeout: this.timeout*1000})
         } catch(e) {
@@ -526,24 +534,25 @@ class ExceptionHandler {
         }
         let revert = new reverter.Reverter("");
         for (const [url, status] of Object.entries(this.inspector.responseStatus)){
-            console.log(url, status)
             if (status != 404)
                 continue;
             const overrideContent = await revert.revert404response(url, this.hostname);
             if (overrideContent === null)
                 continue;
-            console.log("AHA")
             this.overrider.networkOverrides[url] = {
                 source: overrideContent,
                 start: null,
                 end: null
             };
         }
-        const success = await this.reloadWithOverride({});
+        if (Object.keys(this.overrider.networkOverrides).length == 0)
+            return result;
+        const success = await this.reloadWithOverride({}, true);
         if (!success)
             return result;
         await this.recorder.record(this.dirname, 'exception_NW');
         const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_NW`);
+        // TODO: Need to check if any exception is fixed
         if (fidelity.different) {
             logger.log("ExceptionHandler.fixNetwork:", "Fixed fidelity issue");
             result.fixed = true;
@@ -553,7 +562,7 @@ class ExceptionHandler {
             exception: 'Network404',
             fidelity: fidelity.different
         })
-        return 'NW'
+        return result;
     }
 
     /**
@@ -605,10 +614,14 @@ class ExceptionHandler {
     }
 
     /**
-     * Keep trying fixing exceptions until seen first fixed exception
+     * Keep trying fix exceptions until seen first fixed exception
      * @returns Index of the fixed exception (-1) if nothing can be fixed
      */
-    async fixException() {
+    async fix() {
+        const networkFix = await this.fixNetwork();
+        if (networkFix.fixed)
+            return "NW";
+        await this.collectExceptions();
         const syntaxFix = await this.fixSyntaxError();
         if (syntaxFix.fixed)
             return "SE";

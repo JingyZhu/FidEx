@@ -235,7 +235,6 @@ class Reverter {
         // Fetch origURL and return the content
         const res = await fetch(newURL);
         // If the response is 404, return null
-        console.log("NewURL", newURL);
         if (res.status === 404) 
             return null;
         return await res.text();

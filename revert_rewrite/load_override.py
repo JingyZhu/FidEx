@@ -33,19 +33,27 @@ def run_load_override():
         f.write(output)
         f.close()
 
-def count_results():
+def count_results(strict=True):
     count = []
     for datum in data:
         hostname = datum['hostname']
         if os.path.exists(f'writes/{hostname}/result_log.json'):
             result = json.load(open(f'writes/{hostname}/result_log.json', 'r'))
             print(hostname, result['fixedIdx'])
-            if result['fixedIdx'] != -1:
+            if result['fixedIdx'] == -1:
+                continue
+            if not strict:
                 count.append(hostname)
+            else:
+                idx = result['fixedIdx']
+                initial_writes = json.load(open(f'writes/{hostname}/initial_writes.json', 'r'))
+                final_writes = json.load(open(f'writes/{hostname}/exception_{idx}_writes.json', 'r'))
+                if len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"]):
+                    count.append(hostname)
         else:
             print(hostname, 'No result log')
     print(len(count))
     json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
-run_load_override()
-# count_results()
+# run_load_override()
+count_results(strict=True)
