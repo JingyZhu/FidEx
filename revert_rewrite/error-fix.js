@@ -218,23 +218,41 @@ class ExceptionHandler {
         await this.recorder.record(this.dirname, 'initial');
     }
 
-    findRevert(source, frame) {
+    /**
+     * 
+     * @param {string} source 
+     * @param {ExceptionInfo.frame} frame
+     * @param {ExceptionInfo} exception The exception the frame is from
+     * @returns {Generator} generator that yields the updated code
+     */
+    *_findReverts(source, frame, exception) {
         let revert = null;
         try {
             revert = new reverter.Reverter(source);
         } catch {return source;}
         const startLoc = {line: frame.line+1, column: frame.column+1};
-        logger.verbose("ExceptionHandler.fixException:", "Revert location", startLoc, frame.url)
+        logger.verbose("ExceptionHandler.fixException:", "Revert Variable. Location", startLoc, frame.url)
         const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
-        const updatedCode = revert.revertVariable(startLoc, proxifiedVars);
+        let updatedCode = revert.revertVariable(startLoc, proxifiedVars);
         this.log.push({
-            type: 'revert',
+            type: 'revertVariable',
             url: frame.url,
             startLoc: startLoc,
-            original: source,
             updated: updatedCode
         })
-        return updatedCode;
+        yield updatedCode;
+        
+        if (!exception.uncaught)
+            return;
+        updatedCode = revert.revertWithTryCatch(startLoc);
+        logger.verbose("ExceptionHandler.fixException:", "Revert TryCatch. Location", startLoc, frame.url)
+        this.log.push({
+            type: 'revertTryCatch',
+            url: frame.url,
+            startLoc: startLoc,
+            updated: updatedCode
+        })
+        yield updatedCode;
     }
 
     /**
@@ -255,10 +273,18 @@ class ExceptionHandler {
         return true
     }
 
-    _calcExceptionDesc(desc, exceptions){
+    /**
+     * 
+     * @param {string} desc Description of the exception
+     * @param {[ExceptionInfo]} exceptions 
+     * @param {Boolean} uncaught Is the desc excecpt is uncaught. 
+     *                           If so, only count uncaught exception from exceptions as well
+     * @returns 
+     */
+    _calcExceptionDesc(desc, exceptions, uncaught=false){
         let count = 0;
         for (const excep of exceptions){
-            if (excep.description.split('\n')[0].includes(desc))
+            if (excep.description.split('\n')[0].includes(desc) && excep.uncaught >= uncaught)
                 count++;
         }
         return count;
@@ -340,7 +366,7 @@ class ExceptionHandler {
         if (!success)
             return result;
         await this.recorder.record(this.dirname, 'exception_SE');
-        let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions);        
+        let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions, true);        
         if (newCount >= syntaxErrorExceptions.length)
             return result;
         result.fixedExcep = true;
@@ -365,43 +391,52 @@ class ExceptionHandler {
     async fixException(exceptions, i) {
         let result = {
             fixed: false, 
-            fixedExcep: false
+            fixedExcep: false,
+            fixedID: null // Index of fixes what works (fixed=true)
         }
         const exception = exceptions[i];
         const description = exception.description.split('\n')[0];
         logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 
-                    'out of', exceptions.length-1, '\n  description:', description);
-        let targetCount = this._calcExceptionDesc(description, exceptions);
-        // * 2: Iterate throught frames
+                    'out of', exceptions.length-1, '\n  description:', description, 'uncaught', exception.uncaught);
+        let targetCount = this._calcExceptionDesc(description, exceptions, exception.uncaught);
+        // * Iterate throught frames
         // * For each frame, only try looking the top frame that can be reverted
-        // * Break the loop no matter what the result of the loop is
-        for (const frame of exception.frames){
-            const source = frame.source.source;
-            if (source == null || !reverter.isRewritten(source)) {
-                logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
-                continue;
+        let frame = null;
+        for (const checkFrame of exception.frames){
+            const source = checkFrame.source.source;
+            if (source !== null && reverter.isRewritten(source)) {
+                frame = checkFrame;
+                break;
             }
-            
-            const updatedCode = this.findRevert(source, frame);
-            if (updatedCode === source) {
+            else
+                logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${checkFrame.url}, or source is not rewritten`);   
+        }
+        if (frame === null)
+            return result;
+
+        // * Try fixes
+        let fix_id = -1;
+        for (const updatedCode of this._findReverts(frame.source.source, frame, exception)) {
+            fix_id += 1;
+            if (updatedCode === frame.source.source) {
                 logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
                 continue;
             }
 
-            let overrideMap = {[frame.url]: frame.source}
+            let overrideMap = {[frame.url]: {source: updatedCode, start: frame.source.start, end: frame.source.end}};
             const success = await this.reloadWithOverride(overrideMap);
             if (!success)
                 continue;
 
-            await this.recorder.record(this.dirname, `exception_${i}`);
-            let newCount = this._calcExceptionDesc(description, this.inspector.exceptions);
+            await this.recorder.record(this.dirname, `exception_${i}_${fix_id}`);
+            let newCount = this._calcExceptionDesc(description, this.inspector.exceptions, exception.uncaught);
             // * Not fix anything
             if (newCount >= targetCount)
-                break;
-            logger.log("ExceptionHandler.fixException:", "Fixed exception", i);
+                continue;
+            logger.log("ExceptionHandler.fixException:", "Fixed exception", i, "with fix", fix_id);
             result.fixedExcep = true;
 
-            const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}`);
+            const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}_${fix_id}`);
             this.log.push({
                 type: 'fidelity',
                 exception: i,
@@ -409,12 +444,13 @@ class ExceptionHandler {
                 fidelity: fidelity.different
             })
             if (!fidelity.different)
-                break;
+                continue;
             result.fixed = true;
+            result.fixedID = fix_id;
             logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
             return result;
         }
-        return result
+        return result;
     }
 
     /**
@@ -431,11 +467,9 @@ class ExceptionHandler {
             return "SE";
         const latestExceptions = this.exceptions[this.exceptions.length-1].filter(excep => excep.type != 'SyntaxError');
         for (let i = 0; i < latestExceptions.length; i++) {
-            // Debug use
-            // if (i < 6) continue
             const excepFix = await this.fixException(latestExceptions, i);
             if (excepFix.fixed)
-                return i;
+                return `${i}_${excepFix.fixedID}`;
         }
         return -1;
     }

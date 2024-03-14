@@ -50,6 +50,32 @@ function testReverterAddHostname() {
     console.log(revert._addHostname(url, 'bve.ky.gov'));
 }
 
-// testPageRecorderFidelityCheck()
-// testReverterVar()
-testReverterAddHostname()
+function testReverterTryCatch() {
+    let code = `
+(async () => {
+    let a = 1;
+    let b = a.call();
+})()
+`
+    let revert = new reverter.Reverter(code);
+    console.log(revert.revertWithTryCatch({line: 4, column: 9}));
+
+    code = `
+function test() {
+    if (object.length > 0) 
+        throw Error('Test')
+    let a = 0;
+}`
+    revert = new reverter.Reverter(code);
+    console.log(revert.revertWithTryCatch({line: 4, column: 9}));
+
+    code = `
+function test() {
+    let a = 0;
+    return a, b=a, b;
+}`
+    revert = new reverter.Reverter(code);
+    console.log(revert.revertWithTryCatch({line: 4, column: 15}));
+}
+
+testReverterTryCatch();

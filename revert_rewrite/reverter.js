@@ -60,7 +60,7 @@ class Reverter {
     /**
      * Find all statements in the scope of start
      * @param {number} startIdx
-     * @returns List of statements that are after startIdx (include the one that contains startIdx)
+     * @returns {parentType: nodeType, value: [ASTNode]} List of statements that are after startIdx (include the one that contains startIdx)
      */
     _findStatements(startIdx) {
         let statements = null;
@@ -132,7 +132,6 @@ class Reverter {
      * @param {object} startLoc {line: number, column: number} 1-indexed
      * @param {object} variables {name: string, type: string} Variables that we want to revert
      * @param {number} numStatements 
-     * @returns 
      */
     revertVariable(startLoc, variables, numStatements=1) {
         const startIdx = this._loc2idx(startLoc);
@@ -177,6 +176,28 @@ class Reverter {
                   + afterRevert 
                   + this.code.slice(end);
         return HEADER + customHeaders + newCode;
+    }
+
+    /**
+     * Revert the code by adding try-catch block
+     */
+    revertWithTryCatch(startLoc, numStatements=1) {
+        // * Try catch cannot be used within SequenceExpression, need to throw it away
+        this.parentType = this.parentType.filter((type) => type !== 'SequenceExpression');
+        const startIdx = this._loc2idx(startLoc);
+        let statements = this._findStatements(startIdx);
+        statements.value = statements.value.slice(0, numStatements);
+        const start = statements.value[0].range[0];
+        const end = statements.value[numStatements-1].range[1];
+        const tryStatement = `/* Added by jingyz */ try {`;
+        const catchStatement = `} catch {} /* End of addition */`;
+        let newCode = this.code.slice(0, start) 
+                  + tryStatement 
+                  + this.code.slice(start, end) 
+                  + catchStatement
+                  + this.code.slice(end);
+        this.parentType.push('SequenceExpression');
+        return newCode;
     }
 
     _addId(url) {
