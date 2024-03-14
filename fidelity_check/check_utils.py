@@ -73,7 +73,7 @@ class htmlElement:
                 if not to_filter:
                     new_style.append(s)
             return ';'.join(new_style)
-        if 'style' in tag.attrs:
+        if 'style' in tag.attrs and tag.attrs['style'] != '':
             style = _filter_style(tag.attrs['style'])
             features.append(style)
         return tuple(features)

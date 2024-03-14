@@ -102,7 +102,7 @@ async function removeWaybackBanner(page){
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
         await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
-        await sleep(500);
+        await sleep(100);
         const timeout = options.wayback ? 200*1000 : 60*1000;
 
         // * Step 1: Prepare recording for exceptions
@@ -122,12 +122,11 @@ async function removeWaybackBanner(page){
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
             await removeWaybackBanner(page);
-            await sleep(2000);
+            await sleep(1000);
         }
 
         // ! Temp
-        const fixedIdx = await exceptionHandler.fixNetwork();
-        // let fixedIdx = await exceptionHandler.fixException();
+        const fixedIdx = await exceptionHandler.fix();
         let result = {
             fixedIdx: fixedIdx,
             log: exceptionHandler.log
@@ -138,7 +137,7 @@ async function removeWaybackBanner(page){
         if (options.manual)
             await eventSync.waitForReady();
         else
-            await sleep(1000);
+            await sleep(500);
         
     } catch (err) {
         console.error(err);
