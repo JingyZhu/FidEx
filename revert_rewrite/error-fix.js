@@ -2,7 +2,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 
 const reverter = require('./reverter');
-const { ErrorInspector } = require('./error-inspector');
+const { ErrorInspector, ExceptionInfo } = require('./error-inspector');
 
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
@@ -358,6 +358,66 @@ class ExceptionHandler {
     }
 
     /**
+     * 
+     * @param {Array[ExceptionInfo]} exception 
+     * @returns 
+     */
+    async fixException(exceptions, i) {
+        let result = {
+            fixed: false, 
+            fixedExcep: false
+        }
+        const exception = exceptions[i];
+        const description = exception.description.split('\n')[0];
+        logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 
+                    'out of', exceptions.length-1, '\n  description:', description);
+        let targetCount = this._calcExceptionDesc(description, exceptions);
+        // * 2: Iterate throught frames
+        // * For each frame, only try looking the top frame that can be reverted
+        // * Break the loop no matter what the result of the loop is
+        for (const frame of exception.frames){
+            const source = frame.source.source;
+            if (source == null || !reverter.isRewritten(source)) {
+                logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
+                continue;
+            }
+            
+            const updatedCode = this.findRevert(source, frame);
+            if (updatedCode === source) {
+                logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
+                continue;
+            }
+
+            let overrideMap = {[frame.url]: frame.source}
+            const success = await this.reloadWithOverride(overrideMap);
+            if (!success)
+                continue;
+
+            await this.recorder.record(this.dirname, `exception_${i}`);
+            let newCount = this._calcExceptionDesc(description, this.inspector.exceptions);
+            // * Not fix anything
+            if (newCount >= targetCount)
+                break;
+            logger.log("ExceptionHandler.fixException:", "Fixed exception", i);
+            result.fixedExcep = true;
+
+            const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}`);
+            this.log.push({
+                type: 'fidelity',
+                exception: i,
+                description: description,
+                fidelity: fidelity.different
+            })
+            if (!fidelity.different)
+                break;
+            result.fixed = true;
+            logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
+            return result;
+        }
+        return result
+    }
+
+    /**
      * Keep trying fix exceptions until seen first fixed exception
      * @returns Index of the fixed exception (-1) if nothing can be fixed
      */
@@ -370,55 +430,12 @@ class ExceptionHandler {
         if (syntaxFix.fixed)
             return "SE";
         const latestExceptions = this.exceptions[this.exceptions.length-1].filter(excep => excep.type != 'SyntaxError');
-        // for (const excep of latestExceptions){ console.log(excep.uncaught)}
-        // * 1: Iterate throught exceptions
         for (let i = 0; i < latestExceptions.length; i++) {
-            const exception = latestExceptions[i];
             // Debug use
             // if (i < 6) continue
-            const description = exception.description.split('\n')[0];
-            logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 'out of', latestExceptions.length-1, '\n  description:', description);
-            let targetCount = this._calcExceptionDesc(description, latestExceptions);
-            // * 2: Iterate throught frames
-            // * For each frame, only try looking the top frame that can be reverted
-            // * Break the loop no matter what the result of the loop is
-            for (const frame of exception.frames){
-                const source = frame.source.source;
-                if (source == null || !reverter.isRewritten(source)) {
-                    logger.verbose(`ExceptionHandler.fixException:", "Cannot find source for ${frame.url}, or source is not rewritten`);
-                    continue;
-                }
-                
-                const updatedCode = this.findRevert(source, frame);
-                if (updatedCode === source) {
-                    logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
-                    continue;
-                }
-
-                let overrideMap = {[frame.url]: frame.source}
-                const success = await this.reloadWithOverride(overrideMap);
-                if (!success)
-                    continue;
-
-                await this.recorder.record(this.dirname, `exception_${i}`);
-                let newCount = this._calcExceptionDesc(description, this.inspector.exceptions);
-                // * Not fix anything
-                if (newCount >= targetCount)
-                    break;
-                logger.log("ExceptionHandler.fixException:", "Fixed exception", i);
-                
-                const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}`);
-                this.log.push({
-                    type: 'fidelity',
-                    exception: i,
-                    description: description,
-                    fidelity: fidelity.different
-                })
-                if (!fidelity.different)
-                    break;
-                logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
+            const excepFix = await this.fixException(latestExceptions, i);
+            if (excepFix.fixed)
                 return i;
-            }
         }
         return -1;
     }
