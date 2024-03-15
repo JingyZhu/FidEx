@@ -21,6 +21,8 @@ async function maxWidthHeight(dimen) {
     let width = 0, height = 0;
     for (const k in dimensions) {
         const d = dimensions[k].dimension;
+        if (d.width * d.height <= 0)
+            continue;
         width = Math.max(width, d.right);
         height = Math.max(height, d.bottom);
     }
