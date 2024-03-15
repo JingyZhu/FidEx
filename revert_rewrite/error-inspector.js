@@ -157,8 +157,6 @@ class ErrorInspector {
                   objectId: object.objectId,
                 });
                 for (const varProp of properties.result){
-                    // TODO: Currently, this is just including the first variable found.
-                    // TODO: But this should actually be ranked on scope (block > global, etc). Might need to revisit this.
                     if (seenVars.has(varProp.name) || !this.recordVar)
                         continue;
                     const proxyType = await this._decideProxyType(varProp, frame);
@@ -168,7 +166,8 @@ class ErrorInspector {
             }
             const source = this.scriptInfo[location.scriptId].source;
             if (source && reverter.isRewritten(source)) {
-                logger.verbose("ErrorInspector._recordException:", "Found first script rewriten on stack", url);
+                logger.verbose("ErrorInspector._recordException:", "Found first script rewriten on stack",
+                                url, `{line: ${location.lineNumber}, column: ${location.columnNumber}}`);
                 break;
             }
         }
@@ -250,8 +249,8 @@ class ErrorInspector {
         for (const [url, response] of Object.entries(this.responses)) {
             if (response.status != 200)
                 continue;
-            const {body} = await this.client.send('Network.getResponseBody', {requestId: response.requestId});
-            this.responses[url].body = body;
+            const respBody = await this.client.send('Network.getResponseBody', {requestId: response.requestId});
+            this.responses[url].body = respBody;
         }
     }
 

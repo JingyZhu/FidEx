@@ -78,4 +78,35 @@ function test() {
     console.log(revert.revertWithTryCatch({line: 4, column: 15}));
 }
 
-testReverterTryCatch();
+function testReverterLines() {
+    let code = `
+input_uri = input_uri.replace(/\\//g,"\\\\\\/");
+output_uri = output_uri.replace(/\\//g,"\\\\\\/");  
+content = WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),"content.replace(/"+input_uri+"/,'"+output_uri+"')");
+`
+    let revert = new reverter.Reverter(code);
+    console.log(revert.revertLines({line: 4, column: 96}, 'ReferenceError: content is not defined'));
+
+    code = `
+val = Page_Validators[i];
+if (typeof(val.evaluationfunction) == "string") {
+    WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),"val.evaluationfunction = " + val.evaluationfunction + ";");
+}
+WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),"val.evaluationfunction = " + val.evaluationfunction + ";");
+    `
+    revert = new reverter.Reverter(code);
+    console.log(revert.revertLines({line: 4, column: 91}, 'ReferenceError: val is not defined'));
+
+    code = `
+if ( element ) {
+    element = element.jquery || element.nodeType ?
+        $( element ) :
+        ;_____WB$wombat$check$this$function_____(this).document.find( element ).eq( 0 );
+}
+`
+    revert = new reverter.Reverter(code, {parse: false});
+    console.log(revert.revertLines({line: 5, column: 9}, 'SyntaxError: Unexpected token ;'));
+}
+
+// testReverterTryCatch();
+testReverterLines();

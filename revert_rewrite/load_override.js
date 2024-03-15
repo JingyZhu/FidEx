@@ -106,7 +106,10 @@ async function removeWaybackBanner(page){
         const timeout = options.wayback ? 200*1000 : 60*1000;
 
         // * Step 1: Prepare recording for exceptions
-        let exceptionHandler = new errorFix.ExceptionHandler(page, client, dirname);
+        let exceptionHandler = new errorFix.ExceptionHandler(page, client, {
+                                                                            dirname: dirname, 
+                                                                            manual: options.manual
+                                                                            });
         await exceptionHandler.prepare(url, exceptionType='all');
         
         // * Step 2: Load the page and collect exception

@@ -49,12 +49,26 @@ function loc2idx(code, loc, one_indexed=true) {
 }
 
 class Reverter {
-    constructor(code) {
+    constructor(code, { parse=true }={}) {
         this.code = code;
-        this.source = esprima.parseScript(code, { loc: true, range: true});
+        this.source = parse ? esprima.parseScript(code, { loc: true, range: true}): null;
         // * BlockStatement is less ideal. It is used as the final backup
         this.statementType = ['ExpressionStatement', 'IfStatement', 'ReturnStatement'];
         this.parentType = ['SequenceExpression', 'BlockStatement'];
+        this.revertRules = {
+            ReferenceError: [
+                {
+                    from: 'WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),',
+                    to: 'eval('
+                }
+            ],
+            SyntaxError: [
+                {
+                    from: ';_____WB$wombat$check$this$function_____(this).',
+                    to: ''
+                }
+            ]
+        }
     }
 
     /**
@@ -200,6 +214,38 @@ class Reverter {
         return newCode;
     }
 
+    /**
+     * Revert the code by revert some lines that are rewritten
+     * More details refer to pywb's regex_rewriter
+     * @param {string} exception Exception lines to hint with revert should be done 
+     */
+    revertLines(startLoc, exception) {
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const startIdx = this._loc2idx(startLoc);
+        let closestMatch = null, closestMatchIdx = Infinity;
+        for (const [errorType, rules] of Object.entries(this.revertRules)) {
+            if (!exception.includes(errorType))
+                continue
+            // * Try to see what is the closest match index
+            for (const rule of rules) {
+                // Regex match to collect all index including rule.from
+                let matches = this.code.matchAll(new RegExp(escapeRegex(rule.from), 'g'));
+                for (const match of matches) {
+                    if (Math.abs(match.index-startIdx) < Math.abs(closestMatchIdx-startIdx)
+                    || Math.abs(match.index + rule.from.length - startIdx) < Math.abs(closestMatchIdx-startIdx)) {
+                        closestMatchIdx = match.index;
+                        closestMatch = rule;
+                    }
+                }
+            }
+        }
+        if (closestMatch === null)
+            return this.code;
+        // Apply the replace for the whole code
+        let newCode = this.code.replace(new RegExp(escapeRegex(closestMatch.from), 'g'), closestMatch.to);
+        return newCode;
+    }
+
     _addId(url) {
         const urlObj = new URL(url);
         const pathParts = urlObj.pathname.split('/');
@@ -268,15 +314,3 @@ module.exports = {
     Reverter,
     isRewritten
 }
-
-function testFindStatements(startLoc) {
-    const code = fs.readFileSync('test/test.js', 'utf-8');
-    const reverter = new Reverter(code);
-    const startIdx = reverter._loc2idx(startLoc);
-    console.log("line to override", reverter.code.slice(startIdx, startIdx+30), '...')
-    let statements = reverter._findStatements(startIdx).value;
-    console.log(reverter.code.slice(statements[0].range[0], statements[statements.length-1].range[1]));
-}
-
-// testReverter()
-// testFindStatements({line: 1128, column: 15})
