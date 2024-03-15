@@ -70,7 +70,7 @@ class ErrorInspector {
         this.recordVar = true;
 
         this._requestURL = {};
-        this.responseStatus = {};
+        this.responses = {}; // {url: {status, headers, body}}
     }
 
     /**
@@ -235,10 +235,24 @@ class ErrorInspector {
         this.client.on('Network.requestWillBeSent', params => {
             this._requestURL[params.requestId] = params.request.url;
         });
-        this.client.on('Network.responseReceived', params => {
+        this.client.on('Network.responseReceived', async params => {
             const url = this._requestURL[params.requestId];
-            this.responseStatus[url] = params.response.status;
+            this.responses[url] = {
+                requestId: params.requestId,
+                status: params.response.status,
+                headers: params.response.headers,
+                body: null
+            }
         })
+    }
+
+    async collectResponseBody() {
+        for (const [url, response] of Object.entries(this.responses)) {
+            if (response.status != 200)
+                continue;
+            const {body} = await this.client.send('Network.getResponseBody', {requestId: response.requestId});
+            this.responses[url].body = body;
+        }
     }
 
     unsetNetworkListener(){
@@ -255,7 +269,7 @@ class ErrorInspector {
         await this.setExceptionBreakpoint(type=type)
         this.unsetNetworkListener();
         this._requestURL = {};
-        this.responseStatus = {};
+        this.responses = {};
     }
 }
 

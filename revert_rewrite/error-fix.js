@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 
 const reverter = require('./reverter');
 const { ErrorInspector, ExceptionInfo } = require('./error-inspector');
+const { Overrider } = require('./overrider');
 
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
@@ -16,79 +17,6 @@ function sleep(ms) {
 
 function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
-}
-
-class Overrider {
-    constructor(client){
-        this.client = client;
-        this.syntaxErrorOverrides = {}
-        this.networkOverrides = {}
-    }
-
-    /**
-     * @param {Object} mapping 
-     * {url: {
-     *   source: string,
-     *   start: {line, column}, (null if not set)
-     *   end: {line, column} (null if not set)
-     * }}
-     */
-    async overrideResources(mapping){
-        let totalMapping = {};
-        let urlPatterns = [];
-        for (const [url, resource] of Object.entries(this.syntaxErrorOverrides))
-            totalMapping[url] = resource;
-        for (const [url, resource] of Object.entries(this.networkOverrides))
-            totalMapping[url] = resource;
-        for (const [url, resource] of Object.entries(mapping))
-            totalMapping[url] = resource;
-        for (const url in totalMapping){
-            const resourceType = '';
-            const requestStage = 'Response';
-            urlPatterns.push({
-                urlPattern: url,
-                resourceType: resourceType,
-                requestStage: requestStage
-            });
-        }
-        await this.client.send('Fetch.enable', {
-            patterns: urlPatterns
-        });
-        logger.log("Overrider.overrideResources:", "Overriding", urlPatterns);
-
-        this.client.on('Fetch.requestPaused', async (params) => {
-            const url = params.request.url;
-            let resource = totalMapping[url].source;
-            if (totalMapping[url].start && totalMapping[url].end) {
-                const { body, base64Encoded } = await this.client.send('Fetch.getResponseBody', {
-                    requestId: params.requestId
-                });
-                let original = base64Encoded ? Buffer.from(body, 'base64').toString() : body;
-                // * Replace original's start to end with resource
-                const startIdx = reverter.loc2idx(original, totalMapping[url].start);
-                const endIdx = reverter.loc2idx(original, totalMapping[url].end);
-                resource = original.slice(0, startIdx) + resource + original.slice(endIdx);
-            }
-            try{
-                // TODO: For responseHeaders, if the content-type doesn't exist, need to add the content-type for restrict MIME
-                await this.client.send('Fetch.fulfillRequest', {
-                    requestId: params.requestId,
-                    responseCode: 200,
-                    responseHeaders: params.responseHeaders,
-                    body: Buffer.from(resource).toString('base64')
-                });
-                logger.verbose("Overrider.overrideResources:", "Sent Fetch.fulfillRequest", params.request.url);
-            } catch (e) {
-                logger.warn("Error: sending Fetch.fulfillRequest", e);
-            }
-        });
-    }
-
-    async clearOverrides(){
-        await this.client.send('Fetch.disable');
-        // Remove handler for Fetch.requestPause
-        await this.client.removeAllListeners('Fetch.requestPaused');
-    }
 }
 
 class PageRecorder {
@@ -186,7 +114,7 @@ class ExceptionHandler {
         await this.recorder.prepareLogging();
     }
 
-    async collectExceptions() {
+    async collectLoadInfo() {
         this.exceptions.push([]);
         for (let exception of this.inspector.exceptions){
             if (exception.type !== 'SyntaxError') { 
@@ -215,6 +143,12 @@ class ExceptionHandler {
             caught: this.exceptions[this.exceptions.length-1].filter(excep => !excep.uncaught).length,
             syntaxError: this.exceptions[this.exceptions.length-1].filter(excep => excep.type == 'SyntaxError').length 
         })
+        // Collect network response
+        await this.inspector.collectResponseBody();
+        for (const [url, response] of Object.entries(this.inspector.responses)){
+            if (!(url in this.overrider.seenResponses))
+                this.overrider.seenResponses[url] = response;
+        }
         await this.recorder.record(this.dirname, 'initial');
     }
 
@@ -256,7 +190,7 @@ class ExceptionHandler {
     }
 
     /**
-     * @param {object} overrideMap {url: resourceText} 
+     * @param {object} overrideMap {url: {source: string, start: loc/null, end: loc/null, plainText: boolean}}
      * @returns {Number} If the reload is successful 
      */
     async reloadWithOverride(overrideMap, recordVar=false) {
@@ -303,18 +237,22 @@ class ExceptionHandler {
             fixedExcep: false
         }
         let revert = new reverter.Reverter("");
-        for (const [url, status] of Object.entries(this.inspector.responseStatus)){
+        let promises = [];
+        for (const [url, response] of Object.entries(this.inspector.responses)){
+            const status = response.status;
             if (status != 404)
                 continue;
-            const overrideContent = await revert.revert404response(url, this.hostname);
-            if (overrideContent === null)
-                continue;
-            this.overrider.networkOverrides[url] = {
-                source: overrideContent,
-                start: null,
-                end: null
-            };
+            promises.push(revert.revert404response(url, this.hostname).then(overrideContent => {
+                if (overrideContent !== null) {
+                    this.overrider.networkOverrides[url] = {
+                        source: overrideContent,
+                        start: null,
+                        end: null
+                    };
+                }
+            }));
         }
+        await Promise.all(promises);
         if (Object.keys(this.overrider.networkOverrides).length == 0)
             return result;
         const success = await this.reloadWithOverride({}, true);
@@ -358,7 +296,8 @@ class ExceptionHandler {
             this.overrider.syntaxErrorOverrides[url] = {
                 source: overrideContent,
                 start: null,
-                end: null
+                end: null,
+                plainText: true
             };
         }
         
@@ -423,7 +362,7 @@ class ExceptionHandler {
                 continue;
             }
 
-            let overrideMap = {[frame.url]: {source: updatedCode, start: frame.source.start, end: frame.source.end}};
+            let overrideMap = {[frame.url]: {source: updatedCode, start: frame.source.start, end: frame.source.end, plainText: true}};
             const success = await this.reloadWithOverride(overrideMap);
             if (!success)
                 continue;
@@ -461,7 +400,7 @@ class ExceptionHandler {
         const networkFix = await this.fixNetwork();
         if (networkFix.fixed)
             return "NW";
-        await this.collectExceptions();
+        await this.collectLoadInfo();
         const syntaxFix = await this.fixSyntaxError();
         if (syntaxFix.fixed)
             return "SE";

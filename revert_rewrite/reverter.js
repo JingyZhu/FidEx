@@ -247,7 +247,7 @@ class Reverter {
 
     /**
      *  
-     * @returns {string/null}
+     * @returns {string/null} Base64 encoded content of the original file
      */
     async revert404response(url, hostname) {
         const newURL = this._addHostname(url, hostname);
@@ -258,7 +258,8 @@ class Reverter {
         // If the response is 404, return null
         if (res.status === 404) 
             return null;
-        return await res.text();
+        const buffer = await res.buffer();
+        return buffer.toString('base64');
     }
 }
 
