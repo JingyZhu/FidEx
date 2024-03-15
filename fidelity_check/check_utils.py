@@ -60,10 +60,10 @@ class htmlElement:
         for r in rules:
             if r in tag.attrs:
                 features.append(tag.attrs[r])
-        # * Add style
+        # * Add style and throw away certain attr
         def _filter_style(style):
             new_style = []
-            filter_keys = ['background-image']
+            filter_keys = ['background-image', 'opacity']
             for s in style.split(';'):
                 to_filter = False
                 for k in filter_keys:
@@ -80,7 +80,7 @@ class htmlElement:
 
     def __eq__(self, other):
         if self.text == other.text:
-            return True
+            # return True
             return self.dimension == other.dimension
         if self.features == other.features and self.dimension == other.dimension:
             return True

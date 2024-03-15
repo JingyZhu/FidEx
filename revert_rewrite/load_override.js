@@ -117,7 +117,7 @@ async function removeWaybackBanner(page){
             })
             await waitTimeout(networkIdle, timeout); 
         } catch {}
-        await exceptionHandler.collectExceptions();
+        await exceptionHandler.collectLoadInfo();
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
