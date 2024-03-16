@@ -39,13 +39,21 @@ async function overrideArchives(client) {
     const urlPatterns = [];
     for (let i = 0; i < archivedCopyURLs.length; i++) {
         let url = archivedCopyURLs[i];
+        let urlpatterns = [];
         const resourcePath = PATH_MAP[url];
         for (const hostname of HOSTNAMES) {
             if (url.startsWith(hostname)) {
-            // Replace URL's http:/ with http://, and https:/ with https:// only after the hostname
-            // For example, "http://localhost:8080/eot/20230912213801/https:/nimhd.nih.gov/" should be "http://localhost:8080/eot/20230912213801/https://nimhd.nih.gov/"
-                url = url.replace(/(https?:)(\/)([^/])/, '$1//$3');
-                break
+                // URL includes http or https
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                    // Replace URL's http:/ with http://, and https:/ with https:// only after the hostname
+                    // For example, "localhost:8080/eot/20230912213801/https:/nimhd.nih.gov/" should be "localhost:8080/eot/20230912213801/https://nimhd.nih.gov/"
+                    url = url.replace(/(https?:)(\/)([^/])/, '$1//$3');
+                    break
+                } else {
+                    // Add double slahses after the third slash
+                    // For example, "localhost:8080/eot/20230912213801/_layout/" should be "localhost:8080/eot/20230912213801///_layout/"
+                    url = url.replace(/(\/[^/]+\/[^/]+\/)([^/])/, '$1//$2');
+                }
             }
         }
         PATH_MAP[url] = resourcePath;

@@ -48,7 +48,7 @@ def count_results(strict=True):
                 idx = result['fixedIdx']
                 initial_writes = json.load(open(f'writes/{hostname}/initial_writes.json', 'r'))
                 final_writes = json.load(open(f'writes/{hostname}/exception_{idx}_writes.json', 'r'))
-                if len(initial_writes["rawWrites"]) < len(final_writes["rawWrites"]):
+                if len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"]):
                     count.append(hostname)
         else:
             print(hostname, 'No result log')

@@ -189,10 +189,15 @@ class ErrorInspector {
                 endLine: params.endLine,
                 endColumn: params.endColumn
             };
-            const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
-            // * After coming back, the scriptInfo might be emptied.
-            if (params.scriptId in this.scriptInfo) {
-                this.scriptInfo[params.scriptId].source = scriptSource;
+            try {
+                const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
+                // * After coming back, the scriptInfo might be emptied.
+                if (params.scriptId in this.scriptInfo) {
+                    this.scriptInfo[params.scriptId].source = scriptSource;
+                }
+            } catch (e) {
+                logger.warn("ErrorInspector:", "scriptParsed getting source", e.message.split('\n')[0]);
+                return;
             }
         });
 

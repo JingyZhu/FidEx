@@ -47,7 +47,7 @@ class PageRecorder {
             {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
         // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-        await measure.collectNaiveInfo(this.page, dirname, filename);
+        // await measure.collectNaiveInfo(this.page, dirname, filename);
     }
 
     /**
@@ -173,7 +173,7 @@ class ExceptionHandler {
             logger.warn("ExceptionHandler.reloadWithOverride:", "Reload exception", e)
             return false;
         }
-        await sleep(500);
+        await sleep(1000);
         return true
     }
 
@@ -319,14 +319,17 @@ class ExceptionHandler {
                     plainText: true
                 };
             }
+            if (Object.keys(this.overrider.syntaxErrorOverrides).length == 0)
+                continue;
             
             const success = await this.reloadWithOverride({});
             if (!success)
                 continue;
             await this.recorder.record(this.dirname, `exception_SE_${fix_id}`);
-            let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions, true);        
+            let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions, false);        
             if (newCount >= syntaxErrorExceptions.length)
                 continue;
+            logger.log("ExceptionHandler.fixSyntaxError:", "Fixed syntax exception with fix", fix_id);
             result.fixedExcep = true;
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE_${fix_id}`);
             this.log.push({

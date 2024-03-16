@@ -113,12 +113,40 @@ def test_run_load_override_network():
 def test_run_load_override_wo_fidelity():
     urls = [
         {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20170125231240/http:/public.govdelivery.com/accounts/uspbgc/subscriber/new?topic_id=uspbgc_31",
+            "hostname": "public.govdelivery.com_4953"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161216030450/http:/youtube.com/user/npsparkclp",
+            "hostname": "youtube.com"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20170215055154/https://www.ready.gov/",
+            "hostname": "ready.gov"
+        },
+        {
             "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023543/http:/newhaven.jobcorps.gov/home.aspx",
             "hostname": "newhaven.jobcorps.gov"
-        }
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023725/http:/myssaisanfrancisco.usajobs.gov/search/",
+            "hostname": "myssaisanfrancisco.usajobs.gov_7717"
+        },
+        # * This could take long if run correctly
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129125821/http:/azsos.gov/",
+            "hostname": "azsos.gov",
+        },
+
+    ]
+    results = run_on_testcases(urls)
+    print(json.dumps(results, indent=2))
+
+def test_run_load_override_temp():
+    urls = [
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
 
-test_run_load_override_wo_fidelity()
+test_run_load_override_exception()
