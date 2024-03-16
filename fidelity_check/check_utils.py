@@ -48,7 +48,8 @@ class htmlElement:
         """Collect tag name and other important attributes that matters to the rendering"""
         all_rules = []
         tag_rules = {
-            'img': ['src']
+            'img': ['src'],
+            'a': ['class', 'href'],
         }
         tag = BeautifulSoup(self.text, 'html.parser').find()
         if tag is None:

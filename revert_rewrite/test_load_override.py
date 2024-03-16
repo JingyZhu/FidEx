@@ -63,6 +63,10 @@ def test_run_load_override_syntax():
         {
             "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118025017/http:/suicideprevention.nv.gov/",
             "hostname": "suicideprevention.nv.gov"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161123082314/https://occ.gov/",
+            "hostname": "ots.gov",
         }
     ]
     results = run_on_testcases(urls)

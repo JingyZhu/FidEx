@@ -118,7 +118,6 @@ class ExceptionHandler {
     }
 
     async collectLoadInfo(record=true) {
-        console.log(record)
         this.exceptions.push([]);
         for (let exception of this.inspector.exceptions){
             if (exception.type !== 'SyntaxError') { 
@@ -275,11 +274,12 @@ class ExceptionHandler {
         }
         yield updatedCodes;
 
-        updatedCodes = []
+        updatedCodes = {}
         for (const exception of exceptions) {
             const frame = exception.frames[0];
             const revert = new reverter.Reverter("");
             let updatedCode = await revert.revertFile2Original(frame.url);
+            updatedCodes[frame.url] = updatedCode;
             logger.verbose("ExceptionHandler.fixSyntaxError:", "Revert file to original.", frame.url)
             this.log.push({
                 type: 'revertFile2Original',
@@ -298,7 +298,8 @@ class ExceptionHandler {
     async fixSyntaxError() {
         let result = {
             fixed: false,
-            fixedExcep: false
+            fixedExcep: false,
+            fixedID: null
         }
 
         const latestExceptions = this.exceptions[this.exceptions.length-1];
@@ -321,11 +322,11 @@ class ExceptionHandler {
             
             const success = await this.reloadWithOverride({});
             if (!success)
-                return result;
+                continue;
             await this.recorder.record(this.dirname, `exception_SE_${fix_id}`);
             let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions, true);        
             if (newCount >= syntaxErrorExceptions.length)
-                return result;
+                continue;
             result.fixedExcep = true;
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE_${fix_id}`);
             this.log.push({
@@ -336,6 +337,7 @@ class ExceptionHandler {
             if (fidelity.different) {
                 logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
                 result.fixed = true;
+                result.fixedID = fix_id;
                 return result;
             }
         }
@@ -478,8 +480,7 @@ class ExceptionHandler {
             await this.collectLoadInfo(false);
         const syntaxFix = await this.fixSyntaxError();
         if (syntaxFix.fixed)
-            return "SE";
-        return 'dummy';
+            return `SE_${syntaxFix.fixedID}`;
         const latestExceptions = this.exceptions[this.exceptions.length-1].filter(excep => excep.type != 'SyntaxError');
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);

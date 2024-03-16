@@ -103,8 +103,7 @@ class Overrider {
             }
             let resource = totalMapping[url].source;
             if (totalMapping[url].start && totalMapping[url].end) {
-                const { body, base64Encoded } = this.seenResponses[url];
-                console.log(url, base64Encoded)
+                const { body, base64Encoded } = this.seenResponses[url].body;
                 let original = base64Encoded ? Buffer.from(body, 'base64').toString() : body;
                 // * Replace original's start to end with resource
                 const startIdx = reverter.loc2idx(original, totalMapping[url].start);

@@ -249,8 +249,13 @@ class ErrorInspector {
         for (const [url, response] of Object.entries(this.responses)) {
             if (response.status != 200)
                 continue;
-            const respBody = await this.client.send('Network.getResponseBody', {requestId: response.requestId});
-            this.responses[url].body = respBody;
+            try {
+                const respBody = await this.client.send('Network.getResponseBody', {requestId: response.requestId});
+                this.responses[url].body = respBody;
+            } catch {
+                continue;
+            }
+           
         }
     }
 

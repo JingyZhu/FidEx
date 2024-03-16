@@ -55,16 +55,17 @@ class Reverter {
         // * BlockStatement is less ideal. It is used as the final backup
         this.statementType = ['ExpressionStatement', 'IfStatement', 'ReturnStatement'];
         this.parentType = ['SequenceExpression', 'BlockStatement'];
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         this.revertRules = {
             ReferenceError: [
                 {
-                    from: 'WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),',
+                    from: escapeRegex('WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),'),
                     to: 'eval('
                 }
             ],
             SyntaxError: [
                 {
-                    from: ';_____WB$wombat$check$this$function_____(this).',
+                    from: `;?${escapeRegex('_____WB$wombat$check$this$function_____(this).')}`,
                     to: ''
                 }
             ]
@@ -220,7 +221,6 @@ class Reverter {
      * @param {string} exception Exception lines to hint with revert should be done 
      */
     revertLines(startLoc, exception) {
-        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const startIdx = this._loc2idx(startLoc);
         let closestMatch = null, closestMatchIdx = Infinity;
         for (const [errorType, rules] of Object.entries(this.revertRules)) {
@@ -229,7 +229,7 @@ class Reverter {
             // * Try to see what is the closest match index
             for (const rule of rules) {
                 // Regex match to collect all index including rule.from
-                let matches = this.code.matchAll(new RegExp(escapeRegex(rule.from), 'g'));
+                let matches = this.code.matchAll(new RegExp(rule.from, 'g'));
                 for (const match of matches) {
                     if (Math.abs(match.index-startIdx) < Math.abs(closestMatchIdx-startIdx)
                     || Math.abs(match.index + rule.from.length - startIdx) < Math.abs(closestMatchIdx-startIdx)) {
@@ -242,7 +242,7 @@ class Reverter {
         if (closestMatch === null)
             return this.code;
         // Apply the replace for the whole code
-        let newCode = this.code.replace(new RegExp(escapeRegex(closestMatch.from), 'g'), closestMatch.to);
+        let newCode = this.code.replace(new RegExp(closestMatch.from, 'g'), closestMatch.to);
         return newCode;
     }
 
