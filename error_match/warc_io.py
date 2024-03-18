@@ -23,20 +23,18 @@ def _is_rewritable(headers):
     return False
 
 def is_target(url, headers, target_types):
+    content_type = ''
     if headers:
-        content_type = None
         for header in headers:
             if header.lower() == 'content-type':
                 content_type = headers[header]
                 break
-        if content_type is None:
-            return False
-        path = urlsplit(url).path
-        for target_type in target_types:
-            if target_type in content_type:
-                return True
-            elif path.endswith(target_type):
-                return True
+    path = urlsplit(url).path
+    for target_type in target_types:
+        if target_type in content_type:
+            return True
+        elif path.endswith(target_type):
+            return True
     return False
 
 def read_warc(file, target_types=None):

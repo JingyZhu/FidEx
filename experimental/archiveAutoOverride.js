@@ -44,7 +44,7 @@ async function overrideArchives(client) {
         for (const hostname of HOSTNAMES) {
             if (url.startsWith(hostname)) {
                 // URL includes http or https
-                if (url.startsWith('http://') || url.startsWith('https://')) {
+                if (url.includes('http:') || url.includes('https:')) {
                     // Replace URL's http:/ with http://, and https:/ with https:// only after the hostname
                     // For example, "localhost:8080/eot/20230912213801/https:/nimhd.nih.gov/" should be "localhost:8080/eot/20230912213801/https://nimhd.nih.gov/"
                     url = url.replace(/(https?:)(\/)([^/])/, '$1//$3');

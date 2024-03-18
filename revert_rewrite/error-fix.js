@@ -47,7 +47,7 @@ class PageRecorder {
             {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
         fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
         // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-        // await measure.collectNaiveInfo(this.page, dirname, filename);
+        await measure.collectNaiveInfo(this.page, dirname, filename);
     }
 
     /**
@@ -88,7 +88,7 @@ class PageRecorder {
 }
 
 class ExceptionHandler {
-    constructor(page, client, { dirname='.', timeout=60, manual=false }={}){
+    constructor(page, client, { dirname='.', timeout=30, manual=false }={}){
         this.page = page;
         this.client = client;
         this.inspector = new ErrorInspector(client);

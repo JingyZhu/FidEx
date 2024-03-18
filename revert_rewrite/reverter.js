@@ -66,7 +66,7 @@ class Reverter {
             SyntaxError: [
                 {
                     from: `;?${escapeRegex('_____WB$wombat$check$this$function_____(this).')}`,
-                    to: ''
+                    to: 'this.'
                 }
             ]
         }

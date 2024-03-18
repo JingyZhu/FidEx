@@ -23,9 +23,12 @@ class ErrorMatcher:
             if i % 100 == 0:
                 print("Reading warcs", i)
             file = os.path.join(path, file)
-            warc_responses = warc_io.read_warc(file, **kwargs)
-            self.warcs.append(warc_responses)
-    
+            try:
+                warc_responses = warc_io.read_warc(file, **kwargs)
+                self.warcs.append(warc_responses)
+            except:
+                continue
+
     @staticmethod
     def _read_response(idx, file, target_types=None):
         if idx % 100 == 0:

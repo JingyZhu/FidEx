@@ -130,7 +130,7 @@ def test_run_load_override_wo_fidelity():
         },
         {
             "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023725/http:/myssaisanfrancisco.usajobs.gov/search/",
-            "hostname": "myssaisanfrancisco.usajobs.gov_7717"
+            "hostname": "myssaisanfrancisco.usajobs.gov"
         },
         # * This could take long if run correctly
         {
@@ -144,9 +144,23 @@ def test_run_load_override_wo_fidelity():
 
 def test_run_load_override_temp():
     urls = [
+        {
+            # ! Need to test with more detail!
+            "hostname": "www.trade.gov_1",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot-1k/20231106005746/https://www.trade.gov/buyusa"
+        },
+        {
+            # ! Takes very long to load
+            "hostname": "booneville.ars.usda.gov_6518",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20161118050448/https://www.ars.usda.gov/"
+        },
+        {
+            # ! Takes very long to load
+            "hostname": "www.buyusa.gov_982",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20130309080613/http:/www.buyusa.gov/"
+        }
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
-
-test_run_load_override_exception()
+test_run_load_override_temp()

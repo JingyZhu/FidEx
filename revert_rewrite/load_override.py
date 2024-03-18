@@ -5,14 +5,20 @@ Read metadata that including archive URLs, and run load_wayback.js accordingly
 import json
 import subprocess
 import os
+import time
 
-input_file = 'second_all_sampled_200.json'
+input_file = 'second_all_sampled_200_2.json'
+write_dir = 'writes'
 data = json.load(open(input_file, 'r'))
 
 def run_load_override():
+    start = time.time()
     for i, datum in enumerate(data):
         hostname, archive_url = datum['hostname'], datum['archive_url']
         print(i, archive_url)
+        if os.path.exists(f'writes/{hostname}/result_log.json'):
+            print(f'{hostname} already processed')
+            continue
         # Try removing the directory (it is fine the if the directory does not exist)
         try:
             subprocess.call(['rm', '-rf', f'writes/{hostname}'])
@@ -32,13 +38,16 @@ def run_load_override():
         f = open(f'writes/{hostname}/log.log', 'w+')
         f.write(output)
         f.close()
+        print('Till Now:', time.time()-start)
 
 def count_results(strict=True):
     count = []
+    total = 0
     for datum in data:
         hostname = datum['hostname']
-        if os.path.exists(f'writes/{hostname}/result_log.json'):
-            result = json.load(open(f'writes/{hostname}/result_log.json', 'r'))
+        if os.path.exists(f'{write_dir}/{hostname}/result_log.json'):
+            result = json.load(open(f'{write_dir}/{hostname}/result_log.json', 'r'))
+            total += 1
             print(hostname, result['fixedIdx'])
             if result['fixedIdx'] == -1:
                 continue
@@ -46,13 +55,13 @@ def count_results(strict=True):
                 count.append(hostname)
             else:
                 idx = result['fixedIdx']
-                initial_writes = json.load(open(f'writes/{hostname}/initial_writes.json', 'r'))
-                final_writes = json.load(open(f'writes/{hostname}/exception_{idx}_writes.json', 'r'))
+                initial_writes = json.load(open(f'{write_dir}/{hostname}/initial_writes.json', 'r'))
+                final_writes = json.load(open(f'{write_dir}/{hostname}/exception_{idx}_writes.json', 'r'))
                 if len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"]):
                     count.append(hostname)
         else:
             print(hostname, 'No result log')
-    print(len(count))
+    print(total, len(count))
     json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
 # run_load_override()
