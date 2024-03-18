@@ -98,6 +98,7 @@ class ExceptionHandler {
         this.timeout = timeout;
         this.manual = manual;
         this.exceptions = [];
+        this.results = [];
         this.log = [];
     }
     
@@ -140,11 +141,20 @@ class ExceptionHandler {
         }
         // Sort the exceptions by their type, uncaught first, then caught
         this.exceptions[this.exceptions.length-1].sort((a, b) => b.uncaught-a.uncaught);
-        this.log.push({
-            type: 'exception_dist',
-            uncaught: this.exceptions[this.exceptions.length-1].filter(excep => excep.uncaught).length,
-            caught: this.exceptions[this.exceptions.length-1].filter(excep => !excep.uncaught).length,
-            syntaxError: this.exceptions[this.exceptions.length-1].filter(excep => excep.type == 'SyntaxError').length 
+        let exceptionsInfo = {
+            type: 'exceptions',
+            exceptions: []
+        }
+        for (const exception of this.exceptions[this.exceptions.length-1])
+            exceptionsInfo.exceptions.push({
+                type: exception.type,
+                uncaught: exception.uncaught,
+                description: exception.description,
+                url: exception.frames[0].url
+            })
+        this.results.push({
+            type: 'exceptions',
+            exceptions: exceptionsInfo
         })
         // Collect network response
         await this.inspector.collectResponseBody();
@@ -179,17 +189,34 @@ class ExceptionHandler {
 
     /**
      * 
-     * @param {string} desc Description of the exception
-     * @param {[ExceptionInfo]} exceptions 
-     * @param {Boolean} uncaught Is the desc excecpt is uncaught. 
+     * @param {[ExceptionInfo]} targetExceps target exceptions to match
+     * @param {[ExceptionInfo]} exceptions All exceptions that will be matched on
+     * @param {Boolean} uncaught Are the target excecptions necessary to be uncaught. 
      *                           If so, only count uncaught exception from exceptions as well
      * @returns 
      */
-    _calcExceptionDesc(desc, exceptions, uncaught=false){
+    _calcExceptionDesc(targetExcep, exceptions, uncaught=false){
         let count = 0;
+        let targetDescs = [];
+        const collectDesc = (excep) => {
+            if (excep.type != 'SyntaxError')
+                return excep.description.split('\n')[0];
+            else
+                return `${excep.description} ${excep.frames[0].url}`;
+        }
+        for (const excep of targetExcep) {
+            if (excep.uncaught >= uncaught)
+                targetDescs.push(collectDesc(excep));
+        }
+        let allDescs = [];
         for (const excep of exceptions){
-            if (excep.description.split('\n')[0].includes(desc) && excep.uncaught >= uncaught)
-                count++;
+            if (excep.uncaught >= uncaught)
+                allDescs.push(collectDesc(excep));
+        }
+        // * Calculate how many descrition from allDescs are in the targetDescs
+        for (const desc of allDescs){
+            if (targetDescs.includes(desc))
+                count += 1;
         }
         return count;
     }
@@ -237,7 +264,7 @@ class ExceptionHandler {
             logger.log("ExceptionHandler.fixNetwork:", "Fixed fidelity issue");
             result.fixed = true;
         }
-        this.log.push({
+        this.results.push({
             type: 'fidelity',
             exception: 'Network404',
             fidelity: fidelity.different
@@ -326,16 +353,17 @@ class ExceptionHandler {
             if (!success)
                 continue;
             await this.recorder.record(this.dirname, `exception_SE_${fix_id}`);
-            let newCount = this._calcExceptionDesc("SyntaxError", this.inspector.exceptions, false);        
+            let newCount = this._calcExceptionDesc(syntaxErrorExceptions, this.inspector.exceptions, false);        
             if (newCount >= syntaxErrorExceptions.length)
                 continue;
             logger.log("ExceptionHandler.fixSyntaxError:", "Fixed syntax exception with fix", fix_id);
             result.fixedExcep = true;
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE_${fix_id}`);
-            this.log.push({
+            this.results.push({
                 type: 'fidelity',
                 exception: `SyntaxError`,
-                fidelity: fidelity.different
+                fidelity: fidelity.different,
+                fixID: fix_id
             })
             if (fidelity.different) {
                 logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
@@ -411,7 +439,7 @@ class ExceptionHandler {
         const description = exception.description.split('\n')[0];
         logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 
                     'out of', exceptions.length-1, '\n  description:', description, 'uncaught', exception.uncaught);
-        let targetCount = this._calcExceptionDesc(description, exceptions, exception.uncaught);
+        let targetCount = this._calcExceptionDesc([exception], exceptions, exception.uncaught);
         // * Iterate throught frames
         // * For each frame, only try looking the top frame that can be reverted
         let frame = null;
@@ -447,7 +475,7 @@ class ExceptionHandler {
                 continue;
 
             await this.recorder.record(this.dirname, `exception_${i}_${fix_id}`);
-            let newCount = this._calcExceptionDesc(description, this.inspector.exceptions, exception.uncaught);
+            let newCount = this._calcExceptionDesc([exception], this.inspector.exceptions, exception.uncaught);
             // * Not fix anything
             if (newCount >= targetCount)
                 continue;
@@ -455,10 +483,11 @@ class ExceptionHandler {
             result.fixedExcep = true;
 
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}_${fix_id}`);
-            this.log.push({
-                type: 'fidelity',
+            this.results.push({
+                type: 'fidelity_check',
                 exception: i,
                 description: description,
+                fixedID: fix_id,
                 fidelity: fidelity.different
             })
             if (!fidelity.different)

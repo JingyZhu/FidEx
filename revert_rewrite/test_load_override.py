@@ -4,7 +4,7 @@ import json
 
 def check_result(dirr):
     result = {"hostname": dirr.split('/')[-1]}
-    if os.path.exists(f'{dirr}/result_log.json'):
+    if os.path.exists(f'{dirr}/results.json'):
         log = json.load(open(f'{dirr}/result_log.json', 'r'))
         result['fixedIdx'] = log['fixedIdx']
         if log['fixedIdx'] == -1:
@@ -149,16 +149,16 @@ def test_run_load_override_temp():
             "hostname": "www.trade.gov_1",
             "archive_url": "http://pistons.eecs.umich.edu:8080/eot-1k/20231106005746/https://www.trade.gov/buyusa"
         },
-        {
-            # ! Takes very long to load
-            "hostname": "booneville.ars.usda.gov_6518",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20161118050448/https://www.ars.usda.gov/"
-        },
-        {
-            # ! Takes very long to load
-            "hostname": "www.buyusa.gov_982",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20130309080613/http:/www.buyusa.gov/"
-        }
+        # {
+        #     # ! Takes very long to load
+        #     "hostname": "booneville.ars.usda.gov_6518",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20161118050448/https://www.ars.usda.gov/"
+        # },
+        # {
+        #     # ! Takes very long to load
+        #     "hostname": "www.buyusa.gov_982",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20130309080613/http:/www.buyusa.gov/"
+        # }
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))

@@ -45,8 +45,8 @@ def count_results(strict=True):
     total = 0
     for datum in data:
         hostname = datum['hostname']
-        if os.path.exists(f'{write_dir}/{hostname}/result_log.json'):
-            result = json.load(open(f'{write_dir}/{hostname}/result_log.json', 'r'))
+        if os.path.exists(f'{write_dir}/{hostname}/results.json'):
+            result = json.load(open(f'{write_dir}/{hostname}/results.json', 'r'))
             total += 1
             print(hostname, result['fixedIdx'])
             if result['fixedIdx'] == -1:
