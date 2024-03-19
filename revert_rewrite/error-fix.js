@@ -5,7 +5,7 @@ const eventSync = require('../utils/event_sync');
 const reverter = require('./reverter');
 const { ErrorInspector, ExceptionInfo } = require('./error-inspector');
 const { Overrider } = require('./overrider');
-const { FixDecider } = require('../error_match/fix-decider');
+const { topRewrittenFrameURL, FixDecider } = require('../error_match/fix-decider');
 
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
@@ -19,6 +19,40 @@ function sleep(ms) {
 
 function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
+}
+
+class FixResult {
+    constructor(exception) {
+        this.type = 'fidelity';
+        this.exception = exception;
+        this.fixed = false;
+        this.fixedID = null;
+        this.fixedExcep = false;
+        this.fixedExcepID = Infinity;
+        this.skipped = true;
+    }
+
+    addDescrption(description) {
+        this.description = description;
+    }
+
+    unSkip() {
+        this.skipped = false;
+    }
+
+    fixException(fixId) {
+        this.fixedExcep = true;
+        this.fixedExcepID = Math.min(fixId, this.fixedExcepID);
+    } 
+
+    fix(fixId) {
+        this.fixed = true;
+        this.fixedID = fixId;
+    }
+
+    reloaded() {
+        this.reloaded = true;
+    }
 }
 
 class PageRecorder {
@@ -44,11 +78,16 @@ class PageRecorder {
         fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
         
         const rootFrame = this.page.mainFrame();
-        const renderInfo = await measure.collectRenderTree(rootFrame,
-            {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
-        fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
-        // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-        await measure.collectNaiveInfo(this.page, dirname, filename);
+        try {
+            const renderInfo = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
+            fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
+            // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+            await measure.collectNaiveInfo(this.page, dirname, filename);
+            await sleep(500);
+        }  catch(e) {
+            logger.warn("PageRecorder.record:", "Error in collecting render tree", e);
+        }
     }
 
     /**
@@ -56,11 +95,15 @@ class PageRecorder {
      * @returns {object} {has_issue: boolean, left_unique: Array, right_unique: Array}
      */
     async fidelityCheck(dirname, left, right) {
+        // Couldn't find the target files, something might went wrong with recorder.record.
+        // Skip to the next checl=k
+        if (!(fs.existsSync(`${dirname}/${left}_elements.json`)) || !(fs.existsSync(`${dirname}/${right}_writes.json`)))
+            return {has_issue: false};
         const pythonProcess = spawn('python', ['../fidelity_check/js_fidelity_check.py']);
         pythonProcess.stdin.write(JSON.stringify({
             'dir': dirname,
             'left': left,
-            'right': right
+            'right': right,
         }));
         pythonProcess.stdin.end();
         let data = await new Promise((resolve, reject) => {
@@ -84,6 +127,8 @@ class PageRecorder {
             });
         });
         data = JSON.parse(data.toString());
+        console.log("Fidelity Check", data.left_writes, data.right_writes);
+        data.has_issue = data.has_issue && (data.left_writes <= data.right_writes)
         return data;
     }
 }
@@ -158,7 +203,8 @@ class ExceptionHandler {
                 uncaught: exception.uncaught,
                 description: exception.description,
                 idx: exception.type == 'SyntaxError' ? -1 : idx++,
-                url: exception.frames[0].url
+                url: exception.frames[0].url,
+                rewrittenFrame: topRewrittenFrameURL(exception.frames),
             })
         }
         this.results.push(exceptionsInfo);
@@ -181,6 +227,8 @@ class ExceptionHandler {
         await this.overrider.clearOverrides();
         await this.overrider.overrideResources(overrideMap);
         await this.inspector.reset(recordVar, this.exceptionType);
+        await Promise.all([this.client.send('Network.clearBrowserCookies'), 
+                        this.client.send('Network.clearBrowserCache')]);
         try {
             if (this.manual)
                 await eventSync.waitForReady();
@@ -235,13 +283,7 @@ class ExceptionHandler {
      * @returns {Boolean} Whether the fix is successful
      */
     async fixNetwork() {
-        let result = {
-            type: 'fidelity',
-            exception: `Network404`,
-            fixed: false,
-            fixedExcep: false,
-            reloaded: false,
-        }
+        let result = new FixResult('Network404');
         let revert = new reverter.Reverter("");
         let promises = [];
         for (const [url, response] of Object.entries(this.inspector.responses)){
@@ -261,7 +303,7 @@ class ExceptionHandler {
         await Promise.all(promises);
         if (Object.keys(this.overrider.networkOverrides).length == 0)
             return result;
-        result.reloaded = true;
+        result.reloaded();
         const success = await this.reloadWithOverride({}, true);
         if (!success)
             return result;
@@ -270,7 +312,7 @@ class ExceptionHandler {
         // TODO: Need to check if any exception is fixed
         if (fidelity.different) {
             logger.log("ExceptionHandler.fixNetwork:", "Fixed fidelity issue");
-            result.fixed = true;
+            result.fix('N/A')
         }
         this.results.push(result);
         return result;
@@ -327,15 +369,7 @@ class ExceptionHandler {
      * @returns {Boolean} Whether the fix is successful
      */
     async fixSyntaxError() {
-        let result = {
-            type: 'fidelity',
-            exception: `SyntaxError`,
-            fixed: false,
-            fixedID: null,
-            fixedExcep: false,
-            fixedExcepID: Infinity,
-            skipped: true
-        }
+        let result = new FixResult('SyntaxError');
         const latestExceptions = this.exceptions[this.exceptions.length-1];
         const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError');
         if (syntaxErrorExceptions.length == 0)
@@ -351,7 +385,7 @@ class ExceptionHandler {
                 else if (decision.fixID > fix_id)
                     continue
             }
-            result.skipped = false;
+            result.unSkip();
             this.overrider.syntaxErrorOverrides = {};
             for (const [url, updatedCode] of Object.entries(updatedCodes)) {
                 this.overrider.syntaxErrorOverrides[url] = {
@@ -372,13 +406,11 @@ class ExceptionHandler {
             if (newCount >= syntaxErrorExceptions.length)
                 continue;
             logger.log("ExceptionHandler.fixSyntaxError:", "Fixed syntax exception with fix", fix_id);
-            result.fixedExcep = true;
-            result.fixedExcepID = Math.min(fix_id, result.fixedExcepID);
+            result.fixException(fix_id);
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE_${fix_id}`);
             if (fidelity.different) {
                 logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
-                result.fixed = true;
-                result.fixedID = fix_id;
+                result.fix(fix_id);
                 break;
             }
         }
@@ -443,16 +475,8 @@ class ExceptionHandler {
     async fixException(exceptions, i) {
         const exception = exceptions[i];
         const description = exception.description.split('\n')[0];
-        let result = {
-            type: 'fidelity',
-            exception: i,
-            description: exception.description,
-            fixed: false, 
-            fixedID: null, // Index of fixes what works (fixed=true)
-            fixedExcep: false,
-            fixedExcepID: Infinity,
-            skipped: true
-        }
+        let result = new FixResult(i);
+        result.addDescrption(description);
         logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 
                     'out of', exceptions.length-1, '\n  description:', description, 'uncaught', exception.uncaught);
         let targetCount = this._calcExceptionDesc([exception], exceptions, exception.uncaught);
@@ -482,7 +506,7 @@ class ExceptionHandler {
                 else if (decision.fixID > fix_id)
                     continue
             }
-            result.skipped = false;
+            result.unSkip();
             if (updatedCode === frame.source.source) {
                 logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
                 continue;
@@ -504,13 +528,11 @@ class ExceptionHandler {
             if (newCount >= targetCount)
                 continue;
             logger.log("ExceptionHandler.fixException:", "Fixed exception", i, "with fix", fix_id);
-            result.fixedExcep = true;
-            result.fixedExcepID = Math.min(fix_id, result.fixedExcepID);
+            result.fixException(fix_id);
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}_${fix_id}`);
             if (!fidelity.different)
                 continue;
-            result.fixed = true;
-            result.fixedID = fix_id;
+            result.fix(fix_id);
             logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
             break;
         }
@@ -550,6 +572,7 @@ class ExceptionHandler {
 
 
 module.exports = {
+    FixResult,
     PageRecorder,
     ExceptionHandler
 };

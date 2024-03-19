@@ -29,7 +29,9 @@ class ExceptionInfo {
     addFrame(url, scriptId, line, column) {
         this.frames.push({
             scriptId: scriptId,
-            source: null, // WIll be assigned later on collectExceptions
+            /* Will be assigned later on errorHandler.collectLoad
+            format: {source, start, end}*/
+            source: null,
             url: url,
             line: line,
             column: column,

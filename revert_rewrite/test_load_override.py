@@ -147,11 +147,11 @@ def test_run_load_override_wo_fidelity():
 
 def test_run_load_override_temp():
     urls = [
-        {
-            # ! Need to test with more detail!
-            "hostname": "www.trade.gov_1",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot-1k/20231106005746/https://www.trade.gov/buyusa"
-        },
+        # {
+        #     # ! Need to test with more detail!
+        #     "hostname": "www.trade.gov_1",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot-1k/20231106005746/https://www.trade.gov/buyusa"
+        # },
         # {
         #     # ! Takes very long to load
         #     "hostname": "booneville.ars.usda.gov_6518",
@@ -161,7 +161,12 @@ def test_run_load_override_temp():
         #     # ! Takes very long to load
         #     "hostname": "www.buyusa.gov_982",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20130309080613/http:/www.buyusa.gov/"
-        # }
+        # },
+        # * Takes long to run, should have many exceptions
+        {
+            "hostname": "kencalvert.house.gov_7647",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161208050417/https://calvert.house.gov/"
+        },
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
@@ -186,6 +191,9 @@ def test_run_load_override_with_decider():
     gap1 = time.time() - start
     subprocess.call(['mv', f'test/load_override/writes/{urls[0]["hostname"]}', f'test/load_override/writes/{urls[0]["hostname"]}_1stload'])
     print(json.dumps(results, indent=2))
+    subprocess.call(['node', 'run_fix-decider_readlogs.js', '-d', 
+                     f'../revert_rewrite/test/load_override/writes/{urls[0]["hostname"]}_1stload', 
+                     '-o', '../revert_rewrite'], cwd='../error_match')
     start = time.time()
     results = run_on_testcases(urls, decider=True)
     gap2 = time.time() - start

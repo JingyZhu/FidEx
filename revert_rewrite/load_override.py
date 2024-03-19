@@ -67,5 +67,5 @@ def count_results(strict=True):
     print(total, len(count))
     json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
-run_load_override(decider=True)
+run_load_override(decider=False)
 # count_results(strict=True)

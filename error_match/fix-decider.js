@@ -1,8 +1,22 @@
 const fs = require('fs');
+const reverter = require('../revert_rewrite/reverter');
 
 function filterArchive(url) {
-    return url.replace(/^https?:\/\/[^\/]+\/[^/]+\/[^\/]+\/(.*)$/, "$1");
+    return url.replace(/^https?:\/\/[^\/]+\/[^/]+\/[^\/]+\/(?:https?:\/?\/?)?(.*)$/, "$1");
 }
+
+function topRewrittenFrameURL(frames) {
+    for (const frame of frames) {
+        const source = frame.source.source;
+        if (!source || !reverter.isRewritten(source))
+            continue
+        const startLine = frame.source.start ? frame.source.start.line: 0;
+        const startColumn = frame.source.start ? frame.source.start.column: 0;
+       return `${filterArchive(frame.url)}:${startLine+frame.line}:${startColumn+frame.column}`;
+    }
+    return null;
+}
+
 
 /**
  * Decide if the exception is worth to fix/fixable
@@ -10,6 +24,7 @@ function filterArchive(url) {
 class FixDecider {
     constructor({path=""} = {}) {
         this.rules = {};
+        this.curLoadRules = this.rules;
         this.path = path;
     }
 
@@ -23,28 +38,50 @@ class FixDecider {
         if (!fs.existsSync(savePath))
             fs.writeFileSync(savePath, JSON.stringify({}, null, 2));
         this.rules = JSON.parse(fs.readFileSync(savePath));
+        this.curLoadRules = this.rules;
     }
 
-    _applyPolicy(exception, fidelityRecord) {
+    /**
+     * Try to collect exception's signature from 2 perspective
+     * 1. Description
+     * 2. Top frame (and location) of the file that is rewritten
+     * @param {ExceptionInfo/object} exception 
+     * @returns {Array} An array of signature
+     */
+    _collectExcepSig(exception) {
+        let sigs = [];
         const desc = exception.description.split('\n')[0];
-        if (desc in this.rules) {
-            this.rules[desc].seen += 1;
-            return
-        }
-        if (!fidelityRecord)
-            return;
-        if (fidelityRecord.fixedExcep) {
-            const fixID = fidelityRecord.fixedExcepID;
-            this.rules[desc] = {
-                couldBeFixed: true,
-                fixID: fixID,
-                seen: 1
+        sigs.push(desc);
+        if ("rewrittenFrame" in exception)
+            sigs.push(exception.rewrittenFrame);
+        else if ("frames" in exception)
+            sigs.push(topRewrittenFrameURL(exception.frames));
+        return sigs;
+    }
+
+    _applyPolicy(exception, fixRecord, thisLoad=false) {
+        let rules = thisLoad ? this.curLoadRules: this.rules;
+        const sigs = this._collectExcepSig(exception);
+        for (const sig of sigs) {
+            if (sig in rules) {
+                rules[sig].seen += 1;
+                return
             }
-        } else {
-            if (!exception.uncaught) {
-                this.rules[desc] = {
-                    couldBeFixed: false,
+            if (!fixRecord)
+                return;
+            if (fixRecord.fixedExcep) {
+                const fixID = fixRecord.fixedExcepID;
+                rules[sig] = {
+                    couldBeFixed: true,
+                    fixID: fixID,
                     seen: 1
+                }
+            } else {
+                if (!exception.uncaught) {
+                    rules[sig] = {
+                        couldBeFixed: false,
+                        seen: 1
+                    }
                 }
             }
         }
@@ -80,10 +117,24 @@ class FixDecider {
             this._applyPolicy(excep, idxFidelityRecords[excep.idx]);
         for (let i = 0; i < maxExcepNo; i++)
             this._applyPolicy(idxExceptions[i], idxFidelityRecords[i]);
+        this.curLoadRules = this.rules;
+    }
+
+    /**
+     * This is used to parse a single fix result
+     * The reason this is nececssary is because the within a single load, there could be duplicate errors
+     */
+    parseSingleFix(exception, fixRecord) {
+        this._applyPolicy(exception, fixRecord, thisLoad=true);
     }
 
     readLogs({path=this.path} = {}) {
         // List all the subdir of the given path
+        if (fs.existsSync(`${path}/results.json`)) {
+            console.log("Parse", `${path}/results.json`)
+            const log = JSON.parse(fs.readFileSync(`${path}/results.json`));
+            this.parseFixResult(log['results']);
+        }
         const dirs = fs.readdirSync(path, {withFileTypes: true})
                         .filter(dirent => dirent.isDirectory())
                         .map(dirent => dirent.name);
@@ -103,17 +154,20 @@ class FixDecider {
      * @returns {object} Info regarding if the exception is worth fixing, and if so, for which fixID
      */
     decide(exception) {
-        const description = exception.description.split('\n')[0];
-        if (description in this.rules) {
-            return this.rules[description];
-        } else 
-            return {
-                couldBeFixed: true,
-                fixID: 0
+        const sigs = this._collectExcepSig(exception);
+        for (const sig of sigs) {
+            if (sig in this.curLoadRules) {
+                return this.curLoadRules[sig];
             }
+        }
+        return {
+            couldBeFixed: true,
+            fixID: 0
+        }
     }
 }
 
 module.exports = {
+    topRewrittenFrameURL,
     FixDecider
 }
