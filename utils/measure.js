@@ -104,8 +104,19 @@ function _origURL(url){
  * @returns {object} renderTree {renderTree: [], renderHTML: string}
  */
 async function collectRenderTree(iframe, parentInfo, replay=false){
+    // Wait until document.body is ready
+    // await iframe.evaluate(async () => {
+    //     while (document.body === null)
+    //         await new Promise(resolve => setTimeout(resolve, 200));
+    // });
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
-    let renderTree = await iframe.evaluate(() => _render_tree_info);
+    let renderTree = await iframe.evaluate(async () => {
+        while (document.body === null)
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        _render_tree = _dfsVisible(document.body);
+        _serializeRenderTree();
+        return _render_tree_info;
+    });
     // * Update attributes by considering relative dimension to parent frame
     for (const i in renderTree){
         let element = renderTree[i]

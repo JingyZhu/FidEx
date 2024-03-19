@@ -59,8 +59,6 @@ function _dfsVisible(node) {
         return children;
 }
 
-_render_tree = _dfsVisible(document.body);
-
 function _normalSRC(node){
     // const _attrs = ['src', 'href', 'action'];
     // Get all attributes of the node
@@ -146,4 +144,5 @@ function _serializeRenderTree() {
     }
 }
 
-_serializeRenderTree();
+// _render_tree = _dfsVisible(document.body);
+// _serializeRenderTree();
