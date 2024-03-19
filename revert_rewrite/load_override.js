@@ -67,6 +67,7 @@ async function removeWaybackBanner(page){
         .option('-m, --manual', "Manual control for finishing loading the page")
         .option('-i, --interaction', "Interact with the page")
         .option('-b, --wayback', "Whether replay is from wayback machine")
+        .option('-o, --optimized', "Apply a fix decider for runtime optimization")
         
     program
         .argument("<url>")
@@ -106,10 +107,13 @@ async function removeWaybackBanner(page){
         const timeout = options.wayback ? 200*1000 : 60*1000;
 
         // * Step 1: Prepare recording for exceptions
+        console.log("Optimized: ", options.optimized)
         let exceptionHandler = new errorFix.ExceptionHandler(page, client, {
                                                                             dirname: dirname, 
-                                                                            manual: options.manual
+                                                                            manual: options.manual,
+                                                                            decider: options.optimized
                                                                             });
+        return;
         await exceptionHandler.prepare(url, exceptionType='all');
         
         // * Step 2: Load the page and collect exception
@@ -120,6 +124,7 @@ async function removeWaybackBanner(page){
             })
             await waitTimeout(networkIdle, timeout); 
         } catch {}
+        await sleep(1000);
         await exceptionHandler.collectLoadInfo();
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
@@ -134,6 +139,7 @@ async function removeWaybackBanner(page){
             fixedIdx: fixedIdx,
             results: exceptionHandler.results
         }
+        exceptionHandler.updateRules();
         fs.writeFileSync(`${dirname}/results.json`, JSON.stringify(result, null, 2));
         fs.writeFileSync(`${dirname}/log.json`, JSON.stringify(exceptionHandler.log, null, 2));
 

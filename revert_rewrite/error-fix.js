@@ -5,6 +5,7 @@ const eventSync = require('../utils/event_sync');
 const reverter = require('./reverter');
 const { ErrorInspector, ExceptionInfo } = require('./error-inspector');
 const { Overrider } = require('./overrider');
+const { FixDecider } = require('../error_match/fix-decider');
 
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
@@ -88,7 +89,7 @@ class PageRecorder {
 }
 
 class ExceptionHandler {
-    constructor(page, client, { dirname='.', timeout=30, manual=false }={}){
+    constructor(page, client, { dirname='.', timeout=30, manual=false, decider=false }={}){
         this.page = page;
         this.client = client;
         this.inspector = new ErrorInspector(client);
@@ -100,6 +101,11 @@ class ExceptionHandler {
         this.exceptions = [];
         this.results = [];
         this.log = [];
+        console.log("Decider", decider);
+        if (decider) {
+            this.decider = new FixDecider();
+            this.decider.loadRules();
+        }
     }
     
     /**
@@ -145,17 +151,17 @@ class ExceptionHandler {
             type: 'exceptions',
             exceptions: []
         }
-        for (const exception of this.exceptions[this.exceptions.length-1])
+        let idx = 0;
+        for (const exception of this.exceptions[this.exceptions.length-1]) {
             exceptionsInfo.exceptions.push({
                 type: exception.type,
                 uncaught: exception.uncaught,
                 description: exception.description,
+                idx: exception.type == 'SyntaxError' ? -1 : idx++,
                 url: exception.frames[0].url
             })
-        this.results.push({
-            type: 'exceptions',
-            exceptions: exceptionsInfo
-        })
+        }
+        this.results.push(exceptionsInfo);
         // Collect network response
         await this.inspector.collectResponseBody();
         for (const [url, response] of Object.entries(this.inspector.responses)){
@@ -230,9 +236,11 @@ class ExceptionHandler {
      */
     async fixNetwork() {
         let result = {
+            type: 'fidelity',
+            exception: `Network404`,
             fixed: false,
             fixedExcep: false,
-            reloaded: false
+            reloaded: false,
         }
         let revert = new reverter.Reverter("");
         let promises = [];
@@ -264,11 +272,7 @@ class ExceptionHandler {
             logger.log("ExceptionHandler.fixNetwork:", "Fixed fidelity issue");
             result.fixed = true;
         }
-        this.results.push({
-            type: 'fidelity',
-            exception: 'Network404',
-            fidelity: fidelity.different
-        })
+        this.results.push(result);
         return result;
     }
 
@@ -324,11 +328,14 @@ class ExceptionHandler {
      */
     async fixSyntaxError() {
         let result = {
+            type: 'fidelity',
+            exception: `SyntaxError`,
             fixed: false,
+            fixedID: null,
             fixedExcep: false,
-            fixedID: null
+            fixedExcepID: Infinity,
+            skipped: true
         }
-
         const latestExceptions = this.exceptions[this.exceptions.length-1];
         const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError');
         if (syntaxErrorExceptions.length == 0)
@@ -337,6 +344,14 @@ class ExceptionHandler {
         let fix_id = -1;
         for await (const updatedCodes of this._findSyntaxReverts(syntaxErrorExceptions)) {
             fix_id += 1
+            if (this.decider) {
+                const decision = this.decider.decide(syntaxErrorExceptions[0]);
+                if (!decision.couldBeFixed)
+                    continue;
+                else if (decision.fixID > fix_id)
+                    continue
+            }
+            result.skipped = false;
             this.overrider.syntaxErrorOverrides = {};
             for (const [url, updatedCode] of Object.entries(updatedCodes)) {
                 this.overrider.syntaxErrorOverrides[url] = {
@@ -358,20 +373,16 @@ class ExceptionHandler {
                 continue;
             logger.log("ExceptionHandler.fixSyntaxError:", "Fixed syntax exception with fix", fix_id);
             result.fixedExcep = true;
+            result.fixedExcepID = Math.min(fix_id, result.fixedExcepID);
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE_${fix_id}`);
-            this.results.push({
-                type: 'fidelity',
-                exception: `SyntaxError`,
-                fidelity: fidelity.different,
-                fixID: fix_id
-            })
             if (fidelity.different) {
                 logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
                 result.fixed = true;
                 result.fixedID = fix_id;
-                return result;
+                break;
             }
         }
+        this.results.push(result);
         return result;
     }
 
@@ -430,13 +441,18 @@ class ExceptionHandler {
      * @returns 
      */
     async fixException(exceptions, i) {
-        let result = {
-            fixed: false, 
-            fixedExcep: false,
-            fixedID: null // Index of fixes what works (fixed=true)
-        }
         const exception = exceptions[i];
         const description = exception.description.split('\n')[0];
+        let result = {
+            type: 'fidelity',
+            exception: i,
+            description: exception.description,
+            fixed: false, 
+            fixedID: null, // Index of fixes what works (fixed=true)
+            fixedExcep: false,
+            fixedExcepID: Infinity,
+            skipped: true
+        }
         logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 
                     'out of', exceptions.length-1, '\n  description:', description, 'uncaught', exception.uncaught);
         let targetCount = this._calcExceptionDesc([exception], exceptions, exception.uncaught);
@@ -459,6 +475,14 @@ class ExceptionHandler {
         let fix_id = -1;
         for (const updatedCode of this._findExceptionReverts(frame.source.source, frame, exception)) {
             fix_id += 1;
+            if (this.decider) {
+                const decision = this.decider.decide(exception);
+                if (!decision.couldBeFixed)
+                    continue;
+                else if (decision.fixID > fix_id)
+                    continue
+            }
+            result.skipped = false;
             if (updatedCode === frame.source.source) {
                 logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
                 continue;
@@ -481,22 +505,16 @@ class ExceptionHandler {
                 continue;
             logger.log("ExceptionHandler.fixException:", "Fixed exception", i, "with fix", fix_id);
             result.fixedExcep = true;
-
+            result.fixedExcepID = Math.min(fix_id, result.fixedExcepID);
             const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}_${fix_id}`);
-            this.results.push({
-                type: 'fidelity_check',
-                exception: i,
-                description: description,
-                fixedID: fix_id,
-                fidelity: fidelity.different
-            })
             if (!fidelity.different)
                 continue;
             result.fixed = true;
             result.fixedID = fix_id;
             logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
-            return result;
+            break;
         }
+        this.results.push(result);
         return result;
     }
 
@@ -520,6 +538,12 @@ class ExceptionHandler {
                 return `${i}_${excepFix.fixedID}`;
         }
         return -1;
+    }
+
+    updateRules({ save=true, path=null }={}) {
+        this.decider.parseFixResult(this.results);
+        if (save)
+            this.decider.saveRules({path: path});
     }
 
 }

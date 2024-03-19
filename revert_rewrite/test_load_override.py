@@ -1,11 +1,12 @@
 import subprocess
 import os
 import json
+import time
 
 def check_result(dirr):
     result = {"hostname": dirr.split('/')[-1]}
     if os.path.exists(f'{dirr}/results.json'):
-        log = json.load(open(f'{dirr}/result_log.json', 'r'))
+        log = json.load(open(f'{dirr}/results.json', 'r'))
         result['fixedIdx'] = log['fixedIdx']
         if log['fixedIdx'] == -1:
             return result
@@ -20,7 +21,7 @@ def check_result(dirr):
         result['fixedIdx'] = "No result log"
     return result
 
-def run_on_testcases(urls):
+def run_on_testcases(urls, decider=False):
     results = []
     for i, datum in enumerate(urls):
         hostname, archive_url = datum['hostname'], datum['archive_url']
@@ -31,8 +32,10 @@ def run_on_testcases(urls):
         except:
             pass
         try:
-            process = subprocess.Popen(['node', 'load_override.js', '-d', 
-                                        f'test/load_override/writes/{hostname}', archive_url], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            args = ['node', 'load_override.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
+            if decider:
+                args.append('-o')
+            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             output = ''
             for line in iter(process.stdout.readline, b''):
                 line = line.decode()
@@ -133,10 +136,10 @@ def test_run_load_override_wo_fidelity():
             "hostname": "myssaisanfrancisco.usajobs.gov"
         },
         # * This could take long if run correctly
-        {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129125821/http:/azsos.gov/",
-            "hostname": "azsos.gov",
-        },
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129125821/http:/azsos.gov/",
+        #     "hostname": "azsos.gov",
+        # },
 
     ]
     results = run_on_testcases(urls)
@@ -163,4 +166,30 @@ def test_run_load_override_temp():
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
-test_run_load_override_temp()
+
+def test_run_load_override_with_decider():
+    try:
+        subprocess.call(['rm', '.fix_decider_rules.json'])
+    except: pass
+    urls = [
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20170127192016/http:/admin.sc.gov/",
+        #     "hostname": "admin.sc.gov",
+        # },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118014857/https://txsll.libraryreserve.com/10/1334/en/SignIn.htm?url=Default.htm",
+            "hostname": "overdrive.sll.texas.gov",
+        },
+    ]
+    start = time.time()
+    results = run_on_testcases(urls, decider=False)
+    gap1 = time.time() - start
+    subprocess.call(['mv', f'test/load_override/writes/{urls[0]["hostname"]}', f'test/load_override/writes/{urls[0]["hostname"]}_1stload'])
+    print(json.dumps(results, indent=2))
+    start = time.time()
+    results = run_on_testcases(urls, decider=True)
+    gap2 = time.time() - start
+    print(json.dumps(results, indent=2))
+    print("Gap 1:", gap1, "Gap 2:", gap2)
+
+test_run_load_override_with_decider()
