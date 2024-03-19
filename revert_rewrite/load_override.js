@@ -113,7 +113,6 @@ async function removeWaybackBanner(page){
                                                                             manual: options.manual,
                                                                             decider: options.optimized
                                                                             });
-        return;
         await exceptionHandler.prepare(url, exceptionType='all');
         
         // * Step 2: Load the page and collect exception
@@ -139,7 +138,8 @@ async function removeWaybackBanner(page){
             fixedIdx: fixedIdx,
             results: exceptionHandler.results
         }
-        exceptionHandler.updateRules();
+        if (options.optimized)
+            exceptionHandler.updateRules();
         fs.writeFileSync(`${dirname}/results.json`, JSON.stringify(result, null, 2));
         fs.writeFileSync(`${dirname}/log.json`, JSON.stringify(exceptionHandler.log, null, 2));
 
