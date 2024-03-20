@@ -6,6 +6,11 @@ function filterArchive(url) {
 }
 
 function topRewrittenFrameURL(frames) {
+    // * This is Syntax Error with no source. No need to check isRewritten
+    if (frames.length == 1 && frames[0].source == null) {
+        const frame = frames[0];
+        return `${filterArchive(frame.url)}:${frame.line}:${frame.column}`;
+    }
     for (const frame of frames) {
         const source = frame.source.source;
         if (!source || !reverter.isRewritten(source))
@@ -54,8 +59,11 @@ class FixDecider {
         sigs.push(desc);
         if ("rewrittenFrame" in exception)
             sigs.push(exception.rewrittenFrame);
-        else if ("frames" in exception)
-            sigs.push(topRewrittenFrameURL(exception.frames));
+        else if ("frames" in exception) {
+            const rewrittenFrame = topRewrittenFrameURL(exception.frames);
+            if (rewrittenFrame)
+                sigs.push(rewrittenFrame);
+        }
         return sigs;
     }
 

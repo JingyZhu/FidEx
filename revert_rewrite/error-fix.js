@@ -127,8 +127,8 @@ class PageRecorder {
             });
         });
         data = JSON.parse(data.toString());
-        console.log("Fidelity Check", data.left_writes, data.right_writes);
-        data.has_issue = data.has_issue && (data.left_writes <= data.right_writes)
+        logger.verbose("PageRecoder.fidelityCheck:", left, data.left_writes, right, data.right_writes);
+        data.different = data.different && (data.left_writes <= data.right_writes)
         return data;
     }
 }
@@ -145,7 +145,6 @@ class ExceptionHandler {
         this.exceptions = [];
         this.results = [];
         this.log = [];
-        console.log("Decider", decider);
         if (decider) {
             this.decider = new FixDecider();
             this.decider.loadRules();
@@ -204,8 +203,10 @@ class ExceptionHandler {
                 description: exception.description,
                 idx: exception.type == 'SyntaxError' ? -1 : idx++,
                 url: exception.frames[0].url,
-                rewrittenFrame: topRewrittenFrameURL(exception.frames),
             })
+            const rewrittenFrame = topRewrittenFrameURL(exception.frames);
+            if (rewrittenFrame !== null)
+                exceptionsInfo.exceptions[exceptionsInfo.exceptions.length-1].rewrittenFrame = rewrittenFrame;
         }
         this.results.push(exceptionsInfo);
         // Collect network response
