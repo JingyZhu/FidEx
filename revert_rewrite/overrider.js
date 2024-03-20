@@ -23,19 +23,22 @@ class OverrideInfo {
 }
 
 class Overrider {
-    constructor(client, hostname){
+    constructor(client, {wayback=false} = {}){
         this.client = client;
-        this.syntaxErrorOverrides = {}
-        this.networkOverrides = {}
-        this.seenResponses = {}
-        this.httpsAgent = new https.Agent({
-            keepAlive: true, // Enable connection pooling
-            maxSockets: 10,  // Maximum number of sockets to allow per host
-          });
+        this.syntaxErrorOverrides = {};
+        this.networkOverrides = {};
+        this.seenResponses = {};
 
-        if (!fs.existsSync('/tmp/.wayback_cache.json'))
-            fs.writeFileSync('/tmp/.wayback_cache.json', JSON.stringify({}));
-        this.waybackCache = JSON.parse(fs.readFileSync('/tmp/.wayback_cache.json'));
+        this.wayback = wayback;
+        if (wayback) {
+            this.httpsAgent = new https.Agent({
+                keepAlive: true, // Enable connection pooling
+                maxSockets: 10,  // Maximum number of sockets to allow per host
+            });
+            if (!fs.existsSync('/tmp/.wayback_cache.json'))
+                fs.writeFileSync('/tmp/.wayback_cache.json', JSON.stringify({}));
+            this.waybackCache = JSON.parse(fs.readFileSync('/tmp/.wayback_cache.json'));
+        }
     }
 
     replaceContentType(url, headers) {
@@ -125,7 +128,6 @@ class Overrider {
 
     async nonOverrideHandler(params) {
         let url = params.request.url;
-        console.log("NonOverride", url);
         if (url in this.seenResponses) {
             await this.client.send('Fetch.continueRequest', {
                 requestId: params.requestId
@@ -192,20 +194,23 @@ class Overrider {
             overrideMapping[url] = resource;
         for (const [url, resource] of Object.entries(mapping))
             overrideMapping[url] = resource;
-        urlPatterns.push({
-            urlPattern: '*',
-            resourceType: '',
-            requestStage: 'Request'
-        })
-        // for (const url in totalMapping){
-        //     const resourceType = '';
-        //     const requestStage = 'Request';
-        //     urlPatterns.push({
-        //         urlPattern: url,
-        //         resourceType: resourceType,
-        //         requestStage: requestStage
-        //     });
-        // }
+        if (this.wayback) {
+            urlPatterns.push({
+                urlPattern: '*',
+                resourceType: '',
+                requestStage: 'Request'
+            })
+        } else {
+            for (const url in overrideMapping){
+                const resourceType = '';
+                const requestStage = 'Request';
+                urlPatterns.push({
+                    urlPattern: url,
+                    resourceType: resourceType,
+                    requestStage: requestStage
+                });
+            }
+        }
         await this.client.send('Fetch.enable', {
             patterns: urlPatterns
         });

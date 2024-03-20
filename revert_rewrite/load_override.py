@@ -46,6 +46,16 @@ def run_load_override(decider=False):
 def count_results(strict=True):
     count = []
     total = 0
+    def decide(initial_elements, initial_writes, final_writes, final_elements):
+        """
+        1. More writes
+        2. Same writes no missing elements
+        """
+        if len(initial_writes["rawWrites"]) < len(final_writes["rawWrites"]):
+            return True
+        elif len(initial_writes["rawWrites"]) == len(final_writes["rawWrites"]):
+            return len(initial_elements) <= len(final_elements)
+        return False
     for datum in data:
         hostname = datum['hostname']
         if os.path.exists(f'{write_dir}/{hostname}/results.json'):
@@ -59,8 +69,10 @@ def count_results(strict=True):
             else:
                 idx = result['fixedIdx']
                 initial_writes = json.load(open(f'{write_dir}/{hostname}/initial_writes.json', 'r'))
+                initial_elements = json.load(open(f'{write_dir}/{hostname}/initial_elements.json', 'r'))
                 final_writes = json.load(open(f'{write_dir}/{hostname}/exception_{idx}_writes.json', 'r'))
-                if len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"]):
+                final_elements = json.load(open(f'{write_dir}/{hostname}/exception_{idx}_elements.json', 'r'))
+                if decide(initial_elements, initial_writes, final_writes, final_elements):
                     count.append(hostname)
         else:
             print(hostname, 'No result log')

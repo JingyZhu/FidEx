@@ -121,7 +121,7 @@ def test_run_load_override_network_wayback():
             "hostname": "plus.google.com_8518"
         }
     ]
-    results = run_on_testcases(urls, manual=True)
+    results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
 

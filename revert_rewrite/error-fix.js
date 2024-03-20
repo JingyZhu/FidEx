@@ -444,7 +444,7 @@ class ExceptionHandler {
             startLoc: startLoc,
             updated: updatedCode
         })
-        // yield updatedCode;
+        yield updatedCode;
 
         try {
             revert = new reverter.Reverter(source);
@@ -458,7 +458,7 @@ class ExceptionHandler {
             startLoc: startLoc,
             updated: updatedCode
         })
-        // yield updatedCode;
+        yield updatedCode;
         
         if (!exception.uncaught)
             return;
@@ -558,9 +558,9 @@ class ExceptionHandler {
             return "NW";
         if (networkFix.reloaded)
             await this.collectLoadInfo(false);
-        // const syntaxFix = await this.fixSyntaxError();
-        // if (syntaxFix.fixed)
-        //     return `SE_${syntaxFix.fixedID}`;
+        const syntaxFix = await this.fixSyntaxError();
+        if (syntaxFix.fixed)
+            return `SE_${syntaxFix.fixedID}`;
         const latestExceptions = this.exceptions[this.exceptions.length-1].filter(excep => excep.type != 'SyntaxError');
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);

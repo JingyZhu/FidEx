@@ -8,8 +8,6 @@ const { program } = require('commander');
 const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
 const errorFix = require('./error-fix');
-const execution = require('../utils/execution');
-const { loadToChromeCTXWithUtils } = require('../utils/load');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -38,7 +36,7 @@ async function startChrome(){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: false,
+        headless: 'new',
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
