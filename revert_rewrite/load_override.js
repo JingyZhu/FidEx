@@ -146,8 +146,6 @@ async function removeWaybackBanner(page){
         // * Step 4: Wait for the page to be loaded
         if (options.manual)
             await eventSync.waitForReady();
-        else
-            await sleep(500);
         
     } catch (err) {
         console.error(err);

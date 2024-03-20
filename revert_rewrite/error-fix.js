@@ -83,8 +83,8 @@ class PageRecorder {
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectNaiveInfo(this.page, dirname, filename);
-            await sleep(500);
+            // await measure.collectNaiveInfo(this.page, dirname, filename);
+            // await sleep(500);
         }  catch(e) {
             logger.warn("PageRecorder.record:", "Error in collecting render tree", e);
         }
@@ -137,7 +137,6 @@ class ExceptionHandler {
     constructor(page, client, { dirname='.', timeout=30, manual=false, decider=false }={}){
         this.page = page;
         this.client = client;
-        this.inspector = new ErrorInspector(client);
         this.overrider = new Overrider(client);
         this.recorder = new PageRecorder(page, client);
         this.dirname = dirname;
@@ -151,6 +150,7 @@ class ExceptionHandler {
             this.decider = new FixDecider();
             this.decider.loadRules();
         }
+        this.inspector = new ErrorInspector(client, {decider: this.decider});
     }
     
     /**
@@ -414,6 +414,10 @@ class ExceptionHandler {
                 break;
             }
         }
+        if (this.decider) {
+            for (const exception of syntaxErrorExceptions)
+                this.decider.parseSingleFix(exception, result);
+        }
         this.results.push(result);
         return result;
     }
@@ -536,6 +540,8 @@ class ExceptionHandler {
             logger.log("ExceptionHandler.fixException:", "Fixed fidelity issue");
             break;
         }
+        if (this.decider)
+            this.decider.parseSingleFix(exception, result);
         this.results.push(result);
         return result;
     }

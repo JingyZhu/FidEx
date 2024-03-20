@@ -178,13 +178,9 @@ def test_run_load_override_with_decider():
     except: pass
     urls = [
         # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20170127192016/http:/admin.sc.gov/",
-        #     "hostname": "admin.sc.gov",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118014857/https://txsll.libraryreserve.com/10/1334/en/SignIn.htm?url=Default.htm",
+        #     "hostname": "overdrive.sll.texas.gov",
         # },
-        {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118014857/https://txsll.libraryreserve.com/10/1334/en/SignIn.htm?url=Default.htm",
-            "hostname": "overdrive.sll.texas.gov",
-        },
     ]
     start = time.time()
     results = run_on_testcases(urls, decider=False)
@@ -200,4 +196,23 @@ def test_run_load_override_with_decider():
     print(json.dumps(results, indent=2))
     print("Gap 1:", gap1, "Gap 2:", gap2)
 
-test_run_load_override_with_decider()
+
+def test_run_load_override_with_decider_onfly():
+    try:
+        subprocess.call(['rm', '.fix_decider_rules.json'])
+    except: pass
+    urls = [
+        # * This example has many exceptions
+        # * Used to test the decider's ability on the fly
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161208050417/https://calvert.house.gov/",
+            "hostname": "kencalvert.house.gov_7647",
+        },
+    ]
+    start = time.time()
+    results = run_on_testcases(urls, decider=True)
+    gap = time.time() - start
+    print(json.dumps(results, indent=2))
+    print("Gap:", gap)
+
+test_run_load_override_with_decider_onfly()

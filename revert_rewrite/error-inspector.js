@@ -1,5 +1,6 @@
 const { logger } = require('../utils/logger');
 const reverter = require('./reverter');
+const { filterArchive } = require('../error_match/fix-decider');
 
 function skipJS(url) {
     const skipKeywords = [
@@ -63,7 +64,7 @@ class ErrorInspector {
      * 
      * @param {Object} client created from page.target().createCDPSession() 
      */
-    constructor(client){
+    constructor(client, { decider=null} = null){
         this.client = client;
         this.scriptInfo = {};
         this.resources = {};
@@ -73,6 +74,8 @@ class ErrorInspector {
 
         this._requestURL = {};
         this.responses = {}; // {url: {status, headers, body}}
+    
+        this.decider = decider;
     }
 
     /**
@@ -137,6 +140,7 @@ class ErrorInspector {
             return;
         const firstLine = description != "" ? description.split('\n')[0] : "";
         logger.log("ErrorInspector._recordException:", "Detected exception", firstLine);
+        let decision = {couldBeFixed: true}
         for (const frame of callFrames){
             const {location, scopeChain} = frame;
             let seenVars = new Set();
@@ -150,6 +154,20 @@ class ErrorInspector {
             info.addFrame(url, location.scriptId, location.lineNumber-startLine, location.columnNumber);
             if (!this.recordVar)
                 continue;
+
+            // * Decide early if is necessary to look at the exceptions
+            if (this.decider) {
+                // Deepcopy info
+                let infoCopy = JSON.parse(JSON.stringify(info));
+                infoCopy.rewrittenFrame = `${filterArchive(url)}:${location.lineNumber}:${location.columnNumber}`;
+                decision = this.decider.decide(infoCopy);
+                if (!decision.couldBeFixed) {
+                    logger.verbose("ErrorInspector._recordException:", "Decider decided not to look at the exception",
+                                    url, `{line: ${location.lineNumber}, column: ${location.columnNumber}}`);
+                    break;
+                }
+            }
+
             for (const scope of scopeChain) {
                 // * Potential trailing handlers
                 if (!this.recordVar)
@@ -166,14 +184,15 @@ class ErrorInspector {
                     seenVars.add(varProp.name);
                 }
             }
-            const source = this.scriptInfo[location.scriptId].source;
+            let source = this.scriptInfo[location.scriptId].source;
             if (source && reverter.isRewritten(source)) {
                 logger.verbose("ErrorInspector._recordException:", "Found first script rewriten on stack",
                                 url, `{line: ${location.lineNumber}, column: ${location.columnNumber}}`);
                 break;
             }
         }
-        this.exceptions.push(info);
+        if (decision.couldBeFixed)
+            this.exceptions.push(info);
         this._seenExceptions.add(description);
     }
     /**

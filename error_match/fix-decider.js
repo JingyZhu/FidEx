@@ -2,7 +2,7 @@ const fs = require('fs');
 const reverter = require('../revert_rewrite/reverter');
 
 function filterArchive(url) {
-    return url.replace(/^https?:\/\/[^\/]+\/[^/]+\/[^\/]+\/(?:https?:\/?\/?)?(.*)$/, "$1");
+    return url.replace(/^https?:\/\/[^\/]+\/[^/]+\/[^\/]+\/(?:https?:\/{0,2})?(?:\/{0,2})?(.*)$/, "$1");
 }
 
 function topRewrittenFrameURL(frames) {
@@ -125,7 +125,7 @@ class FixDecider {
      * The reason this is nececssary is because the within a single load, there could be duplicate errors
      */
     parseSingleFix(exception, fixRecord) {
-        this._applyPolicy(exception, fixRecord, thisLoad=true);
+        this._applyPolicy(exception, fixRecord, true);
     }
 
     readLogs({path=this.path} = {}) {
@@ -168,6 +168,7 @@ class FixDecider {
 }
 
 module.exports = {
+    filterArchive,
     topRewrittenFrameURL,
     FixDecider
 }
