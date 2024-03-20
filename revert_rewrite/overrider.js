@@ -1,5 +1,7 @@
 const mime = require('mime');
 const fetch = require('node-fetch');
+const fs = require('fs');
+const https = require('https');
 
 const reverter = require('./reverter');
 const { logger } = require('../utils/logger');
@@ -26,6 +28,14 @@ class Overrider {
         this.syntaxErrorOverrides = {}
         this.networkOverrides = {}
         this.seenResponses = {}
+        this.httpsAgent = new https.Agent({
+            keepAlive: true, // Enable connection pooling
+            maxSockets: 10,  // Maximum number of sockets to allow per host
+          });
+
+        if (!fs.existsSync('/tmp/.wayback_cache.json'))
+            fs.writeFileSync('/tmp/.wayback_cache.json', JSON.stringify({}));
+        this.waybackCache = JSON.parse(fs.readFileSync('/tmp/.wayback_cache.json'));
     }
 
     replaceContentType(url, headers) {
@@ -55,7 +65,7 @@ class Overrider {
         let headers = []
         for (const [key, value] of response.headers)
             headers.push({name: key, value: value})
-        headers = this.addContentType(url, headers);
+        headers = this.replaceContentType(url, headers);
         const body = await response.buffer();
         return {
             statusCode: response.status,
@@ -64,6 +74,105 @@ class Overrider {
         }
     }
 
+    /**
+     * Fetch from Wayback
+     * @returns {Object/null} response if fetch is successful, otherwise null
+     */
+    async fetchFromWayback(request) {
+        const url = request.url;
+        if (url in this.waybackCache) {
+            return this.waybackCache[url];
+        }
+        // Replace the https?://{hostname}/{coll}/ with http://web.archive.org/web/
+        const waybackUrl = url.replace(/https?:\/\/[^/]+\/[^/]+\//, 'https://web.archive.org/web/');
+        logger.verbose("Overrider.fetchFromWayback:", "Fetching", waybackUrl);
+        let retry = 0
+        while (retry < 3) {
+            let response = null;
+            try {
+                response = await fetch(waybackUrl, {
+                    agent: this.httpsAgent,
+                    method: request.method, 
+                    headers: request.headers
+                });
+                if (response.status === 429) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    retry++;
+                    continue;
+                }
+            } catch (e) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                retry++;
+                continue;
+            }
+            let headers = []
+            for (const [key, value] of response.headers)
+                headers.push({name: key, value: value})
+            const body = await response.buffer();
+            this.waybackCache[url] = {
+                statusCode: response.status,
+                headers: headers,
+                body: {body: body.toString('base64'), base64Encoded: true}
+            }
+            // Async flush waybackCache
+            fs.writeFile('/tmp/.wayback_cache.json', JSON.stringify(this.waybackCache), () => {});
+            return this.waybackCache[url];
+        }
+        return null 
+    }
+
+
+    async nonOverrideHandler(params) {
+        let url = params.request.url;
+        console.log("NonOverride", url);
+        if (url in this.seenResponses) {
+            await this.client.send('Fetch.continueRequest', {
+                requestId: params.requestId
+            });
+        } else {
+            // Fetch from Wayback
+            const response = await this.fetchFromWayback(params.request);
+            if (response === null) {
+                await this.client.send('Fetch.continueRequest', {
+                    requestId: params.requestId
+                });
+            } else {
+                await this.client.send('Fetch.fulfillRequest', {
+                    requestId: params.requestId,
+                    responseCode: response.statusCode,
+                    responseHeaders: response.headers,
+                    body: response.body.body
+                });
+            }
+        }
+    }
+
+    async overriderHandler(params, override) {
+        const url = params.request.url;
+        let resource = override.source;
+        if (override.start && override.end) {
+            const { body, base64Encoded } = this.seenResponses[url].body;
+            let original = base64Encoded ? Buffer.from(body, 'base64').toString() : body;
+            // * Replace original's start to end with resource
+            const startIdx = reverter.loc2idx(original, override.start);
+            const endIdx = reverter.loc2idx(original, override.end);
+            resource = original.slice(0, startIdx) + resource + original.slice(endIdx);
+        }
+        let responseHeaders = params.responseHeaders ? params.responseHeaders : [];
+        responseHeaders = this.replaceContentType(url, responseHeaders);
+        try{
+            // TODO: For responseHeaders, if the content-type doesn't exist, need to add the content-type for restrict MIME
+            await this.client.send('Fetch.fulfillRequest', {
+                requestId: params.requestId,
+                responseCode: 200,
+                responseHeaders: responseHeaders,
+                body: override.plainText ? Buffer.from(resource).toString('base64') : resource
+            });
+            logger.verbose("Overrider.overrideResources:", "Sent Fetch.fulfillRequest", params.request.url);
+        } catch (e) {
+            logger.warn("Error: sending Fetch.fulfillRequest", e);
+        }
+    }
 
     /**
      * @param {Object} mapping 
@@ -74,56 +183,39 @@ class Overrider {
      * }}
      */
     async overrideResources(mapping){
-        let totalMapping = {};
+        let overrideMapping = {};
         let urlPatterns = [];
         for (const [url, resource] of Object.entries(this.syntaxErrorOverrides))
-            totalMapping[url] = resource;
+            overrideMapping[url] = resource;
         for (const [url, resource] of Object.entries(this.networkOverrides))
-            totalMapping[url] = resource;
+            overrideMapping[url] = resource;
         for (const [url, resource] of Object.entries(mapping))
-            totalMapping[url] = resource;
-        for (const url in totalMapping){
-            const resourceType = '';
-            const requestStage = 'Request';
-            urlPatterns.push({
-                urlPattern: url,
-                resourceType: resourceType,
-                requestStage: requestStage
-            });
-        }
+            overrideMapping[url] = resource;
+        urlPatterns.push({
+            urlPattern: '*',
+            resourceType: '',
+            requestStage: 'Request'
+        })
+        // for (const url in totalMapping){
+        //     const resourceType = '';
+        //     const requestStage = 'Request';
+        //     urlPatterns.push({
+        //         urlPattern: url,
+        //         resourceType: resourceType,
+        //         requestStage: requestStage
+        //     });
+        // }
         await this.client.send('Fetch.enable', {
             patterns: urlPatterns
         });
-        logger.log("Overrider.overrideResources:", "Overriding", urlPatterns);
+        logger.log("Overrider.overrideResources:", "Overriding", Object.keys(overrideMapping));
 
         this.client.on('Fetch.requestPaused', async (params) => {
             const url = params.request.url;
-            if (!(url in this.seenResponses)) {
-                this.seenResponses[url] = await this.fetch(params.request);
-            }
-            let resource = totalMapping[url].source;
-            if (totalMapping[url].start && totalMapping[url].end) {
-                const { body, base64Encoded } = this.seenResponses[url].body;
-                let original = base64Encoded ? Buffer.from(body, 'base64').toString() : body;
-                // * Replace original's start to end with resource
-                const startIdx = reverter.loc2idx(original, totalMapping[url].start);
-                const endIdx = reverter.loc2idx(original, totalMapping[url].end);
-                resource = original.slice(0, startIdx) + resource + original.slice(endIdx);
-            }
-            let responseHeaders = params.responseHeaders ? params.responseHeaders : [];
-            responseHeaders = this.replaceContentType(url, responseHeaders);
-            try{
-                // TODO: For responseHeaders, if the content-type doesn't exist, need to add the content-type for restrict MIME
-                await this.client.send('Fetch.fulfillRequest', {
-                    requestId: params.requestId,
-                    responseCode: 200,
-                    responseHeaders: responseHeaders,
-                    body: totalMapping[url].plainText ? Buffer.from(resource).toString('base64') : resource
-                });
-                logger.verbose("Overrider.overrideResources:", "Sent Fetch.fulfillRequest", params.request.url);
-            } catch (e) {
-                logger.warn("Error: sending Fetch.fulfillRequest", e);
-            }
+            if (!(url in overrideMapping))
+                await this.nonOverrideHandler(params);
+            else
+                await this.overriderHandler(params, overrideMapping[url]);
         });
     }
 

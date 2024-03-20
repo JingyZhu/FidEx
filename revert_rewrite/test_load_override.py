@@ -21,7 +21,7 @@ def check_result(dirr):
         result['fixedIdx'] = "No result log"
     return result
 
-def run_on_testcases(urls, decider=False):
+def run_on_testcases(urls, decider=False, manual=False):
     results = []
     for i, datum in enumerate(urls):
         hostname, archive_url = datum['hostname'], datum['archive_url']
@@ -35,6 +35,8 @@ def run_on_testcases(urls, decider=False):
             args = ['node', 'load_override.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
             if decider:
                 args.append('-o')
+            if manual:
+                args.append('-m')
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             output = ''
             for line in iter(process.stdout.readline, b''):
@@ -112,6 +114,16 @@ def test_run_load_override_network():
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
+def test_run_load_override_network_wayback():
+    urls = [
+        {   
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161221210058/http:/plus.google.com/101548568475678729022/videos",
+            "hostname": "plus.google.com_8518"
+        }
+    ]
+    results = run_on_testcases(urls, manual=True)
+    print(json.dumps(results, indent=2))
+
 
 def test_run_load_override_wo_fidelity():
     urls = [
@@ -164,8 +176,8 @@ def test_run_load_override_temp():
         # },
         # * Takes long to run, should have many exceptions
         {
-            "hostname": "kencalvert.house.gov_7647",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161208050417/https://calvert.house.gov/"
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023725/http:/myssaisanfrancisco.usajobs.gov/search/",
+            "hostname": "myssaisanfrancisco.usajobs.gov"
         },
     ]
     results = run_on_testcases(urls)
@@ -215,4 +227,4 @@ def test_run_load_override_with_decider_onfly():
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
 
-test_run_load_override_with_decider_onfly()
+test_run_load_override_network_wayback()
