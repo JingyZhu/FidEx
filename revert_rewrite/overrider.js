@@ -23,7 +23,7 @@ class OverrideInfo {
 }
 
 class Overrider {
-    constructor(client){
+    constructor(client, hostname){
         this.client = client;
         this.syntaxErrorOverrides = {}
         this.networkOverrides = {}
@@ -79,10 +79,11 @@ class Overrider {
      * @returns {Object/null} response if fetch is successful, otherwise null
      */
     async fetchFromWayback(request) {
-        const url = request.url;
+        let url = request.url;
         if (url in this.waybackCache) {
             return this.waybackCache[url];
         }
+        url = reverter.addHostname(url, this.hostname);
         // Replace the https?://{hostname}/{coll}/ with http://web.archive.org/web/
         const waybackUrl = url.replace(/https?:\/\/[^/]+\/[^/]+\//, 'https://web.archive.org/web/');
         logger.verbose("Overrider.fetchFromWayback:", "Fetching", waybackUrl);

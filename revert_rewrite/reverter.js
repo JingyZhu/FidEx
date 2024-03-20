@@ -48,6 +48,27 @@ function loc2idx(code, loc, one_indexed=true) {
     return idx;
 }
 
+function addHostname(url, hostname) {
+    let urlObj = new URL(url);
+    // Collect path from the third slash
+    const pathParts = urlObj.pathname.split('/');
+    if (pathParts.length < 3) 
+        return url;
+    let origURL = pathParts.slice(3).join('/');
+    // Remove the starting http(s):/ or http(s)://
+    origURL = origURL.replace(/^(https?:\/\/?)/, '');
+    if (!origURL.startsWith('/')) 
+        return url;
+    // Collect origURL from the first non-slash
+    let idx = 0;
+    while (origURL[idx] === '/') 
+        idx++;
+    origURL = origURL.slice(idx);
+    origURL = `http://${hostname}/${origURL}`;
+    urlObj.pathname = `${pathParts.slice(0, 3).join('/')}/${origURL}`;
+    return urlObj.toString();
+}
+
 class Reverter {
     constructor(code, { parse=true }={}) {
         this.code = code;
@@ -270,33 +291,13 @@ class Reverter {
         return await res.text();
     }
 
-    _addHostname(url, hostname) {
-        let urlObj = new URL(url);
-        // Collect path from the third slash
-        const pathParts = urlObj.pathname.split('/');
-        if (pathParts.length < 3) 
-            return url;
-        let origURL = pathParts.slice(3).join('/');
-        // Remove the starting http(s):/ or http(s)://
-        origURL = origURL.replace(/^(https?:\/\/?)/, '');
-        if (!origURL.startsWith('/')) 
-            return url;
-        // Collect origURL from the first non-slash
-        let idx = 0;
-        while (origURL[idx] === '/') 
-            idx++;
-        origURL = origURL.slice(idx);
-        origURL = `http://${hostname}/${origURL}`;
-        urlObj.pathname = `${pathParts.slice(0, 3).join('/')}/${origURL}`;
-        return urlObj.toString();
-    }
 
     /**
      *  
      * @returns {string/null} Base64 encoded content of the original file
      */
     async revert404response(url, hostname) {
-        const newURL = this._addHostname(url, hostname);
+        const newURL = addHostname(url, hostname);
         if (newURL === url) 
             return null;
         // Fetch origURL and return the content
@@ -311,6 +312,7 @@ class Reverter {
 
 module.exports = {
     loc2idx,
+    addHostname,
     Reverter,
     isRewritten
 }

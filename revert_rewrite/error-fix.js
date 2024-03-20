@@ -162,6 +162,7 @@ class ExceptionHandler {
         this.url = url;
         const origURL = new URL(url).pathname.split('/').slice(3).join('/');
         this.hostname = new URL(origURL).hostname;
+        this.overrider.hostname = this.hostname;
         this.exceptionType = exceptionType;
         await this.inspector.setExceptionBreakpoint(exceptionType);
         this.inspector.setNetworkListener();
