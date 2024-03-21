@@ -300,6 +300,7 @@ class ErrorInspector {
         this.unsetNetworkListener();
         this._requestURL = {};
         this.responses = {};
+        this.setNetworkListener();
     }
 }
 

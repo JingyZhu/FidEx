@@ -175,8 +175,11 @@ class FixDecider {
     }
 }
 
+const fixDecider = new FixDecider();
+
 module.exports = {
     filterArchive,
     topRewrittenFrameURL,
-    FixDecider
+    FixDecider,
+    fixDecider
 }

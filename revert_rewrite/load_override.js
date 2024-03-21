@@ -106,11 +106,11 @@ async function removeWaybackBanner(page){
 
         // * Step 1: Prepare recording for exceptions
         let errorFixer = new errorFix.ErrorFixer(page, client, {
-                                                                            dirname: dirname, 
-                                                                            manual: options.manual,
-                                                                            decider: options.optimized
-                                                                            });
-        await errorFixer.prepare(url, exceptionType='all');
+                                                                dirname: dirname, 
+                                                                manual: options.manual,
+                                                                decider: options.optimized
+                                                                });
+        await errorFixer.prepare(url, 'load', exceptionType='all');
         
         // * Step 2: Load the page and collect exception
         try {
@@ -133,6 +133,7 @@ async function removeWaybackBanner(page){
         const fixedIdx = await errorFixer.fix();
         const result = {
             fixedIdx: fixedIdx,
+            stage: 'load',
             results: errorFixer.results
         }
         if (options.optimized)

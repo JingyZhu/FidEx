@@ -11,8 +11,10 @@ def check_result(dirr):
         if log['fixedIdx'] == -1:
             return result
         idx = result['fixedIdx']
-        initial_writes = json.load(open(f'{dirr}/initial_writes.json', 'r'))
-        final_writes = json.load(open(f'{dirr}/exception_{idx}_writes.json', 'r'))
+        stage = log['stage']
+        result['stage'] = stage
+        initial_writes = json.load(open(f'{dirr}/{stage}_initial_writes.json', 'r'))
+        final_writes = json.load(open(f'{dirr}/{stage}_exception_{idx}_writes.json', 'r'))
         result['initial_writes'] = len(initial_writes["rawWrites"])
         result['final_writes'] = len(final_writes["rawWrites"])
         result['more_writes'] = len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"])
@@ -227,4 +229,4 @@ def test_run_load_override_with_decider_onfly():
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
 
-test_run_load_override_network_wayback()
+test_run_load_override_exception()

@@ -5,7 +5,7 @@ const eventSync = require('../utils/event_sync');
 const reverter = require('./reverter');
 const { ErrorInspector, ExceptionInfo } = require('./error-inspector');
 const { Overrider } = require('./overrider');
-const { topRewrittenFrameURL, FixDecider } = require('../error_match/fix-decider');
+const { topRewrittenFrameURL, FixDecider, fixDecider } = require('../error_match/fix-decider');
 
 const { loadToChromeCTXWithUtils } = require('../utils/load');
 const measure = require('../utils/measure');
@@ -142,24 +142,27 @@ class ErrorFixer {
         this.dirname = dirname;
         this.timeout = timeout;
         this.manual = manual;
-        this.exceptions = [];
+        this.exceptions = {}; // {loadType(interaction): Array[ExceptionInfo]}
         this.results = [];
         this.log = [];
         if (decider) {
-            this.decider = new FixDecider();
+            this.decider = fixDecider;
             this.decider.loadRules();
         }
         this.inspector = new ErrorInspector(client, {decider: this.decider});
+        this.stage = '';
     }
     
     /**
      * Register inspect for exception
      * Override node write method to log
      * @param {string} url The URL that will be loaded
-     * @param {*} exceptionType 
+     * @param {string} stage The stage of the exception
+     * @param {string} exceptionType 
      */
-    async prepare(url, exceptionType='uncaught') {
+    async prepare(url, stage, exceptionType='uncaught') {
         this.url = url;
+        this.stage = stage;
         const origURL = new URL(url).pathname.split('/').slice(3).join('/');
         this.hostname = new URL(origURL).hostname;
         this.overrider.hostname = this.hostname;
@@ -169,8 +172,13 @@ class ErrorFixer {
         await this.recorder.prepareLogging();
     }
 
+    /**
+     * stage
+     * @param {Boolean} record Whether we need to record with PageRecorder
+     */
     async collectLoadInfo(record=true) {
-        this.exceptions.push([]);
+        const stage = this.stage;
+        this.exceptions[stage] = [];
         for (let exception of this.inspector.exceptions){
             if (exception.type !== 'SyntaxError') { 
                 for (let frame of exception.frames) {
@@ -188,16 +196,17 @@ class ErrorFixer {
                     }
                 }
             }
-            this.exceptions[this.exceptions.length-1].push(exception);
+            this.exceptions[stage].push(exception);
         }
         // Sort the exceptions by their type, uncaught first, then caught
-        this.exceptions[this.exceptions.length-1].sort((a, b) => b.uncaught-a.uncaught);
+        this.exceptions[stage].sort((a, b) => b.uncaught-a.uncaught);
         let exceptionsInfo = {
             type: 'exceptions',
+            stage: stage,
             exceptions: []
         }
         let idx = 0;
-        for (const exception of this.exceptions[this.exceptions.length-1]) {
+        for (const exception of this.exceptions[stage]) {
             exceptionsInfo.exceptions.push({
                 type: exception.type,
                 uncaught: exception.uncaught,
@@ -218,7 +227,7 @@ class ErrorFixer {
         }
         // * No need to record if collectLoadInfo is called after Network fix
         if (record)
-            await this.recorder.record(this.dirname, 'initial');
+            await this.recorder.record(this.dirname, `${stage}_initial`);
     }
 
     /**
@@ -285,6 +294,7 @@ class ErrorFixer {
      * @returns {Boolean} Whether the fix is successful
      */
     async fixNetwork() {
+        const stage = this.stage;
         let result = new FixResult('Network404');
         let revert = new reverter.Reverter("");
         let promises = [];
@@ -309,8 +319,8 @@ class ErrorFixer {
         const success = await this.reloadWithOverride({}, true);
         if (!success)
             return result;
-        await this.recorder.record(this.dirname, 'exception_NW');
-        const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_NW`);
+        await this.recorder.record(this.dirname, `${stage}_exception_NW`);
+        const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_NW`);
         // TODO: Need to check if any exception is fixed
         if (fidelity.different) {
             logger.log("ExceptionHandler.fixNetwork:", "Fixed fidelity issue");
@@ -371,8 +381,9 @@ class ErrorFixer {
      * @returns {Boolean} Whether the fix is successful
      */
     async fixSyntaxError() {
+        const stage = this.stage;
         let result = new FixResult('SyntaxError');
-        const latestExceptions = this.exceptions[this.exceptions.length-1];
+        const latestExceptions = this.exceptions[stage];
         const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError');
         if (syntaxErrorExceptions.length == 0)
             return result;
@@ -403,13 +414,13 @@ class ErrorFixer {
             const success = await this.reloadWithOverride({});
             if (!success)
                 continue;
-            await this.recorder.record(this.dirname, `exception_SE_${fix_id}`);
+            await this.recorder.record(this.dirname, `${stage}_exception_SE_${fix_id}`);
             let newCount = this._calcExceptionDesc(syntaxErrorExceptions, this.inspector.exceptions, false);        
             if (newCount >= syntaxErrorExceptions.length)
                 continue;
             logger.log("ExceptionHandler.fixSyntaxError:", "Fixed syntax exception with fix", fix_id);
             result.fixException(fix_id);
-            const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_SE_${fix_id}`);
+            const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_SE_${fix_id}`);
             if (fidelity.different) {
                 logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
                 result.fix(fix_id);
@@ -479,6 +490,7 @@ class ErrorFixer {
      * @returns 
      */
     async fixException(exceptions, i) {
+        const stage = this.stage;
         const exception = exceptions[i];
         const description = exception.description.split('\n')[0];
         let result = new FixResult(i);
@@ -528,14 +540,14 @@ class ErrorFixer {
             if (!success)
                 continue;
 
-            await this.recorder.record(this.dirname, `exception_${i}_${fix_id}`);
+            await this.recorder.record(this.dirname, `${stage}_exception_${i}_${fix_id}`);
             let newCount = this._calcExceptionDesc([exception], this.inspector.exceptions, exception.uncaught);
             // * Not fix anything
             if (newCount >= targetCount)
                 continue;
             logger.log("ExceptionHandler.fixException:", "Fixed exception", i, "with fix", fix_id);
             result.fixException(fix_id);
-            const fidelity = await this.recorder.fidelityCheck(this.dirname, 'initial', `exception_${i}_${fix_id}`);
+            const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_${i}_${fix_id}`);
             if (!fidelity.different)
                 continue;
             result.fix(fix_id);
@@ -550,18 +562,19 @@ class ErrorFixer {
 
     /**
      * Keep trying fix exceptions until seen first fixed exception
-     * @returns Index of the fixed exception (-1) if nothing can be fixed
+    * @returns Index of the fixed exception (-1) if nothing can be fixed
      */
     async fix() {
+        const stage = this.stage;
         const networkFix = await this.fixNetwork();
         if (networkFix.fixed)
             return "NW";
         if (networkFix.reloaded)
             await this.collectLoadInfo(false);
-        const syntaxFix = await this.fixSyntaxError();
+        const syntaxFix = await this.fixSyntaxError(stage);
         if (syntaxFix.fixed)
             return `SE_${syntaxFix.fixedID}`;
-        const latestExceptions = this.exceptions[this.exceptions.length-1].filter(excep => excep.type != 'SyntaxError');
+        const latestExceptions = this.exceptions[stage].filter(excep => excep.type != 'SyntaxError');
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);
             if (excepFix.fixed)
