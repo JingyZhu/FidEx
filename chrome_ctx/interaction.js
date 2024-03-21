@@ -187,12 +187,12 @@ var extractJqueryEvents = function (elem) {
 function listAllEventListeners() {
     var _merge_events = function (listeners, events) {
         for (const event of events) {
-            let [element, evt ] = event;
+            let [ element, evt ] = event;
             let path = getDomXPath(element);
             if (!(path in listeners))
                 listeners[path] = {element: element, events: {}}
             for (const e in evt) {
-                listeners[path]['events'][e] = evt.e
+                listeners[path]['events'][e] = evt[e]
             }
         }
         return listeners
@@ -205,8 +205,10 @@ function listAllEventListeners() {
         }
         return res
     }
+    
+    // * listeners: {path: {element: element, events: {event: handler}}
     let listeners = {},
-        pl = processListeners;
+    pl = processListeners;
 
     let allElements = document.querySelectorAll("*"); 
     for (let i = 0; i < allElements.length; i++) {
@@ -248,7 +250,7 @@ function getCandidateElements(listeners) {
         if (IGNORE_ELEMENTS.filter((e) => el.nodeName == e).length == 0) {
             // * Filtration of tag pointing to other URLs
             if (el && el.href && el.href != "" && el.href.indexOf("#") < 0){
-                console.log("href pointing to other URLs", el);
+                // console.log("href pointing to other URLs", el);
                 return;
             }
 
@@ -257,12 +259,13 @@ function getCandidateElements(listeners) {
                 if (all_handlers.indexOf(h) >= 0) e[1].push(h);
             });
             if (!e[1].length) {
-                console.log("No candidate handlers", el);
+                // console.log("No candidate handlers", el);
                 return;
             }
             elems.push(e);
-        } else
-            console.log("Filtered out node", el)
+        } else {
+            // console.log("Filtered out node", el);
+        }
     });
     return elems;
 }

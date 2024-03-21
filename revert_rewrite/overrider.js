@@ -118,27 +118,34 @@ class Overrider {
                 headers: headers,
                 body: {body: body.toString('base64'), base64Encoded: true}
             }
-            // Async flush waybackCache
-            fs.writeFile('/tmp/.wayback_cache.json', JSON.stringify(this.waybackCache), () => {});
             return this.waybackCache[url];
         }
         return null 
+    }
+
+    flushCache() {
+        if (this.wayback)
+            fs.writeFileSync('/tmp/.wayback_cache.json', JSON.stringify(this.waybackCache));
     }
 
 
     async nonOverrideHandler(params) {
         let url = params.request.url;
         if (url in this.seenResponses) {
-            await this.client.send('Fetch.continueRequest', {
-                requestId: params.requestId
-            });
+            try {
+                await this.client.send('Fetch.continueRequest', {
+                    requestId: params.requestId
+                });
+            } catch {}
         } else {
             // Fetch from Wayback
             const response = await this.fetchFromWayback(params.request);
             if (response === null) {
-                await this.client.send('Fetch.continueRequest', {
-                    requestId: params.requestId
-                });
+                try {
+                    await this.client.send('Fetch.continueRequest', {
+                        requestId: params.requestId
+                    });
+                } catch {}
             } else {
                 await this.client.send('Fetch.fulfillRequest', {
                     requestId: params.requestId,

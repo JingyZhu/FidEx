@@ -36,7 +36,7 @@ async function startChrome(){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: 'new',
+        headless: false,
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
@@ -105,12 +105,12 @@ async function removeWaybackBanner(page){
         const timeout = options.wayback ? 200*1000 : 60*1000;
 
         // * Step 1: Prepare recording for exceptions
-        let exceptionHandler = new errorFix.ExceptionHandler(page, client, {
+        let errorFixer = new errorFix.ErrorFixer(page, client, {
                                                                             dirname: dirname, 
                                                                             manual: options.manual,
                                                                             decider: options.optimized
                                                                             });
-        await exceptionHandler.prepare(url, exceptionType='all');
+        await errorFixer.prepare(url, exceptionType='all');
         
         // * Step 2: Load the page and collect exception
         try {
@@ -121,7 +121,7 @@ async function removeWaybackBanner(page){
             await waitTimeout(networkIdle, timeout); 
         } catch {}
         await sleep(1000);
-        await exceptionHandler.collectLoadInfo();
+        await errorFixer.collectLoadInfo();
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
@@ -130,15 +130,16 @@ async function removeWaybackBanner(page){
         }
 
         // ! Temp
-        const fixedIdx = await exceptionHandler.fix();
+        const fixedIdx = await errorFixer.fix();
         const result = {
             fixedIdx: fixedIdx,
-            results: exceptionHandler.results
+            results: errorFixer.results
         }
         if (options.optimized)
-            exceptionHandler.updateRules();
+        errorFixer.updateRules();
         fs.writeFileSync(`${dirname}/results.json`, JSON.stringify(result, null, 2));
-        fs.writeFileSync(`${dirname}/log.json`, JSON.stringify(exceptionHandler.log, null, 2));
+        fs.writeFileSync(`${dirname}/log.json`, JSON.stringify(errorFixer.log, null, 2));
+        errorFixer.overrider.flushCache();
 
         // * Step 4: Wait for the page to be loaded
         if (options.manual)

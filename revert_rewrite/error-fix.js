@@ -133,7 +133,7 @@ class PageRecorder {
     }
 }
 
-class ExceptionHandler {
+class ErrorFixer {
     constructor(page, client, { dirname='.', timeout=30, manual=false, decider=false }={}){
         this.page = page;
         this.client = client;
@@ -582,5 +582,5 @@ class ExceptionHandler {
 module.exports = {
     FixResult,
     PageRecorder,
-    ExceptionHandler
+    ErrorFixer
 };
