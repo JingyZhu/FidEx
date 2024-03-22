@@ -3,28 +3,30 @@ import os
 import json
 import time
 
-def check_result(dirr):
-    result = {"hostname": dirr.split('/')[-1]}
+def check_results(dirr):
+    results = {"hostname": dirr.split('/')[-1]}
     if os.path.exists(f'{dirr}/results.json'):
-        log = json.load(open(f'{dirr}/results.json', 'r'))
-        result['fixedIdx'] = log['fixedIdx']
-        if log['fixedIdx'] == -1:
-            return result
-        idx = result['fixedIdx']
-        stage = log['stage']
-        result['stage'] = stage
-        initial_writes = json.load(open(f'{dirr}/{stage}_initial_writes.json', 'r'))
-        final_writes = json.load(open(f'{dirr}/{stage}_exception_{idx}_writes.json', 'r'))
-        result['initial_writes'] = len(initial_writes["rawWrites"])
-        result['final_writes'] = len(final_writes["rawWrites"])
-        result['more_writes'] = len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"])
-        return result
+        logs = json.load(open(f'{dirr}/results.json', 'r'))
+        for stage, log in logs.items():
+            result = {}
+            result['fixedIdx'] = log['fixedIdx']
+            if log['fixedIdx'] == -1:
+                return result
+            idx = result['fixedIdx']
+            stage = log['stage']
+            result['stage'] = stage
+            initial_writes = json.load(open(f'{dirr}/{stage}_initial_writes.json', 'r'))
+            final_writes = json.load(open(f'{dirr}/{stage}_exception_{idx}_writes.json', 'r'))
+            result['initial_writes'] = len(initial_writes["rawWrites"])
+            result['final_writes'] = len(final_writes["rawWrites"])
+            result['more_writes'] = len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"])
+            results[stage] = result
     else:
-        result['fixedIdx'] = "No result log"
-    return result
+        results['fixedIdx'] = "No result log"
+    return results
 
-def run_on_testcases(urls, decider=False, manual=False):
-    results = []
+def run_on_testcases(urls, decider=False, manual=False, interaction=False):
+    all_results = []
     for i, datum in enumerate(urls):
         hostname, archive_url = datum['hostname'], datum['archive_url']
         print(i, archive_url)
@@ -39,6 +41,8 @@ def run_on_testcases(urls, decider=False, manual=False):
                 args.append('-o')
             if manual:
                 args.append('-m')
+            if interaction:
+                args.append('-i')
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             output = ''
             for line in iter(process.stdout.readline, b''):
@@ -52,9 +56,9 @@ def run_on_testcases(urls, decider=False, manual=False):
         f = open(f'test/load_override/writes/{hostname}/log.log', 'w+')
         f.write(output)
         f.close()
-        result = check_result(f'test/load_override/writes/{hostname}')
-        results.append(result)
-    return results
+        results = check_results(f'test/load_override/writes/{hostname}')
+        all_results.append(results)
+    return all_results
 
 
 def test_run_load_override_syntax():
@@ -220,7 +224,7 @@ def test_run_load_override_with_decider_onfly():
         # * Used to test the decider's ability on the fly
         {
             "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161208050417/https://calvert.house.gov/",
-            "hostname": "kencalvert.house.gov_7647",
+            "hostname": "kencalvert.house.gov",
         },
     ]
     start = time.time()
@@ -229,4 +233,18 @@ def test_run_load_override_with_decider_onfly():
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
 
-test_run_load_override_exception()
+
+def test_run_load_override_with_interaction():
+    urls = [
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
+            "hostname": "info.usitc.gov",
+        }
+    ]
+    start = time.time()
+    results = run_on_testcases(urls, interaction=True)
+    gap = time.time() - start
+    print(json.dumps(results, indent=2))
+    print("Gap:", gap)
+
+test_run_load_override_with_interaction()
