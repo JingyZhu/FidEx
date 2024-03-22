@@ -134,7 +134,12 @@ class PageRecorder {
 }
 
 class ErrorFixer {
-    constructor(page, client, { dirname='.', timeout=30, manual=false, decider=false }={}){
+    constructor(page, client, { dirname='.', 
+                                timeout=30, 
+                                manual=false, 
+                                decider=false, 
+                                beforeReloadFunc=null,
+                                reloadFunc=null}={}){
         this.page = page;
         this.client = client;
         this.overrider = new Overrider(client);
@@ -151,6 +156,8 @@ class ErrorFixer {
         }
         this.inspector = new ErrorInspector(client, {decider: this.decider});
         this.stage = '';
+        this.beforeReloadFunc = beforeReloadFunc ? beforeReloadFunc : async () => {};
+        this.reloadFunc = reloadFunc ? reloadFunc : async () => {await this.page.goto(this.url, {waitUntil: 'networkidle0', timeout: this.timeout*1000})};
     }
     
     /**
@@ -167,9 +174,7 @@ class ErrorFixer {
         this.hostname = new URL(origURL).hostname;
         this.overrider.hostname = this.hostname;
         this.exceptionType = exceptionType;
-        await this.inspector.setExceptionBreakpoint(exceptionType);
-        this.inspector.setNetworkListener();
-        await this.recorder.prepareLogging();
+        await this.inspector.reset(true, exceptionType);
     }
 
     /**
@@ -237,13 +242,16 @@ class ErrorFixer {
     async reloadWithOverride(overrideMap, recordVar=false) {
         await this.overrider.clearOverrides();
         await this.overrider.overrideResources(overrideMap);
-        await this.inspector.reset(recordVar, this.exceptionType);
+        await this.inspector.unset();
         await Promise.all([this.client.send('Network.clearBrowserCookies'), 
                         this.client.send('Network.clearBrowserCache')]);
+        await this.beforeReloadFunc();
+        await this.inspector.set(recordVar, this.exceptionType);
+        
         try {
             if (this.manual)
                 await eventSync.waitForReady();
-            await this.page.goto(this.url, {waitUntil: 'networkidle0', timeout: this.timeout*1000})
+            await this.reloadFunc();
         } catch(e) {
             logger.warn("ExceptionHandler.reloadWithOverride:", "Reload exception", e)
             return false;
@@ -587,6 +595,11 @@ class ErrorFixer {
         this.decider.parseFixResult(this.results);
         if (save)
             this.decider.saveRules({path: path});
+    }
+
+    finish() {
+        this.inspector.unset();
+        this.overrider.clearOverrides();
     }
 
 }

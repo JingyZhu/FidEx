@@ -286,7 +286,10 @@ function getClickableElements(listeners) {
 }
 
 function _triggerEvent(el, evt) {
-    var event = new Event(evt);
+    var event = new Event(evt, {
+        bubbles: true,
+        cancelable: true,
+    });
     //enable cacheinit when trying to get state access of event handlers
     // window.__tracer.cacheInit(getEventId(el, evt));
     // enable set event id and __enter__ for getting cg of events
@@ -299,6 +302,7 @@ function _triggerEvent(el, evt) {
         return;
     }
     el.dispatchEvent && el.dispatchEvent(event);
+    console.log("el", el.dispatchEvent, event)
     //__exit__ for cg of events
     // window.__tracer.__exit__();
     //exitfunction for state access
@@ -378,6 +382,31 @@ class eventListenersIterator {
             };
         } catch (e) {
             this.iter += 1;
+            return {}
+        }
+    }
+
+    async triggerNth(idx) {
+        if (idx >= this.listeners.length)
+            return null;
+        let _e = this.listeners[idx];
+        let orig_path = this.origPath[idx]
+        try {
+            var [elem, handlers] = _e;
+            for (const h of handlers) {
+                _triggerEvent(elem, h);
+                console.log("Triggering", h, elem);
+                await delay(5000);
+            };
+            await delay(1000);
+            return {
+                element: getElemId(elem),
+                path: orig_path,
+                events: handlers,
+                url: window.location.href,
+                _verbose_length: this.listeners.length
+            };
+        } catch (e) {
             return {}
         }
     }

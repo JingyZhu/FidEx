@@ -291,15 +291,33 @@ class ErrorInspector {
     }
 
     async reset(recordVar=true, type='uncaught') {
+        // Exception
         await this.unsetExceptionBreakpoint();
         this.exceptions = []
         this._seenExceptions = new Set();
         this.scriptInfo = {}
         this.recordVar = recordVar;
         await this.setExceptionBreakpoint(type=type)
+        // Network
         this.unsetNetworkListener();
         this._requestURL = {};
         this.responses = {};
+        this.setNetworkListener();
+    }
+
+    async unset() {
+        await this.unsetExceptionBreakpoint();
+        this.exceptions = []
+        this._seenExceptions = new Set();
+        this.scriptInfo = {}
+        this.unsetNetworkListener();
+        this._requestURL = {};
+        this.responses = {};
+    }
+
+    async set(recordVar=true, type='uncaught') {
+        await this.setExceptionBreakpoint(type=type);
+        this.recordVar = recordVar;
         this.setNetworkListener();
     }
 }
