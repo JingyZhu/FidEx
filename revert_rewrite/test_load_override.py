@@ -181,10 +181,14 @@ def test_run_load_override_temp():
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200_2/20130309080613/http:/www.buyusa.gov/"
         # },
         # * Takes long to run, should have many exceptions
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023725/http:/myssaisanfrancisco.usajobs.gov/search/",
+        #     "hostname": "myssaisanfrancisco.usajobs.gov"
+        # },
         {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023725/http:/myssaisanfrancisco.usajobs.gov/search/",
-            "hostname": "myssaisanfrancisco.usajobs.gov"
-        },
+            "hostname": "burnaway.org_718_0_2d8d144992bed8a2317732ad814d3b8a2578dc330b325f11d68b95397b622b63",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20210816182809/https://burnaway.org/magazine/krista-clark-moca-ga/"
+        }
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
@@ -236,9 +240,13 @@ def test_run_load_override_with_decider_onfly():
 
 def test_run_load_override_with_interaction():
     urls = [
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
+        #     "hostname": "info.usitc.gov",
+        # },
         {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
-            "hostname": "info.usitc.gov",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161208013654/http:/miami.va.gov/",
+            "hostname": "miami.va.gov"
         }
     ]
     start = time.time()
@@ -247,4 +255,4 @@ def test_run_load_override_with_interaction():
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
 
-test_run_load_override_with_interaction()
+test_run_load_override_temp()

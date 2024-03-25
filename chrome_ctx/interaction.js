@@ -302,7 +302,6 @@ function _triggerEvent(el, evt) {
         return;
     }
     el.dispatchEvent && el.dispatchEvent(event);
-    console.log("el", el.dispatchEvent, event)
     //__exit__ for cg of events
     // window.__tracer.__exit__();
     //exitfunction for state access
@@ -333,6 +332,38 @@ async function triggerEvents(elems) {
     };
     //only set this when getting cg for events, like how you turn it on above
     // window.__tracer.setTracingMode(false);
+}
+
+/**
+ * Filter one of the two handlers that will cancel the effect of each other
+ * e.g. mouseover and mouseout will only have mouseover 
+ */
+function _filter_handlers(handlers) {
+    let uncancel_handlers = [];
+    let cancel_pairs = [
+        ['mouseover', 'mouseout'],
+        ['mouseenter', 'mouseleave'],
+        ['focus', 'blur'],
+        ['focusin', 'focusout'],
+        ['pointerenter', 'pointerleave'],
+        ['pointerover', 'pointerout'],
+        ['mouseenter', 'mouseleave'],
+        ['pointerdown', 'pointerup'],
+        ['mousedown', 'mouseup'],
+        ['touchstart', 'touchend'],
+        ['touchenter', 'touchleave'],
+        ['touchcancel', 'touchend'],
+        ['dragenter', 'dragleave'],
+        ['dragover', 'dragleave'],
+        ['dragstart', 'dragend'],
+        ['drag', 'dragend']
+    ]
+    for (const h of handlers) {
+        let [keep, cancel] = cancel_pairs.find((pair) => pair.indexOf(h) >= 0) || [null, null];
+        if (cancel == null || keep == h)
+            uncancel_handlers.push(h);
+    }
+    return uncancel_handlers;
 }
 
 class eventListenersIterator {
@@ -366,17 +397,17 @@ class eventListenersIterator {
         let orig_path = this.origPath[idx]
         try {
             var [elem, handlers] = _e;
-            // console.log(elem, idx);
-            for (const h of handlers) {
+            let uncancel_handlers = _filter_handlers(handlers);
+            for (const h of uncancel_handlers) {
                 _triggerEvent(elem, h);
-                await delay(500);
+                await delay(300);
             };
             await delay(1000);
             this.iter += 1;
             return {
                 element: getElemId(elem),
                 path: orig_path,
-                events: handlers,
+                events: uncancel_handlers,
                 url: window.location.href,
                 _verbose_length: this.listeners.length
             };
@@ -393,16 +424,16 @@ class eventListenersIterator {
         let orig_path = this.origPath[idx]
         try {
             var [elem, handlers] = _e;
-            for (const h of handlers) {
+            let uncancel_handlers = _filter_handlers(handlers);
+            for (const h of uncancel_handlers) {
                 _triggerEvent(elem, h);
-                console.log("Triggering", h, elem);
-                await delay(5000);
+                await delay(300);
             };
             await delay(1000);
             return {
                 element: getElemId(elem),
                 path: orig_path,
-                events: handlers,
+                events: uncancel_handlers,
                 url: window.location.href,
                 _verbose_length: this.listeners.length
             };

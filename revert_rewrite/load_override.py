@@ -7,7 +7,7 @@ import subprocess
 import os
 import time
 
-input_file = 'second_all_sampled_200.json'
+input_file = 'carta_sampled.json'
 write_dir = 'writes'
 data = json.load(open(input_file, 'r'))
 
@@ -59,25 +59,31 @@ def count_results(strict=True):
     for datum in data:
         hostname = datum['hostname']
         if os.path.exists(f'{write_dir}/{hostname}/results.json'):
-            result = json.load(open(f'{write_dir}/{hostname}/results.json', 'r'))
+            results = json.load(open(f'{write_dir}/{hostname}/results.json', 'r'))
             total += 1
-            print(hostname, result['fixedIdx'])
-            if result['fixedIdx'] == -1:
-                continue
-            if not strict:
-                count.append(hostname)
-            else:
-                idx = result['fixedIdx']
-                initial_writes = json.load(open(f'{write_dir}/{hostname}/initial_writes.json', 'r'))
-                initial_elements = json.load(open(f'{write_dir}/{hostname}/initial_elements.json', 'r'))
-                final_writes = json.load(open(f'{write_dir}/{hostname}/exception_{idx}_writes.json', 'r'))
-                final_elements = json.load(open(f'{write_dir}/{hostname}/exception_{idx}_elements.json', 'r'))
-                if decide(initial_elements, initial_writes, final_writes, final_elements):
+            any_fixed = False
+            for stage, result in results.items():
+                if result['fixedIdx'] == -1:
+                    continue
+                any_fixed = stage
+                if not strict:
                     count.append(hostname)
+                else:
+                    idx = result['fixedIdx']
+                    initial_writes = json.load(open(f'{write_dir}/{hostname}/{stage}_initial_writes.json', 'r'))
+                    initial_elements = json.load(open(f'{write_dir}/{hostname}/{stage}_initial_elements.json', 'r'))
+                    final_writes = json.load(open(f'{write_dir}/{hostname}/{stage}_exception_{idx}_writes.json', 'r'))
+                    final_elements = json.load(open(f'{write_dir}/{hostname}/{stage}_exception_{idx}_elements.json', 'r'))
+                    if decide(initial_elements, initial_writes, final_writes, final_elements):
+                        count.append(hostname)
+                print(hostname, stage, result['fixedIdx'])
+                break
+            if not any_fixed:
+                print(hostname, '-1')
         else:
             print(hostname, 'No result log')
     print(total, len(count))
     json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
-run_load_override(decider=True)
+run_load_override(decider=False)
 # count_results(strict=True)

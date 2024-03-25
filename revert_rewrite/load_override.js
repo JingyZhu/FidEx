@@ -67,15 +67,18 @@ async function interaction(browser, url, dirname, timeout, options) {
     const client = await page.target().createCDPSession();
     await enableFields(client);
     let results = {}, logs = {};
-    const loadAndCollectListeners = async (page, client) => {
-        await page.goto(url, {
-            waitUntil: 'networkidle0',
-            timeout: timeout
-        });
-        await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-        await client.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});    
-    }
-    await loadAndCollectListeners(page, client);
+    const getBeforeFunc = (url, page, client, timeout) =>  {
+        return async () => {
+            await page.goto(url, {
+                waitUntil: 'networkidle0',
+                timeout: timeout
+            });
+            await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
+            await client.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});    
+        }
+    };
+    const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);
+    await loadAndCollectListeners();
     const allEvents = await page.evaluate(() => {
         let serializedEvents = [];
         for (let idx in eli.listeners) {
@@ -102,17 +105,17 @@ async function interaction(browser, url, dirname, timeout, options) {
         let e = {};
         let page = await browser.newPage();
         const client = await page.target().createCDPSession();
-        await enableFields(client);    
-        const triggerEvent = async () => {
-            console.log(page, i);
-            await page.evaluate(async (idx) => {
-                await eli.triggerNth(idx)
-            }, i);
-            await sleep(1000000)
-            // await waitTimeout(p, 10000);
-        }
+        await enableFields(client);
+        const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);   
+        const triggerEvent = ((page, i) => {
+            return async () => {
+                let p = page.evaluate(async (idx) => {
+                    await eli.triggerNth(idx)
+                }, i);
+                await waitTimeout(p, 3000);
+            }
+        })(page, i)
         let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, dirname, options, triggerEvent, {beforeFunc: loadAndCollectListeners});
-        console.log("e", e)
         result = {
             fixedIdx: result.fixedIdx,
             stage: `interaction_${i}`,
@@ -140,7 +143,7 @@ async function loadAndFix(url, page, client, stage, dirname, options, loadFunc, 
                                                             });
     await errorFixer.recorder.prepareLogging();
     if(beforeFunc)
-        await beforeFunc(page, client);                                                    
+        await beforeFunc();                                                    
     await errorFixer.prepare(url, stage, exceptionType='all');
     await loadFunc(page, client);
     await errorFixer.collectLoadInfo();
@@ -210,13 +213,13 @@ async function enableFields(client) {
         
         let results = {}, logs = {};
         // * Step 2: Load the page
-        // const loadFunc = async () => {await page.goto(url, {
-        //     waitUntil: 'networkidle0',
-        //     timeout: timeout
-        // })}
-        // const {result, log} = await loadAndFix(url, page, client, 'load', dirname, options, loadFunc);
-        // results['load'] = result;
-        // logs['load'] = log;
+        const loadFunc = async () => {await page.goto(url, {
+            waitUntil: 'networkidle0',
+            timeout: timeout
+        })}
+        const {result, log} = await loadAndFix(url, page, client, 'load', dirname, options, loadFunc);
+        results['load'] = result;
+        logs['load'] = log;
         await page.close();
 
         if (options.interaction) {

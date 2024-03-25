@@ -184,7 +184,7 @@ class ErrorInspector {
                     seenVars.add(varProp.name);
                 }
             }
-            let source = this.scriptInfo[location.scriptId].source;
+            let source = this.scriptInfo[location.scriptId]?.source;
             if (source && reverter.isRewritten(source)) {
                 logger.verbose("ErrorInspector._recordException:", "Found first script rewriten on stack",
                                 url, `{line: ${location.lineNumber}, column: ${location.columnNumber}}`);
