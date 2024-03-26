@@ -112,10 +112,10 @@ async function interaction(browser, url, dirname, timeout, options) {
         const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);   
         const triggerEvent = ((page, i) => {
             return async () => {
-                let p = page.evaluate(async (idx) => {
-                    await eli.triggerNth(idx)
-                }, i);
-                await waitTimeout(p, 3000);
+                await page.waitForFunction(async (idx) => {
+                    await eli.triggerNth(idx);
+                    return true;
+                }, {timeout: 10000}, i);
             }
         })(page, i)
         let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, dirname, options, triggerEvent, 
@@ -133,6 +133,8 @@ async function interaction(browser, url, dirname, timeout, options) {
         results[`interaction_${i}`] = result;
         logs[`interaction_${i}`] = log;
         await page.close();
+        if (result.fixedIdx != -1)
+            break
     }
     return {
         results: results,
@@ -239,7 +241,7 @@ async function enableFields(client) {
     
     try {
         await enableFields(client);
-        const timeout = options.wayback ? 200*1000 : 60*1000;
+        const timeout = options.wayback ? 200*1000 : 30*1000;
         
         let results = {}, logs = {};
         // * Step 2: Load the page
@@ -253,7 +255,7 @@ async function enableFields(client) {
         logs['load'] = log;
         await page.close();
 
-        if (options.interaction) {
+        if (options.interaction && results['load']['fixedIdx'] != -1 ) {
             const {results: interactionResults, logs: interactionLogs} = await interaction(browser, urlStr, dirname, timeout, options);
             results = {...results, ...interactionResults};
             logs = {...logs, ...interactionLogs};

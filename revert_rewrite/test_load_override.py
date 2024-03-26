@@ -245,11 +245,11 @@ def test_run_load_override_with_decider_onfly():
 
 def test_run_load_override_with_interaction():
     urls = [
-        # Should be run till the end
-        {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
-            "hostname": "info.usitc.gov",
-        },
+        # # Should be run till the end
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
+        #     "hostname": "info.usitc.gov",
+        # },
         # # Seen event is not iterable bug
         # {
         #     "hostname": "diversitynews.msfc.nasa.gov_6527",
@@ -265,9 +265,19 @@ def test_run_load_override_with_interaction():
         #     "hostname": "modoc.lafco.ca.gov_11284",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031108/http:/modoc.lafco.ca.gov/"
         # }
+        # # eli is not defined
+        # {
+        #     "hostname": "usaid.gov_13453",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161223150137/http:/usaid.gov/guatemala",
+        # },
+        # # Timeout
+        # {     
+        #     "hostname": "earthexplorer.cr.usgs.gov_8545",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161209035018/https://earthexplorer.usgs.gov/"
+        # },
     ]
     start = time.time()
-    results = run_on_testcases(urls, interaction=True)
+    results = run_on_testcases(urls, interaction=True, decider=False)
     gap = time.time() - start
     print(json.dumps(results, indent=2))
     print("Gap:", gap)

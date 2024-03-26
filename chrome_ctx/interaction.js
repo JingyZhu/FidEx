@@ -143,7 +143,7 @@ var extractJqueryEvents = function (elem) {
     var hasJquery = typeof jQuery == "function" ? true : false;
     if (!hasJquery) return res;
 
-    var jqueryEvts = jQuery._data(elem, "events");
+    var jqueryEvts = jQuery.data(elem, "events");
     if (!jqueryEvts)
         return res;
     for (const evt in jqueryEvts){
@@ -302,6 +302,11 @@ function _triggerEvent(el, evt) {
         return;
     }
     el.dispatchEvent && el.dispatchEvent(event);
+    // Find and dispatch the event on all descendant elements
+    let descendants = el.querySelectorAll("*");
+    descendants.forEach(descendant => {
+        descendant.dispatchEvent && descendant.dispatchEvent(event);
+    });
     //__exit__ for cg of events
     // window.__tracer.__exit__();
     //exitfunction for state access
