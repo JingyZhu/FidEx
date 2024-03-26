@@ -1,0 +1,20 @@
+<html>
+    <script>
+        const resourceMapping = {
+            'a.com': '/updates/a.json',
+            'b.com': '/updates/b.json'
+        }
+
+        // Step 2: Collect updates based on which site is asking.
+        window.addEventListener('message', async function(event) {
+            if (!(event.origin in resourceMapping))
+                return;
+            // Fetch corresponding updates json ...
+            const updates = await fetchUpdates(resourceMapping[event.origin]);
+            // Post result back to the parent window
+            event.source.postMessage(updates, event.origin);
+        }, false);
+    </script>
+</html>
+
+
