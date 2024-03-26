@@ -57,6 +57,8 @@ async function removeWaybackBanner(page){
     } catch {}
 }
 
+var workingOverrides = {};
+
 /**
  * 
  * @returns {object} A mapping from interaction id to their metadata
@@ -81,7 +83,7 @@ async function interaction(browser, url, dirname, timeout, options) {
     await loadAndCollectListeners();
     const allEvents = await page.evaluate(() => {
         let serializedEvents = [];
-        for (let idx in eli.listeners) {
+        for (let idx = 0; idx < eli.listeners.length; idx++) {
             const event = eli.listeners[idx];
             let [elem, handlers] = event;
             orig_path = eli.origPath[idx]
@@ -96,13 +98,14 @@ async function interaction(browser, url, dirname, timeout, options) {
         return serializedEvents;
     });
     const numEvents = allEvents.length;
-    console.log("Number of events", numEvents);
+    console.log("load_override.js:", "Number of events", numEvents);
     await page.close();
     
     // * Step 2: Trigger events
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
-    for (let i = 0; i < numEvents && i < 5; i++) {
+    for (let i = 0; i < numEvents && i < 20; i++) {
         let e = {};
+        console.log("load_override.js:", "Triggering events", i);
         let page = await browser.newPage();
         const client = await page.target().createCDPSession();
         await enableFields(client);
@@ -115,11 +118,16 @@ async function interaction(browser, url, dirname, timeout, options) {
                 await waitTimeout(p, 3000);
             }
         })(page, i)
-        let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, dirname, options, triggerEvent, {beforeFunc: loadAndCollectListeners});
+        let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, dirname, options, triggerEvent, 
+                                                                {
+                                                                    beforeFunc: loadAndCollectListeners,
+                                                                    workingOverrides: workingOverrides
+                                                                });
         result = {
             fixedIdx: result.fixedIdx,
             stage: `interaction_${i}`,
             events: allEvents[i],
+            success: result.success,
             results: result.results
         }
         results[`interaction_${i}`] = result;
@@ -132,8 +140,11 @@ async function interaction(browser, url, dirname, timeout, options) {
     }
 }
 
-
-async function loadAndFix(url, page, client, stage, dirname, options, loadFunc, {beforeFunc=null}={}) {
+/**
+ * @returns {object} result: {fixedIdx, stage, success, results}, log: [], workingOverrides: {}
+ */
+async function loadAndFix(url, page, client, stage, dirname, options, loadFunc, 
+                          {beforeFunc=null, workingOverrides={}}={}) {
     let errorFixer = new errorFix.ErrorFixer(page, client, {
                                                             dirname: dirname, 
                                                             manual: options.manual,
@@ -145,12 +156,30 @@ async function loadAndFix(url, page, client, stage, dirname, options, loadFunc, 
     if(beforeFunc)
         await beforeFunc();                                                    
     await errorFixer.prepare(url, stage, exceptionType='all');
-    await loadFunc(page, client);
+    // * For interaction, there is a chance that the interaction will trigger the navigation
+    // * If so, need to catch and exit early
+    try {
+        await loadFunc(page, client);
+    } catch (e) {
+        console.log("load_override.js:", "Error in loadFunc", e.message.split('\n')[0]);
+        return {
+            result: {
+                fixedIdx: -1,
+                stage: stage,
+                success: false,
+                results: []
+            },
+            log: [],
+            workingOverrides: {}
+        };
+    }
     await errorFixer.collectLoadInfo();
+    errorFixer.overrider.baseOverrides = workingOverrides;
     const fixedIdx = await errorFixer.fix();
     const result = {
         fixedIdx: fixedIdx,
         stage: stage,
+        success: true,
         results: errorFixer.results
     }
     if (options.optimized)
@@ -159,7 +188,8 @@ async function loadAndFix(url, page, client, stage, dirname, options, loadFunc, 
     errorFixer.finish();
     return {
         result: result,
-        log: errorFixer.log
+        log: errorFixer.log,
+        workingOverrides: errorFixer.overrider.popWorkingOverrides()
     }
 }
 
@@ -217,7 +247,8 @@ async function enableFields(client) {
             waitUntil: 'networkidle0',
             timeout: timeout
         })}
-        const {result, log} = await loadAndFix(url, page, client, 'load', dirname, options, loadFunc);
+        let {result, log, workingOverrides: newWorkingOverrides} = await loadAndFix(url, page, client, 'load', dirname, options, loadFunc);
+        workingOverrides = newWorkingOverrides;
         results['load'] = result;
         logs['load'] = log;
         await page.close();

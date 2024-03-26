@@ -23,12 +23,17 @@ class OverrideInfo {
 }
 
 class Overrider {
-    constructor(client, {wayback=false} = {}){
+    constructor(client, {wayback=false, overrides={}} = {}){
         this.client = client;
         this.syntaxErrorOverrides = {};
         this.networkOverrides = {};
         this.seenResponses = {};
 
+        // * currentOverrides: Used to record the current overrides
+        // * workingOverrides: If currentOverrideMapping can fix some errors, it will be merged into workingOverrides
+        this.baseOverrides = overrides;
+        this.currentOverrides = {};
+        this.workingOverrides = {};
         this.wayback = wayback;
         if (wayback) {
             this.httpsAgent = new https.Agent({
@@ -132,9 +137,11 @@ class Overrider {
     async nonOverrideHandler(params) {
         let url = params.request.url;
         if (url in this.seenResponses) {
+            url = reverter.addHostname(url, this.hostname);
             try {
                 await this.client.send('Fetch.continueRequest', {
-                    requestId: params.requestId
+                    requestId: params.requestId,
+                    url: url
                 });
             } catch {}
         } else {
@@ -195,12 +202,15 @@ class Overrider {
     async overrideResources(mapping){
         let overrideMapping = {};
         let urlPatterns = [];
+        for (const [url, resource] of Object.entries(this.baseOverrides))
+            overrideMapping[url] = resource;
         for (const [url, resource] of Object.entries(this.syntaxErrorOverrides))
             overrideMapping[url] = resource;
         for (const [url, resource] of Object.entries(this.networkOverrides))
             overrideMapping[url] = resource;
         for (const [url, resource] of Object.entries(mapping))
             overrideMapping[url] = resource;
+        this.currentOverrides = overrideMapping;
         if (this.wayback) {
             urlPatterns.push({
                 urlPattern: '*',
@@ -236,8 +246,26 @@ class Overrider {
         await this.client.send('Fetch.disable');
         // Remove handler for Fetch.requestPause
         await this.client.removeAllListeners('Fetch.requestPaused');
+        this.currentOverrides = {};
     }
-}
+
+    recordCurrentOverrides() {
+        for (const [url, resource] of Object.entries(this.currentOverrides)) {
+            this.workingOverrides[url] = url in this.workingOverrides ? this.workingOverrides[url] : [];
+            this.workingOverrides[url].push(resource);
+        }
+    }
+
+    popWorkingOverrides() {
+        let workingOverrides = {};
+        for (const [url, resources] of Object.entries(this.workingOverrides)) {
+            // * Currently just pick the first resource to override
+            // * A more ideal way is to merge the revert result from different overrides (if possible)
+            workingOverrides[url] = resources[0]
+        }
+        return workingOverrides;
+    }
+} 
 
 
 module.exports = {

@@ -7,11 +7,11 @@ import subprocess
 import os
 import time
 
-input_file = 'carta_sampled.json'
+input_file = 'second_all_sampled_200.json'
 write_dir = 'writes'
 data = json.load(open(input_file, 'r'))
 
-def run_load_override(decider=False):
+def run_load_override(decider=False, interact=False):
     start = time.time()
     for i, datum in enumerate(data):
         hostname, archive_url = datum['hostname'], datum['archive_url']
@@ -28,6 +28,8 @@ def run_load_override(decider=False):
             args = ['node', 'load_override.js', '-d', f'writes/{hostname}', archive_url]
             if decider:
                 args.append('-o')
+            if interact:
+                args.append('-i')
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             output = ''
             for line in iter(process.stdout.readline, b''):
@@ -44,7 +46,7 @@ def run_load_override(decider=False):
         print('Till Now:', time.time()-start)
 
 def count_results(strict=True):
-    count = []
+    count = {}
     total = 0
     def decide(initial_elements, initial_writes, final_writes, final_elements):
         """
@@ -56,18 +58,26 @@ def count_results(strict=True):
         elif len(initial_writes["rawWrites"]) == len(final_writes["rawWrites"]):
             return len(initial_elements) <= len(final_elements)
         return False
+    def get_stage_key(stage):
+        """Load first, followed by interaction_0, 1, ..."""
+        stage = stage.split('_')
+        if len(stage) == 1:
+            return -1
+        else:
+            return int(stage[1])
     for datum in data:
         hostname = datum['hostname']
         if os.path.exists(f'{write_dir}/{hostname}/results.json'):
             results = json.load(open(f'{write_dir}/{hostname}/results.json', 'r'))
             total += 1
             any_fixed = False
-            for stage, result in results.items():
+            results = sorted(list(results.items()), key=lambda x: get_stage_key(x[0]))
+            for stage, result in results:
                 if result['fixedIdx'] == -1:
                     continue
                 any_fixed = stage
                 if not strict:
-                    count.append(hostname)
+                    count[hostname] = stage
                 else:
                     idx = result['fixedIdx']
                     initial_writes = json.load(open(f'{write_dir}/{hostname}/{stage}_initial_writes.json', 'r'))
@@ -75,7 +85,9 @@ def count_results(strict=True):
                     final_writes = json.load(open(f'{write_dir}/{hostname}/{stage}_exception_{idx}_writes.json', 'r'))
                     final_elements = json.load(open(f'{write_dir}/{hostname}/{stage}_exception_{idx}_elements.json', 'r'))
                     if decide(initial_elements, initial_writes, final_writes, final_elements):
-                        count.append(hostname)
+                        count[hostname] = stage
+                    else:
+                        continue
                 print(hostname, stage, result['fixedIdx'])
                 break
             if not any_fixed:
@@ -85,5 +97,5 @@ def count_results(strict=True):
     print(total, len(count))
     json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
-run_load_override(decider=False)
-# count_results(strict=True)
+# run_load_override(decider=True, interact=True)
+count_results(strict=True)

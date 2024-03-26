@@ -64,21 +64,26 @@ def run_on_testcases(urls, decider=False, manual=False, interaction=False):
 def test_run_load_override_syntax():
     urls = [
         {
-            'archive_url': "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129042437/http:/lni.wa.gov/safety/topics/atoz/primarymetals/",
-            'hostname': "lni.wa.gov"
+            "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20180408214205/http://www.lsunow.com/daily/louisiana-pottery-maker-osa-atoe-draws-inspiration-from-african-culture/article_bc397420-ed81-11e6-babb-ffb62db3acdb.html/",
+            "hostname": "www.lsunow.com_170_2_4edec4f00b28cf508d6e5a3983e6f969ab47e525ded74f0fd27dd0f03fb527c0",
+         
         },
-        {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118071551/http:/nccpaboard.gov/",
-            "hostname": "nccpaboard.gov"
-        },
-        {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118025017/http:/suicideprevention.nv.gov/",
-            "hostname": "suicideprevention.nv.gov"
-        },
-        {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161123082314/https://occ.gov/",
-            "hostname": "ots.gov",
-        }
+        # {
+        #     'archive_url': "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129042437/http:/lni.wa.gov/safety/topics/atoz/primarymetals/",
+        #     'hostname': "lni.wa.gov"
+        # },
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118071551/http:/nccpaboard.gov/",
+        #     "hostname": "nccpaboard.gov"
+        # },
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118025017/http:/suicideprevention.nv.gov/",
+        #     "hostname": "suicideprevention.nv.gov"
+        # },
+        # {
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161123082314/https://occ.gov/",
+        #     "hostname": "ots.gov",
+        # }
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
@@ -240,14 +245,26 @@ def test_run_load_override_with_decider_onfly():
 
 def test_run_load_override_with_interaction():
     urls = [
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
-        #     "hostname": "info.usitc.gov",
-        # },
+        # Should be run till the end
         {
-            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161208013654/http:/miami.va.gov/",
-            "hostname": "miami.va.gov"
-        }
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
+            "hostname": "info.usitc.gov",
+        },
+        # # Seen event is not iterable bug
+        # {
+        #     "hostname": "diversitynews.msfc.nasa.gov_6527",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118013517/http://www.nasa.gov/centers/marshall/news/diversity/index.html"
+        # },
+        # # Seen execution context was destroyed bug
+        # {
+        #     "hostname": "kyenroll.ky.gov_13500",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118010244/https://kynect.ky.gov/"
+        # },
+        # # Context destroyed, because of navigation
+        # {
+        #     "hostname": "modoc.lafco.ca.gov_11284",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031108/http:/modoc.lafco.ca.gov/"
+        # }
     ]
     start = time.time()
     results = run_on_testcases(urls, interaction=True)
@@ -255,4 +272,4 @@ def test_run_load_override_with_interaction():
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
 
-test_run_load_override_temp()
+test_run_load_override_with_interaction()

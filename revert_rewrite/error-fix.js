@@ -83,10 +83,10 @@ class PageRecorder {
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            // await measure.collectNaiveInfo(this.page, dirname, filename);
-            // await sleep(500);
+            await measure.collectNaiveInfo(this.page, dirname, filename);
+            await sleep(500);
         }  catch(e) {
-            logger.warn("PageRecorder.record:", "Error in collecting render tree", e);
+            logger.warn("PageRecorder.record:", "Error in collecting render tree", e.toString.split('\n')[0]);
         }
     }
 
@@ -127,7 +127,7 @@ class PageRecorder {
             });
         });
         data = JSON.parse(data.toString());
-        logger.verbose("PageRecoder.fidelityCheck:", left, data.left_writes, right, data.right_writes);
+        logger.verbose("PageRecoder.fidelityCheck:", left, data.left_writes, right, data.right_writes, data.different);
         data.different = data.different && (data.left_writes <= data.right_writes)
         return data;
     }
@@ -295,6 +295,29 @@ class ErrorFixer {
     }
 
     /**
+     * Check if the fidelity has any changes after apply overrider.baseOverrides
+     * Mainly used for interaction
+     */
+    async fixBase() {
+        const stage = this.stage;
+        let result = new FixResult('Base');
+        if (Object.keys(this.overrider.baseOverrides).length == 0)
+            return result;
+        const success = await this.reloadWithOverride({}, true);
+        result.reloaded();
+        if (!success)
+            return result;
+        await this.recorder.record(this.dirname, `${stage}_exception_Base`);
+        const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_Base`);
+        if (fidelity.different) {
+            logger.log("ExceptionHandler.fixBase:", "Fixed fidelity issue");
+            result.fix('N/A')
+        }
+        this.results.push(result);
+        return result;
+    }
+
+    /**
      * Fix all the files that gives 404
      * One reason found for 404 is that the path is not constructed correctly (e.g. ///)
      * Fix is done by adding the default hostname if URL doesn't look reasonable.
@@ -309,6 +332,8 @@ class ErrorFixer {
         for (const [url, response] of Object.entries(this.inspector.responses)){
             const status = response.status;
             if (status != 404)
+                continue;
+            if (url in this.overrider.baseOverrides)
                 continue;
             promises.push(revert.revert404response(url, this.hostname).then(overrideContent => {
                 if (overrideContent !== null) {
@@ -428,6 +453,7 @@ class ErrorFixer {
                 continue;
             logger.log("ExceptionHandler.fixSyntaxError:", "Fixed syntax exception with fix", fix_id);
             result.fixException(fix_id);
+            this.overrider.recordCurrentOverrides();
             const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_SE_${fix_id}`);
             if (fidelity.different) {
                 logger.log("ExceptionHandler.fixSyntaxError:", "Fixed fidelity issue");
@@ -555,6 +581,7 @@ class ErrorFixer {
                 continue;
             logger.log("ExceptionHandler.fixException:", "Fixed exception", i, "with fix", fix_id);
             result.fixException(fix_id);
+            this.overrider.recordCurrentOverrides();
             const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_${i}_${fix_id}`);
             if (!fidelity.different)
                 continue;
@@ -574,6 +601,9 @@ class ErrorFixer {
      */
     async fix() {
         const stage = this.stage;
+        const baseFix = await this.fixBase();
+        if (baseFix.fixed)
+            return "Base";
         const networkFix = await this.fixNetwork();
         if (networkFix.fixed)
             return "NW";
