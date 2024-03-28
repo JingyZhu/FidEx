@@ -79,8 +79,9 @@ class PageRecorder {
         
         const rootFrame = this.page.mainFrame();
         try {
-            // * Just used for better recording, might need to optimize in the future
-            await sleep(1000);
+            // // * Just used for better recording, might need to optimize in the future
+            // No longer using sleep, since it's not reliable
+            // await sleep(1000);
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    

@@ -78,11 +78,19 @@ class htmlElement:
             style = _filter_style(tag.attrs['style'])
             features.append(style)
         return tuple(features)
-
+    
     def __eq__(self, other):
+        def dimension_eq(d1, d2):
+            d1w, d1h = d1.get('width', 1), d1.get('height', 1)
+            d2w, d2h = d2.get('width', 1), d2.get('height', 1)
+            wdiff = abs(d1w - d2w) / max(d1w, d2w)
+            hdiff = abs(d1h - d2h) / max(d1h, d2h)
+            return wdiff <= 0.05 and hdiff <= 0.05
+
         if self.text == other.text:
             # return True
-            return self.dimension == other.dimension
+            # return self.dimension == other.dimension
+            return dimension_eq(self.dimension, other.dimension)
         if self.features == other.features and self.dimension == other.dimension:
             return True
         return False

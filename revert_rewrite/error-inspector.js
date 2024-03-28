@@ -173,9 +173,12 @@ class ErrorInspector {
                 if (!this.recordVar)
                     continue;
                 const {object, type} = scope;
-                const properties = await this.client.send('Runtime.getProperties', {
-                  objectId: object.objectId,
-                });
+                let properties = null;
+                try {
+                    properties = await this.client.send('Runtime.getProperties', {
+                    objectId: object.objectId,
+                    });
+                } catch { continue; }
                 for (const varProp of properties.result){
                     if (seenVars.has(varProp.name) || !this.recordVar)
                         continue;

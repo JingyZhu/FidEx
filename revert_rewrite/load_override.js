@@ -7,7 +7,12 @@ const { program } = require('commander');
 
 const eventSync = require('../utils/event_sync');
 const errorFix = require('./error-fix');
+const { Overrider } = require('./overrider');
 const { loadToChromeCTX } = require('../utils/load');
+const { logger } = require("../utils/logger");
+
+// * Used for recording patched overrides across different loads
+var workingOverrides = {};
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -57,14 +62,103 @@ async function removeWaybackBanner(page){
     } catch {}
 }
 
-var workingOverrides = {};
+
+/**
+ * Check if after patching, there is any extra events. 
+ * And if so, trigger all these events to see if they have any effect on the fidelity.
+ * @param {Page} page 
+ * @param {CDPClient} client 
+ * @param {object} options
+ * @param {function} loadAndCollectListeners 
+ * @returns {object} 
+*/
+async function checkExtraEventsFidelity(page, client, options, loadAndCollectListeners) {
+    const serializeListeners = () => {
+        let serializedEvents = [];
+        for (let idx = 0; idx < eli.listeners.length; idx++) {
+            const event = eli.listeners[idx];
+            let [elem, handlers] = event;
+            orig_path = eli.origPath[idx]
+            const serializedEvent = {
+                element: getElemId(elem),
+                path: orig_path,
+                events: handlers,
+                url: window.location.href,
+             }
+            serializedEvents.push(serializedEvent);
+        }
+        return serializedEvents;
+    }
+    const collectExtraEvents = (initialEvents, patchEvents) => {
+        let extraEvents = [];
+        let initialEventSet = new Set(initialEvents.map(event => event.path));
+        for (let i = 0; i < patchEvents.length; i++) {
+            const event = patchEvents[i];
+            if (!initialEventSet.has(event.path))
+                extraEvents.push({idx: i, event: event});
+        }
+        return extraEvents;
+    }
+    await loadAndCollectListeners();
+    const initialEvents = await page.evaluate(serializeListeners);
+    const initialNumEvents = initialEvents.length;
+    logger.log("load_override.js:", "Number of events (initial)", initialNumEvents);
+
+    const overrider = new Overrider(client, {overrides: workingOverrides});
+    await overrider.overrideResources({});
+    await Promise.all([client.send('Network.clearBrowserCookies'), 
+                    client.send('Network.clearBrowserCache')]);
+    const recorder = new errorFix.PageRecorder(page, client);
+    recorder.prepareLogging();
+    await loadAndCollectListeners();
+    const patchEvents = await page.evaluate(serializeListeners);
+    const patchNumEvents = patchEvents.length;
+    logger.log("load_override.js:", "Number of events (patched)", patchNumEvents);
+    let result = {
+        fixedIdx: -1,
+        stage: 'extraInteraction',
+        initialEvents: initialEvents,
+        extraEvents: [],
+        results: []
+    };
+    if (initialNumEvents < patchNumEvents) {
+        const extraEvents = collectExtraEvents(initialEvents, patchEvents);
+        result.extraEvents = extraEvents;
+        for ({idx} of extraEvents) {
+            try {
+                await page.waitForFunction(async (idx) => {
+                    await eli.triggerNth(idx);
+                    return true;
+                }, {timeout: 3000}, i);
+                result.results.push({
+                    type: "eventTriggered",
+                    idx: idx,
+                });
+            } catch(e) {
+                logger.error("load_override.js:", "Error in triggering event", e.message.split('\n')[0]);
+                result.results.push({
+                    type: "eventTriggeredWithException",
+                    idx: idx,
+                });
+                result['fixedIdx'] = idx;
+                break;
+            }
+        }
+        recorder.record(options.dirname, 'extraInteraction');
+        const fidelityCheck = await recorder.fidelityCheck(options.dirname, 'load_initial', 'extraInteraction');
+        if (fidelityCheck.different)
+            result['fixedIdx'] = 0;
+    }
+    return result;
+}
 
 /**
  * 
  * @returns {object} A mapping from interaction id to their metadata
  */
 async function interaction(browser, url, dirname, timeout, options) {
-    // * Step 1: Collect number of events
+    // * Step 1: Collect number of events, before and after patch.
+    // * Note that if the number of events is different, will first try additional events.
     let page = await browser.newPage();
     const client = await page.target().createCDPSession();
     await enableFields(client);
@@ -80,32 +174,25 @@ async function interaction(browser, url, dirname, timeout, options) {
         }
     };
     const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);
-    await loadAndCollectListeners();
-    const allEvents = await page.evaluate(() => {
-        let serializedEvents = [];
-        for (let idx = 0; idx < eli.listeners.length; idx++) {
-            const event = eli.listeners[idx];
-            let [elem, handlers] = event;
-            orig_path = eli.origPath[idx]
-            const serializedEvent = {
-                element: getElemId(elem),
-                path: orig_path,
-                events: handlers,
-                url: window.location.href,
-             }
-            serializedEvents.push(serializedEvent);
-        }
-        return serializedEvents;
-    });
-    const numEvents = allEvents.length;
-    console.log("load_override.js:", "Number of events", numEvents);
+    const exEvtResult = await checkExtraEventsFidelity(page, client, options, loadAndCollectListeners);
     await page.close();
+    if (exEvtResult.fixedIdx != -1) {
+        return {
+            results: {extraInteraction: exEvtResult},
+            logs: {extraInteraction: []},
+        }
+    } else if (exEvtResult.extraEvents.length > 0) {
+        result.results['extraInteraction'] = exEvtResult;
+        result.logs['extraInteraction'] = [];
+    }
     
+
     // * Step 2: Trigger events
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
-    for (let i = 0; i < numEvents && i < 20; i++) {
-        let e = {};
-        console.log("load_override.js:", "Triggering events", i);
+    const initialEvents = exEvtResult.initialEvents;
+    const initialNumEvents = initialEvents.length;
+    for (let i = 0; i < initialNumEvents && i < 20; i++) {
+        logger.verbose("load_override.js:", "Triggering events", i);
         let page = await browser.newPage();
         const client = await page.target().createCDPSession();
         await enableFields(client);
@@ -126,7 +213,7 @@ async function interaction(browser, url, dirname, timeout, options) {
         result = {
             fixedIdx: result.fixedIdx,
             stage: `interaction_${i}`,
-            events: allEvents[i],
+            events: initialEvents[i],
             success: result.success,
             results: result.results
         }
@@ -163,7 +250,7 @@ async function loadAndFix(url, page, client, stage, dirname, options, loadFunc,
     try {
         await loadFunc(page, client);
     } catch (e) {
-        console.log("load_override.js:", "Error in loadFunc", e.message.split('\n')[0]);
+        logger.error("load_override.js:", "Error in loadFunc", e.message.split('\n')[0]);
         return {
             result: {
                 fixedIdx: -1,
