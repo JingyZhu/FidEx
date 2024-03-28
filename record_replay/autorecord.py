@@ -14,17 +14,18 @@ from urllib.parse import urlsplit
 import requests
 import sys
 import re
+import hashlib
 
 sys.path.append('../')
 from utils import upload
 
 
-REMOTE = False
+REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_archive = 'eot-writes'
 # metadata_file = 'eot-writes_metadata.json'
-metadata_file = 'test_metadata.json'
-arguments = ['-w', '-s']
+metadata_file = 'carta_test_metadata.json'
+arguments = ['-w', '-s', '-i']
 
 def record_replay(url, archive_name, 
                   wr_archive=default_archive, 
@@ -83,7 +84,7 @@ def record_replay_all_urls(data, wr_archive=default_archive,
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
     urls = json.load(open(data, 'r'))
-    # urls = [u['live_url'] for u in urls][:200]
+    urls = [u['live_url'] for u in urls]
 
     for i, url in list(enumerate(urls)):
         print(i, url)
@@ -98,12 +99,10 @@ def record_replay_all_urls(data, wr_archive=default_archive,
             continue
         us = urlsplit(req_url)
         hostname = us.netloc.split(':')[0]
-        count = 1
-        while f"{hostname}_{count}" in seen_dir:
-            count += 1
-        if f"{hostname}_{count}" in seen_dir:
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+        if f"{hostname}_{url_hash}" in seen_dir:
             continue
-        archive_name = f"{hostname}_{count}"
+        archive_name = f"{hostname}_{url_hash}"
         ts, url = record_replay(url, archive_name, 
                                 wr_archive, pw_archive, remote_host=remote_host)
         if ts == '':
@@ -135,8 +134,8 @@ def replay_all_wayback():
             continue
         us = urlsplit(url)
         hostname = us.netloc.split(':')[0]
-        count = 1
-        archive_name = f"{hostname}_{count}"
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:10]
+        archive_name = f"{hostname}_{url_hash}"
         check_call(['node', 'log_writes_replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'wayback', '-w',
                 wayback_url])
@@ -144,16 +143,16 @@ def replay_all_wayback():
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
 # record_replay_all_urls('../datacollect/data/eot_good_all.json')
-# record_replay_all_urls('../datacollect/data/eot_manual_sample.json',
-#                        wr_archive='test', pw_archive='exec_match')
+record_replay_all_urls('../datacollect/data/carta_good_200.json',
+                       wr_archive='test', pw_archive='fidelity_check')
 
 # * Test single URL
-test_url = "https://www.globe.gov/"
-test_req_url = requests.get(test_url).url # * In case of redirection
-print(test_req_url)
-test_archive = "test"
-wr_archive = 'test'
-pw_archive = 'exec_match'
-ts, test_url = record_replay(test_url, test_archive, 
-                             wr_archive=wr_archive, pw_archive=pw_archive)
-print(f'{HOST}/{pw_archive}/{ts}/{test_url}')
+# test_url = "https://www.globe.gov/"
+# test_req_url = requests.get(test_url).url # * In case of redirection
+# print(test_req_url)
+# test_archive = "test"
+# wr_archive = 'test'
+# pw_archive = 'exec_match'
+# ts, test_url = record_replay(test_url, test_archive, 
+#                              wr_archive=wr_archive, pw_archive=pw_archive)
+# print(f'{HOST}/{pw_archive}/{ts}/{test_url}')

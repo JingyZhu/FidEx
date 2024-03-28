@@ -11,7 +11,7 @@ def check_results(dirr):
             result = {}
             result['fixedIdx'] = log['fixedIdx']
             if log['fixedIdx'] == -1:
-                return result
+                continue
             idx = result['fixedIdx']
             stage = log['stage']
             result['stage'] = stage
@@ -249,11 +249,11 @@ def test_run_load_override_with_decider_onfly():
 
 def test_run_load_override_with_interaction():
     urls = [
-        # # Should be run till the end
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
-        #     "hostname": "info.usitc.gov",
-        # },
+        # Should be run till the end
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
+            "hostname": "info.usitc.gov",
+        },
         # # Seen event is not iterable bug
         # {
         #     "hostname": "diversitynews.msfc.nasa.gov_6527",
@@ -286,4 +286,4 @@ def test_run_load_override_with_interaction():
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
 
-test_run_load_override_exception()
+test_run_load_override_with_interaction()
