@@ -25,7 +25,9 @@ function _outOfViewport(dimension) {
 function _dfsVisible(node) {
     let children = [];
     let nodeInfo = null;
-    let dimension = node.getBoundingClientRect();
+    let dimension = null;
+    // * Some node like iframe document does not have getBoundingClientRect
+    dimension = node.getBoundingClientRect();
     const ovp = _outOfViewport(dimension);
     if (!ovp) {
         dimension = {left: dimension.left, top: dimension.top, width: dimension.width, height: dimension.height}

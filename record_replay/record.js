@@ -102,34 +102,39 @@ async function getActivePage(browser) {
     else return pages[pages.length-1]; // ! Fall back solution
 }
 
-async function interaction(page, cdp, excepFF, url, dirname) {
+async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
     await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    let numEvents = await page.evaluate(async () => {
-        eli.init();
-        // eli.shuffle();
-        return eli.listeners.length;
-    })
-    // ! Temp
-    // let origPath = await page.evaluate(async () => {
-    //     return eli.origPath;
-    // })
-    // fs.writeFileSync(`${dirname}/listeners.json`, JSON.stringify(origPath, null, 2));
-    // ! End of temp
+    const allEvents = await page.evaluate(() => {
+        let serializedEvents = [];
+        for (let idx = 0; idx < eli.listeners.length; idx++) {
+            const event = eli.listeners[idx];
+            let [elem, handlers] = event;
+            orig_path = eli.origPath[idx]
+            const serializedEvent = {
+                idx: idx,
+                element: getElemId(elem),
+                path: orig_path,
+                events: handlers,
+                url: window.location.href,
+             }
+            serializedEvents.push(serializedEvent);
+        }
+        return serializedEvents;
+    });
+    const numEvents = allEvents.length;
+    console.log("load_override.js:", "Number of events", numEvents);
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
-    let count = 1;
     for (let i = 0; i < numEvents && i < 20; i++) {
-        let e = {};
-        let p = page.evaluate(async () => await eli.triggerNext())
-            .then(r => e = r)
-        await waitTimeout(p, 3000);
-        if (Object.keys(e).length <= 0) 
-            continue
-        // console.log(e);
-        e.screenshot_count = count;
-        excepFF.afterInteraction(e);
-        await measure.collectNaiveInfo(page, dirname, 
-                            `${filename}_${count++}`, collectNaiveInfoOptions)        
+        await page.waitForFunction(async (idx) => {
+            await eli.triggerNth(idx);
+            return true;
+        }, {timeout: 10000}, i);
+        excepFF.afterInteraction(allEvents[i]);
+        if (options.scroll)
+            await measure.scroll(page);
+        if (options.screenshot)
+            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)        
     }
 }
 
@@ -147,7 +152,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
         .option('-w, --write', "Collect writes to the DOM")
         .option('-s, --screenshot', "Collect screenshot and other measurements")
         .option('-r, --remove', "Remove recordings after finishing loading the page")
-        .option('-t, --top', "Not scroll to the bottom (stay on top).")
+        .option('--scroll', "Scroll to the bottom.")
 
     program
         .argument("<url>")
@@ -157,7 +162,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
     let dirname = options.dir;
     let filename = options.file;
     Archive = options.archive;
-    let scroll = !options.top;
+    let scroll = options.scroll == true;
     ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
     
     // // * Update URL for potential redirection
@@ -259,15 +264,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             await sleep(1000);
         excepFF.afterInteraction('onload');
         
-        // * Step 6: Interact with the webpage
-        if (options.interaction){
-            await interaction(recordPage, client, excepFF, url, dirname);
-            if (options.manual)
-                await eventSync.waitForReady();
-        }
-        const finalURL = recordPage.url();
-        
-        // * Step 7: Collect the writes to the DOM
+        // * Step 6: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
             await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
@@ -283,7 +280,7 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
         }
 
-        // * Step 8: Collect the screenshots and all other measurement for checking fidelity
+        // * Step 7: Collect the screenshots and all other measurement for checking fidelity
         if (options.screenshot){
             const rootFrame = recordPage.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
@@ -292,8 +289,16 @@ async function interaction(page, cdp, excepFF, url, dirname) {
             await measure.collectNaiveInfo(recordPage, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         }
+
+        // * Step 8: Interact with the webpage
+        if (options.interaction){
+            await interaction(recordPage, client, excepFF, url, dirname, filename, options);
+            if (options.manual)
+                await eventSync.waitForReady();
+        }
+        const finalURL = recordPage.url();
+        fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         await recordPage.close();
         
         // * Step 9: Download recorded archive

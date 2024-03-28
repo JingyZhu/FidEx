@@ -111,8 +111,13 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
     // });
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
     let renderTree = await iframe.evaluate(async () => {
-        while (document.body === null)
+        let waitCounter = 0;
+        while (document.body === null) {
             await new Promise(resolve => setTimeout(resolve, 1000));
+            waitCounter++;
+            if (waitCounter > 1)
+                return [];
+        }
         _render_tree = _dfsVisible(document.body);
         _serializeRenderTree();
         return _render_tree_info;
@@ -251,7 +256,7 @@ class excepFFHandler {
 
     /**
      * Batch all exceptions and failed fetches into a the delta array, and label them with the interaction name.
-     * @param {string} interaction Name of the interaction 
+     * @param {string/object} interaction Name of the interaction 
      */
     afterInteraction(interaction) {
         const exp_net_obj = {

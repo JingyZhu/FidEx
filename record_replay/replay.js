@@ -9,7 +9,7 @@ const { program } = require('commander');
 const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
 const execution = require('../utils/execution');
-const { loadToChromeCTXWithUtils } = require('../utils/load');
+const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../utils/load');
 
 
 function sleep(ms) {
@@ -46,43 +46,39 @@ async function startChrome(){
     return browser;
 }
 
-async function interaction(page, cdp, excepFF, url, dirname){
-    // * Read path file
-    let loadEvents = [];
-    // let data = fs.readFileSync(`${dirname}/exception_failfetch_record.json`)
-    // data = JSON.parse(data).slice(1)
-    // for (const obj of data)
-    //     loadEvents.push([obj.interaction.path, obj.interaction.events])
-    // const script = fs.readFileSync("../chrome_ctx/interaction.js", 'utf8');
-    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true});
+async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-    const expr = `
-    // let loadEvents = ${JSON.stringify(loadEvents)};
-    // let eli = new eventListenersIterator(loadEvents);
-    let eli = new eventListenersIterator();
-    `
-    // console.log(expr);
-    await cdp.send("Runtime.evaluate", {expression: expr, includeCommandLineAPI:true});
-    let numEvents = await page.evaluate(async () => {
-        eli.init();
-        return eli.listeners.length;
-    })
-    // ! Temp
-    // let origPath = await page.evaluate(async () => {
-    //     return eli.origPath;
-    // })
-    // fs.writeFileSync(`${dirname}/listeners.json`, JSON.stringify(origPath, null, 2));
-    // ! End of temp
-    let count = 1;
+    await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
+    const allEvents = await page.evaluate(() => {
+        let serializedEvents = [];
+        for (let idx = 0; idx < eli.listeners.length; idx++) {
+            const event = eli.listeners[idx];
+            let [elem, handlers] = event;
+            orig_path = eli.origPath[idx]
+            const serializedEvent = {
+                idx: idx,
+                element: getElemId(elem),
+                path: orig_path,
+                events: handlers,
+                url: window.location.href,
+             }
+            serializedEvents.push(serializedEvent);
+        }
+        return serializedEvents;
+    });
+    const numEvents = allEvents.length;
+    console.log("load_override.js:", "Number of events", numEvents);
+    // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     for (let i = 0; i < numEvents && i < 20; i++) {
-        let e = await page.evaluate(async () => await eli.triggerNext())
-        if (Object.keys(e).length <= 0) 
-            continue
-        // console.log(e);
-        e.screenshot_count = count;
-        excepFF.afterInteraction(e);
-        await measure.collectNaiveInfo(page, dirname,
-                             `${filename}_${count++}`, collectNaiveInfoOptions)
+        await page.waitForFunction(async (idx) => {
+            await eli.triggerNth(idx);
+            return true;
+        }, {timeout: 10000}, i);
+        excepFF.afterInteraction(allEvents[i]);
+        if (options.scroll)
+            await measure.scroll(page);
+        if (options.screenshot)
+            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)        
     }
 }
 
@@ -96,7 +92,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         .option('-w, --write', "Collect writes to the DOM")
         .option('-b, --wayback', "Whether replay is from wayback machine")
         .option('-s, --screenshot', "Collect screenshot and other measurements")
-        .option('-t, --top', "Not scroll to the bottom (stay on top).")
+        .option('--scroll', "Scroll to the bottom.")
 
     program
         .argument("<url>")
@@ -105,7 +101,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
     const options = program.opts();
     let dirname = options.dir;
     let filename = options.file;
-    let scroll = !options.top;
+    let scroll = options.scroll == true;
     const browser = await startChrome();
     const url = new URL(urlStr);
     
@@ -148,7 +144,6 @@ async function interaction(page, cdp, excepFF, url, dirname){
         client.on('Network.responseReceived', params => excepFF.onFetch(params))
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         const timeout = options.wayback ? 200*1000 : 30*1000;
-        // console.log("Timeout: ", timeout)
         await page.evaluateOnNewDocument(script);
         if (options.write)
             await page.evaluateOnNewDocument("__trace_enabled = true");
@@ -162,6 +157,7 @@ async function interaction(page, cdp, excepFF, url, dirname){
         } catch {}
         if (scroll)
             await measure.scroll(page);
+        console.log("1")
 
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
@@ -185,15 +181,9 @@ async function interaction(page, cdp, excepFF, url, dirname){
         else
             await sleep(1000);
         excepFF.afterInteraction('onload');
+        console.log("2")
         
-        // * Step 5: Interact with the webpage
-        if (options.interaction){
-            await interaction(page, client, excepFF, url, dirname);
-            if (options.manual)
-                await eventSync.waitForReady();
-        }
-        
-        // * Step 6: Collect the writes to the DOM
+        // * Step 5: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
             await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
@@ -208,17 +198,28 @@ async function interaction(page, cdp, excepFF, url, dirname){
             fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
         }
 
-        // * Step 7: Collect the screenshot and other measurements
+        // * Step 6: Collect the screenshot and other measurements
         if (options.screenshot){
             const rootFrame = page.mainFrame();
+            console.log("2.1")
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+            console.log("2.2")
             await measure.collectNaiveInfo(page, dirname, filename);
+            console.log("2.3")
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
         }
+
+        console.log("3")
+        // * Step 7: Interact with the webpage
+        if (options.interaction){
+            await interaction(page, client, excepFF, url, dirname, filename, options);
+            if (options.manual)
+                await eventSync.waitForReady();
+        }
+        fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
 
         
     } catch (err) {
