@@ -6,7 +6,7 @@
  * after the line.
  */
 // TODO: Think about how to revert HTML rewriting (or is it even valuable?)
-const esprima = require('esprima');
+const espree = require('espree');
 const fs = require('fs');
 const fetch = require('node-fetch');
 const { Logger } = require('../utils/logger');
@@ -72,7 +72,7 @@ function addHostname(url, hostname) {
 class Reverter {
     constructor(code, { parse=true }={}) {
         this.code = code;
-        this.source = parse ? esprima.parseScript(code, { loc: true, range: true}): null;
+        this.source = parse ? espree.parse(code, { loc: true, range: true, ecmaVersion: "latest"}): null;
         // * BlockStatement is less ideal. It is used as the final backup
         this.statementType = ['ExpressionStatement', 'IfStatement', 'ReturnStatement'];
         this.parentType = ['SequenceExpression', 'BlockStatement'];

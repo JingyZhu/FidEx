@@ -79,6 +79,8 @@ class PageRecorder {
         
         const rootFrame = this.page.mainFrame();
         try {
+            // * Just used for better recording, might need to optimize in the future
+            await sleep(1000);
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));    
@@ -86,7 +88,7 @@ class PageRecorder {
             await measure.collectNaiveInfo(this.page, dirname, filename);
             await sleep(500);
         }  catch(e) {
-            logger.warn("PageRecorder.record:", "Error in collecting render tree", e.toString.split('\n')[0]);
+            logger.warn("PageRecorder.record:", "Error in collecting render tree", e.toString().split('\n')[0]);
         }
     }
 
@@ -489,11 +491,17 @@ class ErrorFixer {
             startLoc: startLoc,
             updated: updatedCode
         })
-        yield updatedCode;
+        yield {
+            updatedCode: updatedCode,
+            needCalcExcep: true
+        };
 
         try {
             revert = new reverter.Reverter(source);
-        } catch {return source;}
+        } catch(e) {
+            logger.warn("ExceptionHandler.fixException:", "Error in parsing source", e);
+            return { updatedCode: source, needCalcExcep: true };
+        }
         logger.verbose("ExceptionHandler.fixException:", "Revert Variable. Location", startLoc, frame.url)
         const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
         updatedCode = revert.revertVariable(startLoc, proxifiedVars);
@@ -503,10 +511,13 @@ class ErrorFixer {
             startLoc: startLoc,
             updated: updatedCode
         })
-        yield updatedCode;
+        yield {
+            updatedCode: updatedCode,
+            needCalcExcep: true
+        };
         
-        if (!exception.uncaught)
-            return;
+        // if (!exception.uncaught)
+        //     return;
         updatedCode = revert.revertWithTryCatch(startLoc);
         logger.verbose("ExceptionHandler.fixException:", "Revert TryCatch. Location", startLoc, frame.url)
         this.log.push({
@@ -515,7 +526,10 @@ class ErrorFixer {
             startLoc: startLoc,
             updated: updatedCode
         })
-        yield updatedCode;
+        yield {
+            updatedCode: updatedCode,
+            needCalcExcep: false // No need to check since try catch always solves the problem
+        };
     }
 
     /**
@@ -549,7 +563,7 @@ class ErrorFixer {
 
         // * Try fixes
         let fix_id = -1;
-        for (const updatedCode of this._findExceptionReverts(frame.source.source, frame, exception)) {
+        for (const { updatedCode, needCalcExcep } of this._findExceptionReverts(frame.source.source, frame, exception)) {
             fix_id += 1;
             if (this.decider) {
                 const decision = this.decider.decide(exception);
@@ -575,10 +589,12 @@ class ErrorFixer {
                 continue;
 
             await this.recorder.record(this.dirname, `${stage}_exception_${i}_${fix_id}`);
-            let newCount = this._calcExceptionDesc([exception], this.inspector.exceptions, exception.uncaught);
-            // * Not fix anything
-            if (newCount >= targetCount)
-                continue;
+            if (needCalcExcep) {
+                let newCount = this._calcExceptionDesc([exception], this.inspector.exceptions, exception.uncaught);
+                // * Not fix anything
+                if (newCount >= targetCount)
+                    continue;
+            }
             logger.log("ExceptionHandler.fixException:", "Fixed exception", i, "with fix", fix_id);
             result.fixException(fix_id);
             this.overrider.recordCurrentOverrides();

@@ -255,7 +255,7 @@ async function enableFields(client) {
         logs['load'] = log;
         await page.close();
 
-        if (options.interaction && results['load']['fixedIdx'] != -1 ) {
+        if (options.interaction && results['load']['fixedIdx'] == -1 ) {
             const {results: interactionResults, logs: interactionLogs} = await interaction(browser, urlStr, dirname, timeout, options);
             results = {...results, ...interactionResults};
             logs = {...logs, ...interactionLogs};
