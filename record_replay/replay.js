@@ -157,8 +157,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         } catch {}
         if (scroll)
             await measure.scroll(page);
-        console.log("1")
-
+        
         // * Step 3: If replaying on Wayback, need to remove the banner for fidelity consistency
         if (options.wayback){
             try {
@@ -181,7 +180,6 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         else
             await sleep(1000);
         excepFF.afterInteraction('onload');
-        console.log("2")
         
         // * Step 5: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
@@ -201,18 +199,14 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // * Step 6: Collect the screenshot and other measurements
         if (options.screenshot){
             const rootFrame = page.mainFrame();
-            console.log("2.1")
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            console.log("2.2")
             await measure.collectNaiveInfo(page, dirname, filename);
-            console.log("2.3")
             fs.writeFileSync(`${dirname}/${filename}.html`, renderInfo.renderHTML.join('\n'));
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
         }
 
-        console.log("3")
         // * Step 7: Interact with the webpage
         if (options.interaction){
             await interaction(page, client, excepFF, url, dirname, filename, options);
