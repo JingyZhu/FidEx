@@ -129,7 +129,7 @@ async function checkExtraEventsFidelity(page, client, options, loadAndCollectLis
                 await page.waitForFunction(async (idx) => {
                     await eli.triggerNth(idx);
                     return true;
-                }, {timeout: 3000}, i);
+                }, {timeout: 3000}, idx);
                 result.results.push({
                     type: "eventTriggered",
                     idx: idx,
@@ -144,10 +144,16 @@ async function checkExtraEventsFidelity(page, client, options, loadAndCollectLis
                 break;
             }
         }
-        recorder.record(options.dirname, 'extraInteraction');
-        const fidelityCheck = await recorder.fidelityCheck(options.dirname, 'load_initial', 'extraInteraction');
-        if (fidelityCheck.different)
+        await recorder.record(options.dir, 'extraInteraction_exception_0');
+        // cp load_initial* to extraInteration_initial*
+        const suffices = ['_elements.json', '_requests.json', '_writes.json', '.png'];
+        for (const suffix of suffices)
+            fs.copyFileSync(`${options.dir}/load_initial${suffix}`, `${options.dir}/extraInteraction_initial${suffix}`);
+        const fidelityCheck = await recorder.fidelityCheck(options.dir, 'extraInteraction_initial', 'extraInteraction_exception_0');
+        if (fidelityCheck.different) {
+            logger.log("load_override.js:", "Fixed fidelity issue");
             result['fixedIdx'] = 0;
+        }
     }
     return result;
 }
@@ -156,7 +162,7 @@ async function checkExtraEventsFidelity(page, client, options, loadAndCollectLis
  * 
  * @returns {object} A mapping from interaction id to their metadata
  */
-async function interaction(browser, url, dirname, timeout, options) {
+async function interaction(browser, url, timeout, options) {
     // * Step 1: Collect number of events, before and after patch.
     // * Note that if the number of events is different, will first try additional events.
     let page = await browser.newPage();
@@ -205,7 +211,7 @@ async function interaction(browser, url, dirname, timeout, options) {
                 }, {timeout: 10000}, i);
             }
         })(page, i)
-        let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, dirname, options, triggerEvent, 
+        let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, options, triggerEvent, 
                                                                 {
                                                                     beforeFunc: loadAndCollectListeners,
                                                                     workingOverrides: workingOverrides
@@ -232,10 +238,10 @@ async function interaction(browser, url, dirname, timeout, options) {
 /**
  * @returns {object} result: {fixedIdx, stage, success, results}, log: [], workingOverrides: {}
  */
-async function loadAndFix(url, page, client, stage, dirname, options, loadFunc, 
+async function loadAndFix(url, page, client, stage, options, loadFunc, 
                           {beforeFunc=null, workingOverrides={}}={}) {
     let errorFixer = new errorFix.ErrorFixer(page, client, {
-                                                            dirname: dirname, 
+                                                            dirname: options.dir, 
                                                             manual: options.manual,
                                                             decider: options.optimized,
                                                             beforeReloadFunc: beforeFunc,
@@ -336,14 +342,14 @@ async function enableFields(client) {
             waitUntil: 'networkidle0',
             timeout: timeout
         })}
-        let {result, log, workingOverrides: newWorkingOverrides} = await loadAndFix(url, page, client, 'load', dirname, options, loadFunc);
+        let {result, log, workingOverrides: newWorkingOverrides} = await loadAndFix(url, page, client, 'load', options, loadFunc);
         workingOverrides = newWorkingOverrides;
         results['load'] = result;
         logs['load'] = log;
         await page.close();
 
         if (options.interaction && results['load']['fixedIdx'] == -1 ) {
-            const {results: interactionResults, logs: interactionLogs} = await interaction(browser, urlStr, dirname, timeout, options);
+            const {results: interactionResults, logs: interactionLogs} = await interaction(browser, urlStr, timeout, options);
             results = {...results, ...interactionResults};
             logs = {...logs, ...interactionLogs};
         }

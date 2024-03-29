@@ -67,7 +67,12 @@ class PageRecorder {
         // await this.page.evaluateOnNewDocument("__trace_enabled = true");
     }
 
-    async record(dirname, filename) {
+    async record(dirname, filename, {responses={}}={}) {
+        let recordResponses = {};
+        for (const [url, response] of Object.entries(responses))
+            recordResponses[url] = response.status
+        fs.writeFileSync(`${dirname}/${filename}_requests.json`, JSON.stringify(recordResponses, null, 2))
+
         await loadToChromeCTXWithUtils(this.page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
         const writeLog = await this.page.evaluate(() => {
             return {
@@ -235,7 +240,7 @@ class ErrorFixer {
         }
         // * No need to record if collectLoadInfo is called after Network fix
         if (record)
-            await this.recorder.record(this.dirname, `${stage}_initial`);
+            await this.recorder.record(this.dirname, `${stage}_initial`, {requests: this.inspector.responses});
     }
 
     /**
@@ -310,7 +315,7 @@ class ErrorFixer {
         result.reloaded();
         if (!success)
             return result;
-        await this.recorder.record(this.dirname, `${stage}_exception_Base`);
+        await this.recorder.record(this.dirname, `${stage}_exception_Base`, {responses: this.inspector.responses});
         const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_Base`);
         if (fidelity.different) {
             logger.log("ExceptionHandler.fixBase:", "Fixed fidelity issue");
@@ -355,7 +360,7 @@ class ErrorFixer {
         const success = await this.reloadWithOverride({}, true);
         if (!success)
             return result;
-        await this.recorder.record(this.dirname, `${stage}_exception_NW`);
+        await this.recorder.record(this.dirname, `${stage}_exception_NW`, {responses: this.inspector.responses});
         const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_NW`);
         // TODO: Need to check if any exception is fixed
         if (fidelity.different) {
@@ -450,7 +455,7 @@ class ErrorFixer {
             const success = await this.reloadWithOverride({});
             if (!success)
                 continue;
-            await this.recorder.record(this.dirname, `${stage}_exception_SE_${fix_id}`);
+            await this.recorder.record(this.dirname, `${stage}_exception_SE_${fix_id}`, {responses: this.inspector.responses});
             let newCount = this._calcExceptionDesc(syntaxErrorExceptions, this.inspector.exceptions, false);        
             if (newCount >= syntaxErrorExceptions.length)
                 continue;
@@ -517,8 +522,8 @@ class ErrorFixer {
             needCalcExcep: true
         };
         
-        // if (!exception.uncaught)
-        //     return;
+        if (!exception.uncaught)
+            return;
         updatedCode = revert.revertWithTryCatch(startLoc);
         logger.verbose("ExceptionHandler.fixException:", "Revert TryCatch. Location", startLoc, frame.url)
         this.log.push({
@@ -529,7 +534,7 @@ class ErrorFixer {
         })
         yield {
             updatedCode: updatedCode,
-            needCalcExcep: false // No need to check since try catch always solves the problem
+            needCalcExcep: true // No need to check since try catch always solves the problem
         };
     }
 
@@ -589,7 +594,7 @@ class ErrorFixer {
             if (!success)
                 continue;
 
-            await this.recorder.record(this.dirname, `${stage}_exception_${i}_${fix_id}`);
+            await this.recorder.record(this.dirname, `${stage}_exception_${i}_${fix_id}`, {responses: this.inspector.responses});
             if (needCalcExcep) {
                 let newCount = this._calcExceptionDesc([exception], this.inspector.exceptions, exception.uncaught);
                 // * Not fix anything
