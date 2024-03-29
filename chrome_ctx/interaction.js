@@ -249,8 +249,11 @@ function getCandidateElements(listeners) {
         var [el, handler] = l;
         if (IGNORE_ELEMENTS.filter((e) => el.nodeName == e).length == 0) {
             // * Filtration of tag pointing to other URLs
-            if (el && el.href && el.href != "" && el.href.indexOf("#") < 0){
-                // console.log("href pointing to other URLs", el);
+            if (el && el.href && el.href != ""){
+                // If el.href is not the same as the current URL, ignore it
+                // Taking fragments into account
+                let url = new URL(el.href);
+                if (url.origin != window.location.origin || url.pathname != window.location.pathname) return;
                 return;
             }
 
