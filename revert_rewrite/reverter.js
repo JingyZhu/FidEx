@@ -109,7 +109,7 @@ class Reverter {
                     continue
                 let value_list = Array.isArray(value) ? value : [value];
                 for (const v of value_list) {
-                    if (v.range[0] > startIdx || v.range[1] <= startIdx)
+                    if (v === null || v.range[0] > startIdx || v.range[1] <= startIdx)
                         continue;
                     // * First recurse to the lowest level so that we can get the minimal statements
                     findMinimal(v);
