@@ -425,7 +425,7 @@ class ErrorFixer {
         const stage = this.stage;
         let result = new FixResult('SyntaxError');
         const latestExceptions = this.exceptions[stage];
-        const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError');
+        const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError' && excep.uncaught);
         if (syntaxErrorExceptions.length == 0)
             return result;
         
@@ -634,7 +634,7 @@ class ErrorFixer {
         const syntaxFix = await this.fixSyntaxError(stage);
         if (syntaxFix.fixed)
             return `SE_${syntaxFix.fixedID}`;
-        const latestExceptions = this.exceptions[stage].filter(excep => excep.type != 'SyntaxError');
+        const latestExceptions = this.exceptions[stage].filter(excep => !(excep.type == 'SyntaxError' && excep.uncaught) );
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);
             if (excepFix.fixed)

@@ -253,8 +253,10 @@ function getCandidateElements(listeners) {
                 // If el.href is not the same as the current URL, ignore it
                 // Taking fragments into account
                 let url = new URL(el.href);
-                if (url.origin != window.location.origin || url.pathname != window.location.pathname) return;
-                return;
+                if (url.origin != window.location.origin 
+                   || url.pathname != window.location.pathname 
+                   || url.search != window.location.search) 
+                    return;
             }
 
             var e = [el, []];
