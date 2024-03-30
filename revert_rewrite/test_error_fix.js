@@ -108,5 +108,19 @@ if ( element ) {
     console.log(revert.revertLines({line: 5, column: 9}, 'SyntaxError: Unexpected token ;'));
 }
 
+function testAbilitytoParse() {
+    const code = fs.readFileSync('test/js_revert/failToParse.js', 'utf-8');
+    const revert = new reverter.Reverter(code);
+}
+
+function testAbilityToFindStatements() {
+    const code = fs.readFileSync('test/js_revert/failToFindStatements.js', 'utf-8');
+    const revert = new reverter.Reverter(code);
+    const startLoc = {line: 205, column: 19};
+    const startIdx = revert._loc2idx(startLoc);
+    revert._findStatements(startIdx);
+}
 // testReverterTryCatch();
-testReverterLines();
+// testReverterLines();
+// testAbilitytoParse();
+testAbilityToFindStatements()
