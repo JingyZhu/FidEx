@@ -114,11 +114,19 @@ function testAbilitytoParse() {
 }
 
 function testAbilityToFindStatements() {
-    const code = fs.readFileSync('test/js_revert/failToFindStatements.js', 'utf-8');
-    const revert = new reverter.Reverter(code);
-    const startLoc = {line: 205, column: 19};
-    const startIdx = revert._loc2idx(startLoc);
+    let code = fs.readFileSync('test/js_revert/failToFindStatements.js', 'utf-8');
+    let revert = new reverter.Reverter(code);
+    let startLoc = {line: 205, column: 19};
+    let startIdx = revert._loc2idx(startLoc);
     revert._findStatements(startIdx);
+    console.log("Pass previous failToFindState 1")
+
+    code = fs.readFileSync('test/js_revert/failToFindStatements2.js', 'utf-8');
+    revert = new reverter.Reverter(code);
+    startLoc = {line: 174, column: 7164};
+    startIdx = revert._loc2idx(startLoc);
+    revert._findStatements(startIdx);
+    console.log("Pass previous failToFindState 2")
 }
 // testReverterTryCatch();
 // testReverterLines();
