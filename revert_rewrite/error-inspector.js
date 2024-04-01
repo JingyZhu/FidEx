@@ -19,12 +19,14 @@ class ExceptionInfo {
      * @param {string} type from data.className
      * @param {string} description from data.description
      * @param {boolean} uncaught from data.uncaught
+     * @param {boolean} onConsole If the exception is shown on the console
      */
-    constructor(type, description, uncaught){
+    constructor(type, description, uncaught, onConsole){
         this.type = type;
         this.description = description;
         this.frames = []; // [frame[var]]
         this.uncaught = uncaught;
+        this.onConsole = onConsole;
     }
 
     addFrame(url, scriptId, line, column) {
@@ -34,8 +36,8 @@ class ExceptionInfo {
             format: {source, start, end}*/
             source: null,
             url: url,
-            line: line,
-            column: column,
+            line: line, // 0 indexed
+            column: column, // 0 indexed
             vars: []
         });
     }
@@ -133,13 +135,13 @@ class ErrorInspector {
      * @param {Boolean} recordVar Whether to record the variable status
      */
     async _recordException(params){
-        const {callFrames, data} = params;
+        const {callFrames, data} = params; // data looks similar to Runtime.RemoteObject
         const description = "description" in data ? data.description : "";
-        let info = new ExceptionInfo(data.className, description, params.data.uncaught);
+        let info = new ExceptionInfo(data.className, description, params.data.uncaught, false);
         if (this._seenExceptions.has(description))
             return;
         const firstLine = description != "" ? description.split('\n')[0] : "";
-        logger.log("ErrorInspector._recordException:", "Detected exception", firstLine);
+        logger.log("ErrorInspector._recordException:", "Detected exception", firstLine, "uncaught", params.data.uncaught);
         let decision = {couldBeFixed: true}
         for (const frame of callFrames){
             const {location, scopeChain} = frame;
@@ -226,14 +228,56 @@ class ErrorInspector {
         });
 
         this.client.on('Runtime.exceptionThrown', params => {
-            let detail = params.exceptionDetails;
-            const description = detail.exception.description;
-            logger.verbose("ErrorInspector:", "thrown exception", description.split('\n')[0]);
-            if (!description || !description.startsWith('SyntaxError'))
-                return;
-            let info = new ExceptionInfo('SyntaxError', description, true);
-            info.addFrame(detail.url, detail.scriptId, detail.lineNumber, detail.columnNumber);
+            let details = params.exceptionDetails;
+            const description = details.exception.description;
+            logger.verbose("ErrorInspector:", "thrown exception", description.split('\n')[0], details.exception.className);
+            
+            const errorType = details.exception.className;
+            let info = new ExceptionInfo(errorType, description, true, true);
+            if (details.stackTrace) {
+                for (const frame of details.stackTrace.callFrames)
+                    info.addFrame(frame.url, frame.scriptId, frame.lineNumber, frame.columnNumber);
+            } else {
+                info.addFrame(details.url, details.scriptId, details.lineNumber, details.columnNumber);
+            }
             this.exceptions.push(info);
+        })
+
+        this.client.on('Runtime.consoleAPICalled', async params => {
+            if (params.type != 'error')
+                return
+            const extractUrls = (str) => {
+                const urlLocRegex = /(https?:\/\/[^\s]+)/g;
+                // Get the first match
+                const matches = str.match(urlLocRegex);
+                if (matches == null)
+                    return null;
+                const urlWithLoc = matches[0];
+                // Split urlWithLoc into url, line, column, by regex
+                const urlRegex = /(.*):(\d+):(\d+)/;
+                const [url, line, column] = urlWithLoc.match(urlRegex).slice(1);
+                return [url, line, column];
+            }
+            // Check if the args have any exception
+            for (const arg of params.args) {
+                if (arg.type !== 'object' || arg.subtype !== 'error') 
+                    continue;
+                let description = arg.description;
+                const errorType = arg.className;
+                let info = new ExceptionInfo(errorType, description, true, true);
+                // Parse description as each line there is a URL (stack of the error)
+                const lines = description.split('\n');
+                for (const line of lines) {
+                    const match = extractUrls(line);
+                    if (match == null)
+                        continue;
+                    const [url, lineNum, columnNum] = match;
+                    info.addFrame(url, null, lineNum-1, columnNum-1);
+                }
+                console.log("ErrorInspector:", "console.error", description.split('\n')[0]);
+                this.exceptions.push(info);
+                break;
+            }
         })
 
         await this.client.send('Debugger.setPauseOnExceptions', {state: type});

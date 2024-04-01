@@ -249,7 +249,7 @@ def generate_sig(write, live=False):
             sig[-1].append(frame)
     return sig
 
-def diff_writes(left_writes: list, right_writes: list):
+def diff_writes(left_writes: list, right_writes: list, attribute: str='rawWrites'):
     """
     Diff the writes between live and archive pages
     Same criteria is based on write's stack trace
@@ -258,8 +258,8 @@ def diff_writes(left_writes: list, right_writes: list):
         left_writes: List from left_writes
         right_writes: List from right_writes
     """
-    left_writes = left_writes['rawWrites']
-    right_writes = right_writes['rawWrites']
+    left_writes = left_writes[attribute]
+    right_writes = right_writes[attribute]
 
     def _tag_from_xpath(xpath):
         return xpath.split('/')[-1].split('[')[0]

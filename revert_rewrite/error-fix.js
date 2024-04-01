@@ -193,8 +193,16 @@ class ErrorFixer {
         const stage = this.stage;
         this.exceptions[stage] = [];
         for (let exception of this.inspector.exceptions){
-            if (exception.type !== 'SyntaxError') { 
+            if (!(exception.type == 'SyntaxError' && exception.onConsole)) { 
                 for (let frame of exception.frames) {
+                    if (frame.scriptId === null) { // console error frames, not scriptId
+                        for (let [scriptId, info] of Object.entries(this.inspector.scriptInfo)) {
+                            if (info.url === frame.url) {
+                                frame.scriptId = scriptId;
+                                break;
+                            }
+                        }
+                    }
                     const sourceObj = this.inspector.scriptInfo[frame.scriptId];
                     frame.source = {
                         source: sourceObj.source,
@@ -212,7 +220,8 @@ class ErrorFixer {
             this.exceptions[stage].push(exception);
         }
         // Sort the exceptions by their type, uncaught first, then caught
-        this.exceptions[stage].sort((a, b) => b.uncaught-a.uncaught);
+        const priority = excep => excep.onConsole*10 + excep.uncaught;
+        this.exceptions[stage].sort((a, b) => priority(b) - priority(a));
         let exceptionsInfo = {
             type: 'exceptions',
             stage: stage,
@@ -224,7 +233,7 @@ class ErrorFixer {
                 type: exception.type,
                 uncaught: exception.uncaught,
                 description: exception.description,
-                idx: exception.type == 'SyntaxError' ? -1 : idx++,
+                idx: (exception.type == 'SyntaxError' && exception.onConsole) ? -1 : idx++,
                 url: exception.frames[0].url,
             })
             const rewrittenFrame = topRewrittenFrameURL(exception.frames);
@@ -240,7 +249,7 @@ class ErrorFixer {
         }
         // * No need to record if collectLoadInfo is called after Network fix
         if (record)
-            await this.recorder.record(this.dirname, `${stage}_initial`, {requests: this.inspector.responses});
+            await this.recorder.record(this.dirname, `${stage}_initial`, {responses: this.inspector.responses});
     }
 
     /**
@@ -425,7 +434,7 @@ class ErrorFixer {
         const stage = this.stage;
         let result = new FixResult('SyntaxError');
         const latestExceptions = this.exceptions[stage];
-        const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError' && excep.uncaught);
+        const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError' && excep.onConsole);
         if (syntaxErrorExceptions.length == 0)
             return result;
         
@@ -629,12 +638,14 @@ class ErrorFixer {
         const networkFix = await this.fixNetwork();
         if (networkFix.fixed)
             return "NW";
-        if (networkFix.reloaded)
+        if (networkFix.reloaded) {
+            // console.log("Network reloaded", networkFix.reloaded)
             await this.collectLoadInfo(false);
+        }
         const syntaxFix = await this.fixSyntaxError(stage);
         if (syntaxFix.fixed)
             return `SE_${syntaxFix.fixedID}`;
-        const latestExceptions = this.exceptions[stage].filter(excep => !(excep.type == 'SyntaxError' && excep.uncaught) );
+        const latestExceptions = this.exceptions[stage].filter(excep => !(excep.type == 'SyntaxError' && excep.onConsole) );
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);
             if (excepFix.fixed)

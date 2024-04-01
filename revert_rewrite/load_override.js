@@ -334,7 +334,7 @@ async function enableFields(client) {
     
     try {
         await enableFields(client);
-        const timeout = options.wayback ? 200*1000 : 30*1000;
+        const timeout = options.wayback ? 200*1000 : 60*1000;
         
         let results = {}, logs = {};
         // * Step 2: Load the page
