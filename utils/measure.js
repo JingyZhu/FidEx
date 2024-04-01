@@ -172,9 +172,11 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
             prefix: parentInfo.prefix + '  ' + prefix,
             depth: parentInfo.depth + currentInfo.depth + 1,
         }
-        const childInfo = await collectRenderTree(childFrame, currentInfo, replay);
-        childRenderTrees.push(childInfo.renderTree)
-        childidx.push(htmlIframes[childURL].idx);
+        try {
+            const childInfo = await collectRenderTree(childFrame, currentInfo, replay);
+            childRenderTrees.push(childInfo.renderTree)
+            childidx.push(htmlIframes[childURL].idx);
+        } catch {}
     }
     childidx.push(renderTree.length-1)
     let newRenderTree = renderTree.slice(0, childidx[0]+1)

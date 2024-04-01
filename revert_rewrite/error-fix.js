@@ -182,6 +182,7 @@ class ErrorFixer {
         this.hostname = new URL(origURL).hostname;
         this.overrider.hostname = this.hostname;
         this.exceptionType = exceptionType;
+        await this.inspector.initialize();
         await this.inspector.reset(true, exceptionType);
     }
 
@@ -559,7 +560,8 @@ class ErrorFixer {
         let result = new FixResult(i);
         result.addDescrption(description);
         logger.log("ExceptionHandler.fixException:", "Start fixing exception", i, 
-                    'out of', exceptions.length-1, '\n  description:', description, 'uncaught', exception.uncaught);
+                    'out of', exceptions.length-1, '\n  description:', description, '\n',
+                    'onConsole', exception.onConsole, 'uncaught', exception.uncaught);
         let targetCount = this._calcExceptionDesc([exception], exceptions, exception.uncaught);
         // * Iterate throught frames
         // * For each frame, only try looking the top frame that can be reverted

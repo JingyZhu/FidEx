@@ -138,6 +138,7 @@ class ErrorInspector {
         const {callFrames, data} = params; // data looks similar to Runtime.RemoteObject
         const description = "description" in data ? data.description : "";
         let info = new ExceptionInfo(data.className, description, params.data.uncaught, false);
+        // TODO: This could be merged into decider's functionality
         if (this._seenExceptions.has(description))
             return;
         const firstLine = description != "" ? description.split('\n')[0] : "";
@@ -205,39 +206,23 @@ class ErrorInspector {
      * @param {string} type none, uncaught, caught, all
      */
     async setExceptionBreakpoint(type='uncaught'){
-        this.client.on('Debugger.scriptParsed', async params => {
-            // * First add the URL, since getting the source is async
-            this.scriptInfo[params.scriptId] = {
-                url: params.url, 
-                source: null, 
-                startLine: params.startLine,
-                startColumn: params.startColumn,
-                endLine: params.endLine,
-                endColumn: params.endColumn
-            };
-            try {
-                const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
-                // * After coming back, the scriptInfo might be emptied.
-                if (params.scriptId in this.scriptInfo) {
-                    this.scriptInfo[params.scriptId].source = scriptSource;
-                }
-            } catch (e) {
-                logger.warn("ErrorInspector:", "scriptParsed getting source", e.message.split('\n')[0]);
-                return;
-            }
-        });
-
         this.client.on('Runtime.exceptionThrown', params => {
             let details = params.exceptionDetails;
             const description = details.exception.description;
+            if (!description)
+                return;
             logger.verbose("ErrorInspector:", "thrown exception", description.split('\n')[0], details.exception.className);
             
             const errorType = details.exception.className;
             let info = new ExceptionInfo(errorType, description, true, true);
             if (details.stackTrace) {
-                for (const frame of details.stackTrace.callFrames)
-                    info.addFrame(frame.url, frame.scriptId, frame.lineNumber, frame.columnNumber);
-            } else {
+                for (const frame of details.stackTrace.callFrames) {
+                    // Maybe need to deal with trailing handlers (similar to _recordException). Currently not implemented
+                    if (!(frame.scriptId in this.scriptInfo)) return;
+                    const { startLine } = this.scriptInfo[frame.scriptId];
+                    info.addFrame(frame.url, frame.scriptId, frame.lineNumber-startLine, frame.columnNumber);
+                }
+            } else { // * Assume this is syntax error on parsing the whole resources
                 info.addFrame(details.url, details.scriptId, details.lineNumber, details.columnNumber);
             }
             this.exceptions.push(info);
@@ -299,8 +284,45 @@ class ErrorInspector {
     async unsetExceptionBreakpoint(){
         await this.client.send('Debugger.setPauseOnExceptions', {state: 'none'});
         await this.client.removeAllListeners('Debugger.paused');
-        await this.client.removeAllListeners('Debugger.scriptParsed');
         await this.client.removeAllListeners('Runtime.exceptionThrown');
+        await this.client.removeAllListeners('Runtime.consoleAPICalled');
+    }
+
+    async initialize(){
+        this.client.on('Debugger.scriptParsed', async params => {
+            // * First add the URL, since getting the source is async
+            this.scriptInfo[params.scriptId] = {
+                url: params.url, 
+                source: null, 
+                startLine: params.startLine,
+                startColumn: params.startColumn,
+                endLine: params.endLine,
+                endColumn: params.endColumn
+            };
+            try {
+                const {scriptSource} = await this.client.send('Debugger.getScriptSource', {scriptId: params.scriptId});
+                // * After coming back, the scriptInfo might be emptied.
+                if (params.scriptId in this.scriptInfo) {
+                    this.scriptInfo[params.scriptId].source = scriptSource;
+                }
+            } catch (e) {
+                logger.warn("ErrorInspector:", "scriptParsed getting source", e.message.split('\n')[0]);
+                return;
+            }
+        });
+
+        this.client.on('Network.requestWillBeSent', params => {
+            this._requestURL[params.requestId] = params.request.url;
+        });
+        this.client.on('Network.responseReceived', async params => {
+            const url = this._requestURL[params.requestId];
+            this.responses[url] = {
+                requestId: params.requestId,
+                status: params.response.status,
+                headers: params.response.headers,
+                body: null
+            }
+        })
     }
 
     setNetworkListener(){
@@ -346,10 +368,10 @@ class ErrorInspector {
         this.recordVar = recordVar;
         await this.setExceptionBreakpoint(type=type)
         // Network
-        this.unsetNetworkListener();
+        // this.unsetNetworkListener();
         this._requestURL = {};
         this.responses = {};
-        this.setNetworkListener();
+        // this.setNetworkListener();
     }
 
     async unset() {
@@ -357,7 +379,7 @@ class ErrorInspector {
         this.exceptions = []
         this._seenExceptions = new Set();
         this.scriptInfo = {}
-        this.unsetNetworkListener();
+        // this.unsetNetworkListener();
         this._requestURL = {};
         this.responses = {};
     }
@@ -365,7 +387,7 @@ class ErrorInspector {
     async set(recordVar=true, type='uncaught') {
         await this.setExceptionBreakpoint(type=type);
         this.recordVar = recordVar;
-        this.setNetworkListener();
+        // this.setNetworkListener();
     }
 }
 

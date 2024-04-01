@@ -250,9 +250,24 @@ class Overrider {
     }
 
     recordCurrentOverrides() {
-        for (const [url, resource] of Object.entries(this.currentOverrides)) {
+        for (const [url, override] of Object.entries(this.currentOverrides)) {
             this.workingOverrides[url] = url in this.workingOverrides ? this.workingOverrides[url] : [];
-            this.workingOverrides[url].push(resource);
+            // If override contains only part of the resource, need to combine together for popWorkingOverrides
+            // Deep copy the override
+            let combinedOverride = JSON.parse(JSON.stringify(override));
+            let resource = override.source;
+            if (combinedOverride.start && combinedOverride.end) {
+                const { body, base64Encoded } = this.seenResponses[url].body;
+                let original = base64Encoded ? Buffer.from(body, 'base64').toString() : body;
+                // * Replace original's start to end with resource
+                const startIdx = reverter.loc2idx(original, override.start);
+                const endIdx = reverter.loc2idx(original, override.end);
+                resource = original.slice(0, startIdx) + resource + original.slice(endIdx);
+                combinedOverride.source = resource;
+                combinedOverride.start = null;
+                combinedOverride.end = null;
+            }
+            this.workingOverrides[url].push(combinedOverride);
         }
     }
 
