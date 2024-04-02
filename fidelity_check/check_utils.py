@@ -4,7 +4,7 @@ Check if the archive preserves all the fidelity from liveweb page
 import difflib
 import json
 import re, os
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from collections import defaultdict
 import cv2
 import numpy as np
