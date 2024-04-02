@@ -22,6 +22,25 @@ function topRewrittenFrameURL(frames) {
     return null;
 }
 
+/**
+ * 
+ * @param {string} xpath1 
+ * @param {string} xpath2 
+ * @returns {int} Infinity if length not same
+ */
+function xpathDiff(xpath1, xpath2) {
+    xpath1 = xpath1.split('/');
+    xpath2 = xpath2.split('/');
+    if (xpath1.length != xpath2.length)
+        return Infinity;
+    let diff = 0;
+    for (let i = 0; i < xpath1.length; i++) {
+        if (xpath1[i] != xpath2[i])
+            diff++;
+    }
+    return diff;
+}
+
 
 /**
  * Decide if the exception is worth to fix/fixable
@@ -31,6 +50,8 @@ class FixDecider {
         this.rules = {};
         this.curLoadRules = this.rules;
         this.path = path;
+        // {path: {event: {funcId: couldbeFixed}}}
+        this.interactRules = {};
     }
 
     saveRules({path=null}={}) {
@@ -67,18 +88,18 @@ class FixDecider {
         return sigs;
     }
 
-    _applyPolicy(exception, fixRecord, thisLoad=false) {
+    _addtoFixPolicy(exception, fixResult, thisLoad=false) {
         let rules = thisLoad ? this.curLoadRules: this.rules;
         const sigs = this._collectExcepSig(exception);
         for (const sig of sigs) {
             if (sig in rules) {
                 rules[sig].seen += 1;
-                return
+                continue;
             }
-            if (!fixRecord)
+            if (!fixResult)
                 return;
-            if (fixRecord.fixedExcep) {
-                const fixID = fixRecord.fixedExcepID;
+            if (fixResult.fixedExcep) {
+                const fixID = fixResult.fixedExcepID;
                 rules[sig] = {
                     couldBeFixed: true,
                     fixID: fixID,
@@ -95,9 +116,29 @@ class FixDecider {
         }
     }
 
+    _addtoInteractPolicy(interactResult) {
+        let couldBeFixed = false;
+        for (const log of interactResult.results) {
+            if (log.type != "fidelity")
+                continue
+            if (log.fixedExcep) {
+                couldBeFixed = true;
+                break;
+            }
+        }
+        const events = interactResult.events;
+        const xpath = events.path;
+        this.interactRules[xpath] = {}
+        for (const [event, funcs] of Object.entries(events.events)) {
+            this.interactRules[xpath][event] = {}
+            for (const funcId of funcs)
+                this.interactRules[xpath][event][funcId] = couldBeFixed;
+        }
+    }
+
     /**
      * 
-     * @param {object} result result from the results.log 
+     * @param {object} result result from the results.json
      */
     parseFixResult(result) {
         let maxExcepNo = 0;
@@ -122,9 +163,9 @@ class FixDecider {
             }
         }
         for (const excep of idxExceptions['SyntaxError'])
-            this._applyPolicy(excep, idxFidelityRecords[excep.idx]);
+            this._addtoFixPolicy(excep, idxFidelityRecords[excep.idx]);
         for (let i = 0; i < maxExcepNo; i++)
-            this._applyPolicy(idxExceptions[i], idxFidelityRecords[i]);
+            this._addtoFixPolicy(idxExceptions[i], idxFidelityRecords[i]);
         this.curLoadRules = this.rules;
     }
 
@@ -132,8 +173,12 @@ class FixDecider {
      * This is used to parse a single fix result
      * The reason this is nececssary is because the within a single load, there could be duplicate errors
      */
-    parseSingleFix(exception, fixRecord) {
-        this._applyPolicy(exception, fixRecord, true);
+    parseSingleFix(exception, fixResult) {
+        this._addtoFixPolicy(exception, fixResult, true);
+    }
+
+    parseInteractionResult(result) {
+        this._addtoInteractPolicy(result);
     }
 
     readLogs({path=this.path} = {}) {
@@ -172,6 +217,44 @@ class FixDecider {
             couldBeFixed: true,
             fixID: 0
         }
+    }
+
+    /**
+     * 
+     * @param {object} interaction events from results.events
+     */
+    decideInteract(interaction) {
+        // Collect xpath from this.interactRules that has the longest prefix
+        let xpath = '';
+        for (const key of Object.keys(this.interactRules)) {
+            if (interaction.path.startsWith(key) && key.length > xpath.length)
+                xpath = key;
+        }
+        if (xpath == '') {
+            // Try looking for xpath with only one component different
+            for (const path of Object.keys(this.interactRules)) {
+                const diff = xpathDiff(interaction.path, path);
+                if (diff <= 1) {
+                    xpath = path;
+                    break;
+                }
+            }
+        }
+        if (!(xpath in this.interactRules))
+            return {couldBeFixed: true};
+        const pathRules = this.interactRules[xpath];
+        let couldBeFixed = false;
+        for (const [event, funcs] of Object.entries(interaction.events)) {
+            if (!(event in pathRules))
+                return {couldBeFixed: true};
+            const eventRules = pathRules[event];
+            for (const funcId of funcs) {
+                if (!(funcId in eventRules))
+                    return {couldBeFixed: true};
+                couldBeFixed = couldBeFixed || eventRules[funcId];
+            }
+        }
+        return {couldBeFixed: couldBeFixed}
     }
 }
 

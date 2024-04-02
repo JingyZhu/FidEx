@@ -30,6 +30,7 @@ class FixResult {
         this.fixedExcep = false;
         this.fixedExcepID = Infinity;
         this.skipped = true;
+        this.reloadCount = 0;
     }
 
     addDescrption(description) {
@@ -51,7 +52,7 @@ class FixResult {
     }
 
     reloaded() {
-        this.reloaded = true;
+        this.reloadCount += 1;
     }
 }
 
@@ -269,6 +270,7 @@ class ErrorFixer {
         try {
             if (this.manual)
                 await eventSync.waitForReady();
+            logger.log("ErrorFix.reloadWithOverride:", "Reloading with override");
             await this.reloadFunc();
         } catch(e) {
             logger.warn("ExceptionHandler.reloadWithOverride:", "Reload exception", e)
@@ -366,10 +368,10 @@ class ErrorFixer {
         await Promise.all(promises);
         if (Object.keys(this.overrider.networkOverrides).length == 0)
             return result;
-        result.reloaded();
         const success = await this.reloadWithOverride({}, true);
         if (!success)
             return result;
+        result.reloaded();
         await this.recorder.record(this.dirname, `${stage}_exception_NW`, {responses: this.inspector.responses});
         const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_NW`);
         // TODO: Need to check if any exception is fixed
@@ -429,7 +431,7 @@ class ErrorFixer {
     /**
      * Fix all the files that invoke SyntaxError
      * These fixes will be put in Overrider, and overide everytime
-     * @returns {Boolean} Whether the fix is successful
+     * @returns {FixResult} Whether the fix is successful
      */
     async fixSyntaxError() {
         const stage = this.stage;
@@ -551,7 +553,7 @@ class ErrorFixer {
     /**
      * 
      * @param {Array[ExceptionInfo]} exception 
-     * @returns 
+     * @returns {FixResult}
      */
     async fixException(exceptions, i) {
         const stage = this.stage;
@@ -640,7 +642,7 @@ class ErrorFixer {
         const networkFix = await this.fixNetwork();
         if (networkFix.fixed)
             return "NW";
-        if (networkFix.reloaded) {
+        if (networkFix.reloadCount) {
             // console.log("Network reloaded", networkFix.reloaded)
             await this.collectLoadInfo(false);
         }

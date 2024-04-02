@@ -44,6 +44,20 @@ var IGNORE_ELEMENTS = [
     "#document"
 ];
 
+let funcMap = new Map();
+let funcCount = 0;
+
+function getFuncId(func) {
+    // * This could not work because even JS closure has the same function, the scoped variables may not have the same value.
+    const funcStr = func.toString();
+    if (funcMap.has(funcStr))
+        return funcMap.get(funcStr);
+    const value = `${funcCount}: ${funcStr.slice(0, 50)}`;
+    funcMap.set(funcStr, value);
+    funcCount += 1;
+    return value;
+}
+
 function delay(time) {
     return new Promise(function (resolve) {
         setTimeout(resolve, time)
@@ -226,6 +240,7 @@ function listAllEventListeners() {
     var jqueryListeners = extractJqueryEvents(document);
     listeners = _merge_events(listeners, jqueryListeners);
     listeners = _to_list(listeners);
+    // * listeners: [ [element, {event: handlers}] ]
     return listeners;
 }
 
@@ -247,6 +262,7 @@ function getCandidateElements(listeners) {
     var elems = []; // each entry is a two-tupe [1st,2nd] where 1st is element, and 2nd is list of events
     listeners.forEach((l) => {
         var [el, handler] = l;
+        // * el: element, handler: {event: [handlers]}
         if (IGNORE_ELEMENTS.filter((e) => el.nodeName == e).length == 0) {
             // * Filtration of tag pointing to other URLs
             if (el && el.href && el.href != ""){
@@ -259,11 +275,17 @@ function getCandidateElements(listeners) {
                     return;
             }
 
-            var e = [el, []];
+            var e = [el, {}];
             Object.keys(handler).forEach((h) => {
-                if (all_handlers.indexOf(h) >= 0) e[1].push(h);
+                if (all_handlers.indexOf(h) >= 0) { 
+                    e[1][h] = [];
+                    for (const f of handler[h]) {
+                        const funcId = getFuncId(f.listener);
+                        e[1][h].push(funcId);
+                    }
+                }
             });
-            if (!e[1].length) {
+            if (Object.keys(e[1]).length <= 0) {
                 // console.log("No candidate handlers", el);
                 return;
             }
@@ -379,10 +401,10 @@ function _filter_handlers(handlers) {
 class eventListenersIterator {
     constructor(loadEvents = null) {
         this.verbose_listeners = listAllEventListeners();
-        if (loadEvents == null)
-            this.listeners = getCandidateElements(this.verbose_listeners)
-        else
-            this.listeners = loadEventListeners(loadEvents);
+        // if (loadEvents == null)
+        this.listeners = getCandidateElements(this.verbose_listeners)
+        // else
+        //     this.listeners = loadEventListeners(loadEvents);
         this.origPath = [];
         for (const _e of this.listeners)
             this.origPath.push(getDomXPath(_e[0]));
@@ -407,6 +429,7 @@ class eventListenersIterator {
         let orig_path = this.origPath[idx]
         try {
             var [elem, handlers] = _e;
+            handlers = Object.keys(handlers);
             let uncancel_handlers = _filter_handlers(handlers);
             for (const h of uncancel_handlers) {
                 _triggerEvent(elem, h);
@@ -434,6 +457,7 @@ class eventListenersIterator {
         let orig_path = this.origPath[idx]
         try {
             var [elem, handlers] = _e;
+            handlers = Object.keys(handlers);
             let uncancel_handlers = _filter_handlers(handlers);
             for (const h of uncancel_handlers) {
                 _triggerEvent(elem, h);

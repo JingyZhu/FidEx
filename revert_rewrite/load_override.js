@@ -10,6 +10,7 @@ const errorFix = require('./error-fix');
 const { Overrider } = require('./overrider');
 const { loadToChromeCTX } = require('../utils/load');
 const { logger } = require("../utils/logger");
+const { fixDecider } = require('../error_match/fix-decider');
 
 // * Used for recording patched overrides across different loads
 var workingOverrides = {};
@@ -198,6 +199,13 @@ async function interaction(browser, url, timeout, options) {
     const initialEvents = exEvtResult.initialEvents;
     const initialNumEvents = initialEvents.length;
     for (let i = 0; i < initialNumEvents && i < 20; i++) {
+        if (options.optimized) {
+            const decision = fixDecider.decideInteract(initialEvents[i]);
+            if (!decision.couldBeFixed) {
+                logger.verbose("load_override.js:", "Skipping event", i);
+                continue;
+            }
+        }
         logger.verbose("load_override.js:", "Triggering events", i);
         let page = await browser.newPage();
         const client = await page.target().createCDPSession();
@@ -222,6 +230,9 @@ async function interaction(browser, url, timeout, options) {
             events: initialEvents[i],
             success: result.success,
             results: result.results
+        }
+        if (options.optimized) {
+            fixDecider.parseInteractionResult(result)
         }
         results[`interaction_${i}`] = result;
         logs[`interaction_${i}`] = log;
