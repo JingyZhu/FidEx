@@ -12,6 +12,8 @@ import numpy as np
 import sys
 sys.path.append('../')
 from utils import url_utils
+import warnings
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 def compare_screenshot(live_img, archive_img):
     if not os.path.exists(live_img) or not os.path.exists(archive_img):
