@@ -17,11 +17,15 @@ const measure = require('../../utils/measure');
 
 const http = require('http');
 // Dummy server for enable page's network and runtime before loading actual page
+let PORT = null;
 try{
-    http.createServer(function (req, res) {
+    const server = http.createServer(function (req, res) {
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.end('Hello World!');
-    }).listen(8086);
+    });
+    server.listen(0, () => {
+        PORT = server.address().port;       
+    })
 } catch(e){}
 
 let Archive = null;
@@ -60,7 +64,7 @@ async function startChrome(chromeData=null){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: false,
+        headless: 'new',
         downloadPath: `./downloads_${downloadSuffix}/`
     }
     const browser = await puppeteer.launch(launchOptions);
@@ -85,7 +89,10 @@ async function removeRecordings(page, topN) {
 
 async function dummyRecording(page) {
     await loadToChromeCTX(page, `${__dirname}/../../chrome_ctx/start_recording.js`)
-    const url = "http://localhost:8086"
+    while (!PORT) {
+        await sleep(500);
+    }
+    const url = `http://localhost:${PORT}`
     await page.evaluate((archive, url) => startRecord(archive, url), 
                         Archive, url);
 }
@@ -127,9 +134,10 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         return serializedEvents;
     });
     const numEvents = allEvents.length;
-    console.log("load_override.js:", "Number of events", numEvents);
+    console.log("Record:", "Number of events", numEvents);
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     for (let i = 0; i < numEvents && i < 20; i++) {
+        console.log("Record: Triggering interaction", i);
         await page.waitForFunction(async (idx) => {
             await eli.triggerNth(idx);
             return true;
@@ -140,7 +148,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
+            console.log("Record: Collected render tree");    
             await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
+            console.log("Record: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_${i}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
         }
     }
@@ -248,6 +258,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         
         // * Step 5: Wait for the page to finish loading
         // ? Timeout doesn't alway work, undeterminsitically throw TimeoutError
+        console.log("Record: Start loading the actual page");
         try {
             networkIdle = recordPage.waitForNetworkIdle({
                 timeout: TIMEOUT
@@ -281,7 +292,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+            console.log("Record: Collected render tree");
             await measure.collectNaiveInfo(recordPage, dirname, filename);
+            console.log("Record: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
         }
 

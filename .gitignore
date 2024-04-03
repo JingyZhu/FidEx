@@ -8,6 +8,7 @@ html_test/
 execution_match/*_examples/*.js
 revert_rewrite/test/load_override/*
 results*
+*/downloads/
 *.json
 *.png
 *.jpg

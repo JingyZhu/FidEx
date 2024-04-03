@@ -189,8 +189,8 @@ async function interaction(browser, url, timeout, options) {
             logs: {extraInteraction: []},
         }
     } else if (exEvtResult.extraEvents.length > 0) {
-        result.results['extraInteraction'] = exEvtResult;
-        result.logs['extraInteraction'] = [];
+        results['extraInteraction'] = exEvtResult;
+        logs['extraInteraction'] = [];
     }
     
 
