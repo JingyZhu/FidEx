@@ -4,9 +4,10 @@ import os
 
 HOME = os.path.expanduser("~")
 
-metadata = 'eot_gt_metadata.json'
+metadata = 'eot_gt_metadata'
 default_archive = 'ground_truth'
 
+call(f"rm {metadata}*.json", shell=True)
 call(f"rm -rf writes/*", shell=True)
 call(f"rm -rf {HOME}/fidelity-files/writes/{default_archive}", shell=True)
 call(f"rm -rf {HOME}/fidelity-files/warcs/{default_archive}", shell=True)

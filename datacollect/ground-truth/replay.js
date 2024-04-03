@@ -74,10 +74,15 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     for (let i = 0; i < numEvents && i < 20; i++) {
         // console.log("Replay: Triggering interaction", i);
-        await page.waitForFunction(async (idx) => {
-            await eli.triggerNth(idx);
-            return true;
-        }, {timeout: 10000}, i);
+        try {
+            await page.waitForFunction(async (idx) => {
+                await eli.triggerNth(idx);
+                return true;
+            }, {timeout: 60000}, i);
+        } catch(e) { // Print top line of the error
+            console.error(e.toString().split('\n')[0]);
+            continue
+        }
         if (options.scroll)
             await measure.scroll(page);
         if (options.screenshot) {

@@ -139,5 +139,5 @@ def record_replay_all_urls_multi(urls, num_workers=8,
 if __name__ == '__main__':
     data = json.load(open('determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
-    urls = urls[:2]
-    record_replay_all_urls_multi(urls, num_workers=2)
+    print("Total URLs:", len(urls))
+    record_replay_all_urls_multi(urls)
