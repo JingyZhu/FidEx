@@ -23,7 +23,8 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-async function startChrome(){
+async function startChrome(chromeData=null){
+    chromeData = chromeData || `${HOME}/chrome_data/${os.hostname()}`;
     const launchOptions = {
         // other options (headless, args, etc)
         // executablePath: '/usr/bin/chromium-browser',
@@ -36,13 +37,13 @@ async function startChrome(){
             // '--disable-features=PreloadMediaEngagementData,MediaEngagementBypassAutoplayPolicies',
             // '--autoplay-policy=no-user-gesture-required',
             // `--user-data-dir=/tmp/chrome/${Date.now()}`
-            `--user-data-dir=${HOME}/chrome_data/${os.hostname()}`,
+            `--user-data-dir=${chromeData}`,
             '--enable-automation'
         ],
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: false
+        headless: 'new'
     }
     const browser = await puppeteer.launch(launchOptions);
     return browser;
@@ -54,6 +55,7 @@ async function startChrome(){
         .option('-d --dir <directory>', 'Directory to save page info', 'determinism/test')
         .option('-f --file <filename>', 'Filename prefix', 'dimension')
         .option('-s, --screenshot', "Collect screenshot and other measurements")
+        .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
  
     program
         .argument("<url>")
@@ -62,7 +64,8 @@ async function startChrome(){
     const options = program.opts();
     let dirname = options.dir;
     let filename = options.file;
-    const browser = await startChrome();
+    let chromeData = options.chrome_data ? options.chrome_data : null;
+    const browser = await startChrome(chromeData);
     const url = new URL(urlStr);
     const timeout = 30*1000;
     
