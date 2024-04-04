@@ -49,6 +49,19 @@ async function startChrome(chromeData=null){
     return browser;
 }
 
+async function preventNavigation(page) {
+    page.on('dialog', async dialog => {
+        console.log(dialog.message());
+        await dialog.dismiss(); // or dialog.accept() to accept
+    });
+    await page.evaluateOnNewDocument(() => {
+        window.addEventListener('beforeunload', (event) => {
+            event.preventDefault();
+            event.returnValue = '';
+        });
+    });
+}
+
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../../chrome_ctx/interaction.js`)
     await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
@@ -150,6 +163,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // * Step 1: Parse and Inject the overriding script
         const script = fs.readFileSync( `${__dirname}/../../chrome_ctx/node_writes_override.js`, 'utf8');
         const timeout = 30*1000;
+        
+        await preventNavigation(page);
         await page.evaluateOnNewDocument(script);
         if (options.write)
             await page.evaluateOnNewDocument("__trace_enabled = true");

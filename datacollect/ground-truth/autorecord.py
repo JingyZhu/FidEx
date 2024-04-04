@@ -27,7 +27,7 @@ HOME = os.path.expanduser("~")
 MACHINE = socket.gethostname()
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_pw_archive = 'ground_truth'
-default_wr_archive = 'eot'
+default_wr_archive = 'ground_truth'
 metadata_prefix = 'eot_gt_metadata'
 arguments = ['-s', '-i']
 
@@ -73,6 +73,13 @@ def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}'
 
     ts = ts.strip()
     archive_url = f"{HOST}/{pw_archive}/{ts}/{url}"
+    # Check if the archive_url has been uploaded
+    try:
+        r = requests.get(archive_url, timeout=10)
+        if r.status_code != 200:
+            return '', url
+    except:
+        return '', url
     check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'archive',
                 '-c', chrome_data,
@@ -137,7 +144,9 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         t.join()
 
 if __name__ == '__main__':
-    data = json.load(open('determinism_results.json', 'r'))
+    data = json.load(open('determinism_results/determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
     print("Total URLs:", len(urls))
     record_replay_all_urls_multi(urls)
+    
+    # record_replay('http://banking.delaware.gov/', 'banking.delaware.gov')

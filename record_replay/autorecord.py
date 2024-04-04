@@ -23,8 +23,7 @@ from utils import upload
 REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_archive = 'eot-writes'
-# metadata_file = 'eot-writes_metadata.json'
-metadata_file = 'carta_test_metadata.json'
+metadata_file = 'carta_moma_test_metadata.json'
 arguments = ['-w', '-s', '-i']
 
 def record_replay(url, archive_name, 
@@ -143,8 +142,8 @@ def replay_all_wayback():
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
 # record_replay_all_urls('../datacollect/data/eot_good_all.json')
-record_replay_all_urls('../datacollect/data/carta_good_200.json',
-                       wr_archive='test', pw_archive='fidelity_check')
+record_replay_all_urls('../datacollect/data/carta_moma_200.json',
+                       wr_archive='test_moma', pw_archive='fidelity_check')
 
 # * Test single URL
 # test_url = "https://www.globe.gov/"

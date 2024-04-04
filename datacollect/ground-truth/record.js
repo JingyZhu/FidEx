@@ -88,6 +88,7 @@ async function removeRecordings(page, topN) {
 }
 
 async function dummyRecording(page) {
+    await page.waitForSelector('archive-web-page-app');
     await loadToChromeCTX(page, `${__dirname}/../../chrome_ctx/start_recording.js`)
     while (!PORT) {
         await sleep(500);
@@ -111,6 +112,19 @@ async function getActivePage(browser) {
     }
     if(arr.length == 1) return arr[0];
     else return pages[pages.length-1]; // ! Fall back solution
+}
+
+async function preventNavigation(page) {
+    page.on('dialog', async dialog => {
+        console.log(dialog.message());
+        await dialog.dismiss(); // or dialog.accept() to accept
+    });
+    await page.evaluateOnNewDocument(() => {
+        window.addEventListener('beforeunload', (event) => {
+            event.preventDefault();
+            event.returnValue = '';
+        });
+    });
 }
 
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
@@ -246,6 +260,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         });
         await sleep(1000);
 
+        await preventNavigation(recordPage);
         const script = fs.readFileSync( `${__dirname}/../../chrome_ctx/node_writes_override.js`, 'utf8');
         await recordPage.evaluateOnNewDocument(script);
         if (options.write)
