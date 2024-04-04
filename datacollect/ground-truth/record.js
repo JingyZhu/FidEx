@@ -142,7 +142,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await page.waitForFunction(async (idx) => {
                 await eli.triggerNth(idx);
                 return true;
-            }, {timeout: 60000}, i);
+            }, {timeout: 10000}, i);
         } catch(e) { // Print top line of the error
             console.error(e.toString().split('\n')[0]);
             continue

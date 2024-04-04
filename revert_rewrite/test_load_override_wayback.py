@@ -4,7 +4,7 @@ import json
 import time
 
 def check_results(dirr):
-    results = {"hostname": dirr.split('/')[-1]}
+    results = {"hostname": dirr.split('/')[-1], 'fixedIdx': -1}
     if os.path.exists(f'{dirr}/results.json'):
         logs = json.load(open(f'{dirr}/results.json', 'r'))
         for stage, log in logs.items():
@@ -21,6 +21,8 @@ def check_results(dirr):
             result['final_writes'] = len(final_writes["rawWrites"])
             result['more_writes'] = len(initial_writes["rawWrites"]) <= len(final_writes["rawWrites"])
             results[stage] = result
+            if "fixedIdx" in results:
+                del results['fixedIdx']
     else:
         results['fixedIdx'] = "No result log"
     return results
@@ -68,22 +70,22 @@ def test_run_load_override_syntax():
             "hostname": "www.lsunow.com_170_2_4edec4f00b28cf508d6e5a3983e6f969ab47e525ded74f0fd27dd0f03fb527c0",
          
         },
-        # {
-        #     'archive_url': "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129042437/http:/lni.wa.gov/safety/topics/atoz/primarymetals/",
-        #     'hostname': "lni.wa.gov"
-        # },
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118071551/http:/nccpaboard.gov/",
-        #     "hostname": "nccpaboard.gov"
-        # },
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118025017/http:/suicideprevention.nv.gov/",
-        #     "hostname": "suicideprevention.nv.gov"
-        # },
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161123082314/https://occ.gov/",
-        #     "hostname": "ots.gov",
-        # }
+        {
+            'archive_url': "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161129042437/http:/lni.wa.gov/safety/topics/atoz/primarymetals/",
+            'hostname': "lni.wa.gov"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118071551/http:/nccpaboard.gov/",
+            "hostname": "nccpaboard.gov"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118025017/http:/suicideprevention.nv.gov/",
+            "hostname": "suicideprevention.nv.gov"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161123082314/https://occ.gov/",
+            "hostname": "ots.gov",
+        }
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
@@ -91,18 +93,18 @@ def test_run_load_override_syntax():
 
 def test_run_load_override_exception():
     urls = [
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot-1k/20240129135149/https://eta.lbl.gov/",
-        #     "hostname": "eta.lbl.gov"
-        # },
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118001619/http:/economist.uat.usajobs.gov/",
-        #     "hostname": "economist.uat.usajobs.gov"
-        # },
-        # {
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118043257/https://ssaiseattle.usajobs.gov/Search/",
-        #     "hostname": "ssaiseattle.usajobs.gov"
-        # },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot-1k/20240129135149/https://eta.lbl.gov/",
+            "hostname": "eta.lbl.gov"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118001619/http:/economist.uat.usajobs.gov/",
+            "hostname": "economist.uat.usajobs.gov"
+        },
+        {
+            "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118043257/https://ssaiseattle.usajobs.gov/Search/",
+            "hostname": "ssaiseattle.usajobs.gov"
+        },
         {
             "archive_url": "http://pistons.eecs.umich.edu:8080/test/20240324022109/https://www.airbnb.com/?flexible_trip_lengths%5B%5D=one_week&monthly_start_date=2024-04-01&monthly_length=3&monthly_end_date=2024-07-01&search_mode=flex_destinations_search&date_picker_type=calendar&checkin=2024-03-30&checkout=2024-04-01&refinement_paths%5B%5D=%2Fhomes&source=structured_search_input_header&search_type=filter_change",
             "hostname": "www.airbnb.com"
@@ -194,9 +196,17 @@ def test_run_load_override_temp():
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118023725/http:/myssaisanfrancisco.usajobs.gov/search/",
         #     "hostname": "myssaisanfrancisco.usajobs.gov"
         # },
+        # {
+        #     "hostname": "burnaway.org_718_0_2d8d144992bed8a2317732ad814d3b8a2578dc330b325f11d68b95397b622b63",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20210816182809/https://burnaway.org/magazine/krista-clark-moca-ga/"
+        # },
+        # {
+        #     "hostname": "observer.com",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/fidelity_check/20240328235840/https://observer.com/2020/08/philadelphia-museum-of-art-reopening/"
+        # },
         {
-            "hostname": "burnaway.org_718_0_2d8d144992bed8a2317732ad814d3b8a2578dc330b325f11d68b95397b622b63",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20210816182809/https://burnaway.org/magazine/krista-clark-moca-ga/"
+            "hostname": "antimundo.org_702_2_5a7caff81b39d21034316034ac713eb594e6d8d2748d464786f7e03af80c6c72",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20231220232443/https://antimundo.org/"
         }
     ]
     results = run_on_testcases(urls)
@@ -249,11 +259,30 @@ def test_run_load_override_with_decider_onfly():
 
 def test_run_load_override_with_interaction():
     urls = [
-        # Should be run till the end
+        # Should run till the end
         {
             "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161118031632/https://www.usitc.gov/?f=info",
             "hostname": "info.usitc.gov",
         },
+        # # ExtraInteraction (only works with our own record)
+        # {
+        #     "hostname": "grunt.ca",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/fidelity_check/20231130135911/https://grunt.ca/"
+        # },
+        # # Sidebar not clickable (only works with our own record)
+        # {
+        #     "hostname": "golfdigest.com",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/test/20240328043531/https://www.golfdigest.com/"
+        # },
+    ]
+    start = time.time()
+    results = run_on_testcases(urls, interaction=True, decider=False)
+    gap = time.time() - start
+    print(json.dumps(results, indent=2))
+    print("Gap:", gap)
+
+def test_run_load_override_buggy():
+    urls = [
         # # Seen event is not iterable bug
         # {
         #     "hostname": "diversitynews.msfc.nasa.gov_6527",
@@ -279,11 +308,27 @@ def test_run_load_override_with_interaction():
         #     "hostname": "earthexplorer.cr.usgs.gov_8545",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/eot_crawled_200/20161209035018/https://earthexplorer.usgs.gov/"
         # },
+        # # TypeError: Cannot read properties of null (reading 'source')
+        # {
+        #     "hostname": "www.moma.org_398_3_c0b923d20830161e9e6b95528f08be999b4ebadee09b9da3449aaf4e6dd087c9",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20170113003737/http://www.moma.org/calendar/exhibitions/2661/"
+        # },
+        # # read body of undefined const { body, base64Encoded } = this.seenResponses[url].body;
+        # {
+        #     "hostname": "antimundo.org",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20231220232443/https://antimundo.org/"
+        # },
+        # TypeError: Cannot destructure property 'startLine' of 'this.scriptInfo[frame.scriptId]' as it is undefined.
+        {
+            "hostname": "moma.org_buggy",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20170113003737/http://www.moma.org/calendar/exhibitions/2661/"
+        },
     ]
     start = time.time()
     results = run_on_testcases(urls, interaction=True, decider=False)
     gap = time.time() - start
     print(json.dumps(results, indent=2))
     print("Gap:", gap)
+
 
 test_run_load_override_with_interaction()

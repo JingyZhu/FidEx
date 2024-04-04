@@ -10,6 +10,7 @@ import re
 import time
 import hashlib
 import glob
+import socket
 from itertools import combinations
 from threading import Thread
 
@@ -17,6 +18,7 @@ import sys
 sys.path.append('../../')
 from fidelity_check import find_diff_writes
 
+machine_idx = ['pistons', 'wolverines'].index(socket.gethostname())
 
 ARCHIVE_HOST = 'http://pistons.eecs.umich.edu:8080'
 HOME = os.path.expanduser("~")
@@ -70,9 +72,9 @@ def live_determinism(urls, worker_id=0) -> dict | None:
             'pairwise_comparison': pair_comp
         })
         if i % 10 == 1:
-            json.dump(results, open(f'determinism_results_{worker_id}.json', 'w+'), indent=2)
+            json.dump(results, open(f'determinism_results/determinism_results_{worker_id}.json', 'w+'), indent=2)
         print('Till Now:', time.time()-start)
-    json.dump(results, open(f'determinism_results_{worker_id}.json', 'w+'), indent=2)
+    json.dump(results, open(f'determinism_results/determinism_results_{worker_id}.json', 'w+'), indent=2)
 
 def live_determinism_multiproc(urls, num_browsers=8):
     """Make sure to set the headless to new for js"""
@@ -87,6 +89,6 @@ def live_determinism_multiproc(urls, num_browsers=8):
 
 
 if __name__ == "__main__":
-    data = json.load(open('ground_truth_eot_500.json', 'r'))
+    data = json.load(open('ground_truth_urls.json', 'r'))
     urls = [d['live_url'] for d in data]
-    live_determinism_multiproc(urls)
+    live_determinism_multiproc(urls, 16)
