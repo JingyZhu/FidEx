@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from collections import defaultdict
 import cv2
 import numpy as np
+from urllib.parse import unquote
 
 import sys
 sys.path.append('../')
@@ -46,12 +47,23 @@ class htmlElement:
         self.features = self.features()
         self.dimension = _collect_dimension(element)
     
+    def _norm_href(self, href):
+        href = href.strip()
+        non_target_prefix = ['javascript:', 'mailto:', 'tel:', 'sms:']
+        for c in non_target_prefix:
+            if href.startswith(c):
+                return None
+        # If the href is puny encoded or percent encoded, decode it
+        if '%' in href:
+            href = unquote(href)
+        return href
+
     def features(self):
         """Collect tag name and other important attributes that matters to the rendering"""
-        all_rules = []
+        all_rules = [] # List of lambda func to get the attribute
         tag_rules = {
-            'img': ['src'],
-            'a': ['class', 'href'],
+            'img': [lambda img: img.attrs.get('src')],
+            'a': [lambda a: a.attrs.get('class'), lambda a: self._norm_href(a.attrs.get('href'))],
         }
         tag = BeautifulSoup(self.text, 'html.parser').find()
         if tag is None:
@@ -61,8 +73,9 @@ class htmlElement:
         features = [tagname]
         rules = tag_rules.get(tagname, []) + all_rules
         for r in rules:
-            if r in tag.attrs:
-                features.append(tag.attrs[r])
+            tag_r = r(tag)
+            if tag_r is not None:
+                features.append(tag_r)
         # * Add style and throw away certain attr
         def _filter_style(style):
             new_style = []
@@ -89,11 +102,22 @@ class htmlElement:
             hdiff = abs(d1h - d2h) / max(d1h, d2h)
             return wdiff <= 0.05 and hdiff <= 0.05
 
+        def features_eq(t1, t2):
+            if t1.features[0].lower() == 'a' and t2.features[0].lower() == 'a':
+                identical = True
+                if len(t1.features) != len(t2.features):
+                    return False
+                for f1, f2 in zip(t1.features, t2.features):
+                    if not (f1.endswith(f2) and f2.endswith(f1)):
+                        return False
+                return True
+            return t1.features == t2.features
+
         if self.text == other.text:
             # return True
             # return self.dimension == other.dimension
             return dimension_eq(self.dimension, other.dimension)
-        if self.features == other.features and self.dimension == other.dimension:
+        if features_eq(self, other) and self.dimension == other.dimension:
             return True
         return False
 
