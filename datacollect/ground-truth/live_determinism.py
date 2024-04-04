@@ -13,6 +13,7 @@ import glob
 import socket
 from itertools import combinations
 from threading import Thread
+from multiprocessing import Process
 
 import sys
 sys.path.append('../../')
@@ -78,17 +79,21 @@ def live_determinism(urls, worker_id=0) -> dict | None:
 
 def live_determinism_multiproc(urls, num_browsers=8):
     """Make sure to set the headless to new for js"""
-    threads = []
+    processes = []
     for i in range(num_browsers):
         urls_part = urls[i::num_browsers]
-        t = Thread(target=live_determinism, args=(urls_part, i))
-        threads.append(t)
-        t.start()
-    for t in threads:
-        t.join()
+        p = Process(target=live_determinism, args=(urls_part, i))
+        processes.append(p)
+        p.start()
+    for p in processes:
+        p.join()
 
 
 if __name__ == "__main__":
     data = json.load(open('ground_truth_urls.json', 'r'))
-    urls = [d['live_url'] for d in data]
+    seen = set()
+    if os.path.exists('determinism_results/determinism_results.json'):
+        seen = set([d['url'] for d in json.load(open('determinism_results/determinism_results.json', 'r'))])
+    urls = [d['live_url'] for d in data if d['live_url'] not in seen]
+    print("Total URLs to process:", len(urls))
     live_determinism_multiproc(urls, 16)

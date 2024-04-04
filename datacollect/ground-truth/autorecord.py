@@ -28,7 +28,7 @@ MACHINE = socket.gethostname()
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_pw_archive = 'ground_truth'
 default_wr_archive = 'ground_truth'
-metadata_prefix = 'eot_gt_metadata'
+metadata_prefix = 'gt_metadata'
 arguments = ['-s', '-i']
 
 def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
@@ -94,7 +94,7 @@ def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}'
 def record_replay_all_urls(urls, worker_id=0, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
                            wr_archive=default_wr_archive,
                            pw_archive=default_pw_archive, remote_host=REMOTE):
-    metadata_file = f'{metadata_prefix}_{worker_id}.json'
+    metadata_file = f'metadata/{metadata_prefix}_{worker_id}.json'
     if not os.path.exists(metadata_file):
         json.dump({}, open(metadata_file, 'w+'), indent=2)
     metadata = json.load(open(metadata_file, 'r'))
@@ -147,6 +147,6 @@ if __name__ == '__main__':
     data = json.load(open('determinism_results/determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
     print("Total URLs:", len(urls))
-    record_replay_all_urls_multi(urls)
+    record_replay_all_urls_multi(urls, 16)
     
     # record_replay('http://banking.delaware.gov/', 'banking.delaware.gov')
