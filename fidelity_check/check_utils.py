@@ -58,6 +58,8 @@ class htmlElement:
         # If the href is puny encoded or percent encoded, decode it
         if '%' in href:
             href = unquote(href)
+        if href.endswith('#'):
+            href = href[:-1]
         return href
 
     def features(self):
