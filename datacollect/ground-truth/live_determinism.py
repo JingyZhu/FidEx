@@ -17,7 +17,7 @@ from multiprocessing import Process
 
 import sys
 sys.path.append('../../')
-from fidelity_check import find_diff_writes
+from fidelity_check import fidelity_detect
 
 machine_idx = ['pistons', 'wolverines'].index(socket.gethostname())
 
@@ -47,7 +47,7 @@ def check_live_determinism(url, dirr, chrome_data=None) -> (bool, dict):
             continue
         left = os.path.basename(left).replace('_elements.json', '')
         right = os.path.basename(right).replace('_elements.json', '')
-        has_issue, (left_unique, right_unique) = find_diff_writes.fidelity_issue(dirr, left, right)
+        has_issue, (left_unique, right_unique) = fidelity_detect.fidelity_issue(dirr, left, right)
         pair_comp[f'{left}_{right}'] = has_issue
         if has_issue:
             return False, pair_comp

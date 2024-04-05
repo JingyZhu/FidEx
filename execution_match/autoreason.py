@@ -7,7 +7,7 @@ import sys
 import os
 
 sys.path.append('../')
-from fidelity_check import find_diff_writes
+from fidelity_check import fidelity_detect
 from utils import url_utils
 
 dirr = 'examples/eta.lbl.gov_2'
@@ -22,7 +22,7 @@ matched_writes = {w['writeID']: w for w in matched_writes}
 
 print("Finding diff elements and associated key writes")
 abs_dirr = os.path.abspath(dirr)
-key_related_writes = find_diff_writes.locate_key_writes(abs_dirr)
+key_related_writes = fidelity_detect.locate_key_writes(abs_dirr)
 print("Number of key related writes:", len(key_related_writes['live']))
 
 reasons = []

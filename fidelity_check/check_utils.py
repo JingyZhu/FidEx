@@ -48,6 +48,8 @@ class htmlElement:
         self.dimension = _collect_dimension(element)
     
     def _norm_href(self, href):
+        if href is None:
+            return None
         href = href.strip()
         non_target_prefix = ['javascript:', 'mailto:', 'tel:', 'sms:']
         for c in non_target_prefix:
@@ -108,10 +110,13 @@ class htmlElement:
                 if len(t1.features) != len(t2.features):
                     return False
                 for f1, f2 in zip(t1.features, t2.features):
-                    if not (f1.endswith(f2) and f2.endswith(f1)):
-                        return False
-                return True
-            return t1.features == t2.features
+                    if type(f1) != str or type(f2) != str:
+                        identical = identical and f1 == f2
+                        continue
+                    identical = identical and (f1.endswith(f2) or f2.endswith(f1))
+                return identical
+            else:
+                return t1.features == t2.features
 
         if self.text == other.text:
             # return True
