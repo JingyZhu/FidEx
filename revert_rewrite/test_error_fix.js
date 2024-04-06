@@ -128,7 +128,15 @@ function testAbilityToFindStatements() {
     revert._findStatements(startIdx);
     console.log("Pass previous failToFindState 2")
 }
+
+function testRevertWombatWrapScriptTextJsProxy() {
+    let revert = new reverter.Reverter("");
+    let updates = revert.revertWombatWrapScriptTextJsProxy();
+    // * Should console log something instead of the empty object.
+    console.log(updates);
+}
 // testReverterTryCatch();
 // testReverterLines();
 // testAbilitytoParse();
-testAbilityToFindStatements()
+// testAbilityToFindStatements()
+testRevertWombatWrapScriptTextJsProxy()

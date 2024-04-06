@@ -136,31 +136,41 @@ class Overrider {
 
     async nonOverrideHandler(params) {
         let url = params.request.url;
+        let toFulFillRequest = {
+            requestId: params.requestId,
+            responseCode: params.responseCode ? params.responseCode : 200,
+        };
+        let toContinueRequest = {
+            requestId: params.requestId
+        }
+        let ifFulFill = false;
         if (url in this.seenResponses) {
-            url = reverter.addHostname(url, this.hostname);
-            try {
-                await this.client.send('Fetch.continueRequest', {
-                    requestId: params.requestId,
-                    url: url
-                });
-            } catch {}
-        } else {
+            const newUrl = reverter.addHostname(url, this.hostname);
+            if (newUrl != url)
+                toContinueRequest.url = newUrl;
+        }
+        if (this.wayback){
             // Fetch from Wayback
             const response = await this.fetchFromWayback(params.request);
-            if (response === null) {
-                try {
-                    await this.client.send('Fetch.continueRequest', {
-                        requestId: params.requestId
-                    });
-                } catch {}
-            } else {
-                await this.client.send('Fetch.fulfillRequest', {
+            if (response !== null) {
+                ifFulFill = true;
+                toFulFillRequest = {
                     requestId: params.requestId,
                     responseCode: response.statusCode,
                     responseHeaders: response.headers,
                     body: response.body.body
-                });
+                };
             }
+        }
+        if (!ifFulFill) {
+            try {
+                await this.client.send('Fetch.continueRequest', toContinueRequest);
+            } catch {}
+        } else {
+            try {
+                console.log("FULLFILL", toFulFillRequest)
+                await this.client.send('Fetch.fulfillRequest', toFulFillRequest);
+            } catch {}
         }
     }
 
@@ -198,6 +208,8 @@ class Overrider {
      *   start: {line, column}, (null if not set)
      *   end: {line, column} (null if not set)
      * }}
+     * @param {Object} options
+     * {allowCSP: Boolean} (default false) If true, allow the CSP to be bypassed
      */
     async overrideResources(mapping){
         let overrideMapping = {};
@@ -217,16 +229,15 @@ class Overrider {
                 resourceType: '',
                 requestStage: 'Request'
             })
-        } else {
-            for (const url in overrideMapping){
-                const resourceType = '';
-                const requestStage = 'Request';
-                urlPatterns.push({
-                    urlPattern: url,
-                    resourceType: resourceType,
-                    requestStage: requestStage
-                });
-            }
+        }
+        for (const url in overrideMapping){
+            const resourceType = '';
+            const requestStage = 'Request';
+            urlPatterns.push({
+                urlPattern: url,
+                resourceType: resourceType,
+                requestStage: requestStage
+            });
         }
         await this.client.send('Fetch.enable', {
             patterns: urlPatterns

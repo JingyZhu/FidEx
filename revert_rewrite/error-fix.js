@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { spawn } = require('child_process');
+const fetch = require('node-fetch');
 const eventSync = require('../utils/event_sync');
 
 const reverter = require('./reverter');
@@ -19,6 +20,17 @@ function sleep(ms) {
 
 function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
+}
+
+function fileSyntaxError(exception) {
+    return exception.type == 'SyntaxError' && exception.uncaught;
+}
+
+async function collectWombat(url) {
+    const archiveHost = new URL(url).host;
+    const wombatURL = `http://${archiveHost}/static/wombat.js`;
+    const code = await fetch(wombatURL).then(res => res.text());
+    return {url: wombatURL, code: code};
 }
 
 class FixResult {
@@ -181,6 +193,7 @@ class ErrorFixer {
         this.stage = stage;
         const origURL = new URL(url).pathname.split('/').slice(3).join('/');
         this.hostname = new URL(origURL).hostname;
+        this.wombat = await collectWombat(url);
         this.overrider.hostname = this.hostname;
         this.exceptionType = exceptionType;
         await this.inspector.initialize();
@@ -195,7 +208,7 @@ class ErrorFixer {
         const stage = this.stage;
         this.exceptions[stage] = [];
         for (let exception of this.inspector.exceptions){
-            if (!(exception.type == 'SyntaxError' && exception.onConsole)) { 
+            if (!fileSyntaxError(exception)) { 
                 for (let frame of exception.frames) {
                     if (frame.scriptId === null) { // console error frames, not scriptId
                         for (let [scriptId, info] of Object.entries(this.inspector.scriptInfo)) {
@@ -235,7 +248,7 @@ class ErrorFixer {
                 type: exception.type,
                 uncaught: exception.uncaught,
                 description: exception.description,
-                idx: (exception.type == 'SyntaxError' && exception.onConsole) ? -1 : idx++,
+                idx: fileSyntaxError(exception) ? -1 : idx++,
                 url: exception.frames[0].url,
             })
             const rewrittenFrame = topRewrittenFrameURL(exception.frames);
@@ -260,10 +273,12 @@ class ErrorFixer {
      */
     async reloadWithOverride(overrideMap, recordVar=false) {
         await this.overrider.clearOverrides();
-        await this.overrider.overrideResources(overrideMap);
+        await this.overrider.overrideResources(overrideMap, {allowCSP: true});
         await this.inspector.unset();
         await Promise.all([this.client.send('Network.clearBrowserCookies'), 
                         this.client.send('Network.clearBrowserCache')]);
+        
+        await this.page.setBypassCSP(true);
         await this.beforeReloadFunc();
         await this.inspector.set(recordVar, this.exceptionType);
         
@@ -396,9 +411,9 @@ class ErrorFixer {
             const startLoc = {line: frame.line+1, column: frame.column+1};
             let source = this.overrider.seenResponses[frame.url].body;
             source = source.base64Encoded ? Buffer.from(source.body, 'base64').toString() : source.body;
-            const revert = new reverter.Reverter(source, {parse: false});
+            const revert = new reverter.Reverter(source, {parse: false, wombat: this.wombat});
             const description = exception.description.split('\n')[0];
-            let updatedCode = revert.revertLines(startLoc, description);
+            let {updatedCode, hint} = revert.revertLines(startLoc, description);
             if (updatedCode === source)
                 continue
             logger.verbose("ExceptionHandler.fixSyntaxError:", "Revert Lines. Location", startLoc, frame.url)
@@ -409,13 +424,17 @@ class ErrorFixer {
                 updated: updatedCode
             })
             updatedCodes[frame.url] = updatedCode;
+            if (hint) {
+                let {upadteURL, updateCode} = revert[hint]()
+                updatedCodes[upadteURL] = updateCode;
+            }
         }
         yield updatedCodes;
 
         updatedCodes = {}
         for (const exception of exceptions) {
             const frame = exception.frames[0];
-            const revert = new reverter.Reverter("");
+            const revert = new reverter.Reverter("", {wombat: this.wombat});
             let updatedCode = await revert.revertFile2Original(frame.url);
             updatedCodes[frame.url] = updatedCode;
             logger.verbose("ExceptionHandler.fixSyntaxError:", "Revert file to original.", frame.url)
@@ -437,7 +456,7 @@ class ErrorFixer {
         const stage = this.stage;
         let result = new FixResult('SyntaxError');
         const latestExceptions = this.exceptions[stage];
-        const syntaxErrorExceptions = latestExceptions.filter(excep => excep.type == 'SyntaxError' && excep.onConsole);
+        const syntaxErrorExceptions = latestExceptions.filter(excep => fileSyntaxError(excep));
         if (syntaxErrorExceptions.length == 0)
             return result;
         
@@ -494,14 +513,15 @@ class ErrorFixer {
      * @param {string} source 
      * @param {ExceptionInfo.frame} frame
      * @param {ExceptionInfo} exception The exception the frame is from
-     * @returns {Generator} generator that yields the updated code
+     * @returns {Generator} generator that yields {{url: updatedCode}, needCalcExcep: boolean}
      */
     *_findExceptionReverts(source, frame, exception) {
         let revert = null;
+        let updatedCodes = {}
         const startLoc = {line: frame.line+1, column: frame.column+1};
-        revert = new reverter.Reverter(source, {parse: false});
+        revert = new reverter.Reverter(source, {parse: false, wombat: this.wombat});
         const description = exception.description.split('\n')[0];
-        let updatedCode = revert.revertLines(startLoc, description);
+        let {updatedCode, hint} = revert.revertLines(startLoc, description);
         logger.verbose("ExceptionHandler.fixException:", "Revert Lines. Location", startLoc, frame.url)
         this.log.push({
             type: 'revertLines',
@@ -509,16 +529,29 @@ class ErrorFixer {
             startLoc: startLoc,
             updated: updatedCode
         })
+        updatedCodes[frame.url] = updatedCode;
+        if (hint) {
+            const updates = revert[hint]();
+            for (const [updatedURL, updatedCode] of Object.entries(updates)) {
+                updatedCodes[updatedURL] = updatedCode;
+                this.log.push({
+                    type: 'revertLines',
+                    url: updatedURL,
+                    updated: updatedCode
+                })
+            }
+        }
         yield {
-            updatedCode: updatedCode,
+            updatedCodes: updatedCodes,
             needCalcExcep: true
         };
 
+        updatedCodes = {};
         try {
             revert = new reverter.Reverter(source);
         } catch(e) {
             logger.warn("ExceptionHandler.fixException:", "Error in parsing source", e);
-            return { updatedCode: source, needCalcExcep: true };
+            return { updatedCodes: {[frame.url]: source}, needCalcExcep: true };
         }
         logger.verbose("ExceptionHandler.fixException:", "Revert Variable. Location", startLoc, frame.url)
         const proxifiedVars = this.inspector._getProxifiedVars(frame.vars);
@@ -530,7 +563,7 @@ class ErrorFixer {
             updated: updatedCode
         })
         yield {
-            updatedCode: updatedCode,
+            updatedCodes: {[frame.url]: updatedCode},
             needCalcExcep: true
         };
         
@@ -545,7 +578,7 @@ class ErrorFixer {
             updated: updatedCode
         })
         yield {
-            updatedCode: updatedCode,
+            updatedCodes: {[frame.url]: updatedCode},
             needCalcExcep: true // No need to check since try catch always solves the problem
         };
     }
@@ -582,7 +615,7 @@ class ErrorFixer {
 
         // * Try fixes
         let fix_id = -1;
-        for (const { updatedCode, needCalcExcep } of this._findExceptionReverts(frame.source.source, frame, exception)) {
+        for (const { updatedCodes, needCalcExcep } of this._findExceptionReverts(frame.source.source, frame, exception)) {
             fix_id += 1;
             if (this.decider) {
                 const decision = this.decider.decide(exception);
@@ -592,6 +625,7 @@ class ErrorFixer {
                     continue
             }
             result.unSkip();
+            const updatedCode = updatedCodes[frame.url];
             if (updatedCode === frame.source.source) {
                 logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
                 continue;
@@ -603,6 +637,15 @@ class ErrorFixer {
                 end: frame.source.end, 
                 plainText: true
             }};
+            for (const [updatedURL, updatedCode]of Object.entries(updatedCodes)) {
+                if (updatedURL !== frame.url)
+                    overrideMap[updatedURL] = {
+                        source: updatedCode,
+                        start: null,
+                        end: null,
+                        plainText: true
+                    }
+                }
             const success = await this.reloadWithOverride(overrideMap);
             if (!success)
                 continue;
@@ -649,7 +692,7 @@ class ErrorFixer {
         const syntaxFix = await this.fixSyntaxError(stage);
         if (syntaxFix.fixed)
             return `SE_${syntaxFix.fixedID}`;
-        const latestExceptions = this.exceptions[stage].filter(excep => !(excep.type == 'SyntaxError' && excep.onConsole) );
+        const latestExceptions = this.exceptions[stage].filter(excep => !fileSyntaxError(excep) );
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);
             if (excepFix.fixed)

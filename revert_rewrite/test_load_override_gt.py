@@ -68,7 +68,7 @@ def test_run_load_override_gt():
         # 404 + 503？
         {
             "hostname": "www.utb.uscourts.gov_3e9fd71510",
-            "archived_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403070039/https://www.utb.uscourts.gov/",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403070039/https://www.utb.uscourts.gov/",
         },
         # Syntax + DOMException
         {
@@ -83,7 +83,22 @@ def test_run_load_override_gt():
         # illegal invocation
         {
             "hostname": "dws.arkansas.gov_f80b6da677",
-            "archived_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055906/https://dws.arkansas.gov/",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055906/https://dws.arkansas.gov/",
+        },
+        # SyntaxError
+        {
+            "hostname": "www.laphil.com_1634459bf8",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404054835/https://www.laphil.com/campaigns/celebrate-inglewood-community-festival",
+        },
+        # SyntaxError
+        {
+            "hostname": "airandspace.si.edu_5bf8cf6ff5",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
+        },
+        # Google translate
+        {
+            "hostname": "bmt.ky.gov_9f4115a9f2",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052121/https://bmt.ky.gov/",
         },
     ]
     results = run_on_testcases(urls)
@@ -95,12 +110,24 @@ def test_run_load_override_gt_hard():
         # google not defined + _WB_pmw
         {
             "hostname": "poetlaureate.illinois.gov_ca5d3a1f39",
-            "archived_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403062228/https://poetlaureate.illinois.gov/",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403062228/https://poetlaureate.illinois.gov/",
         },
         # google not defined + _WB_pmw
         {
             "hostname": "oklahoma.gov_fcad824cde",
-            "archived_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055905/https://oklahoma.gov/health/locations/county-health-departments/woods-county-health-department.html",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055905/https://oklahoma.gov/health/locations/county-health-departments/woods-county-health-department.html",
+        },
+    ]
+    results = run_on_testcases(urls)
+    print(json.dumps(results, indent=2))
+
+
+def test_run_load_override_temp():
+    urls = [
+        # Google translate
+        {
+            "hostname": "bmt.ky.gov_9f4115a9f2",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052121/https://bmt.ky.gov/",
         },
     ]
     results = run_on_testcases(urls)
@@ -108,4 +135,4 @@ def test_run_load_override_gt_hard():
 
 
 
-test_run_load_override_gt()
+test_run_load_override_temp()

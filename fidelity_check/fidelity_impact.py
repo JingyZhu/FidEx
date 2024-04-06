@@ -1,5 +1,8 @@
 import json
 
+# HTML tag that are important for the content
+content_tag = ['img', 'video', 'audio', 'canvas', 'map']
+
 def calc_diff_dimensions(left_dimension, left_unique, right_dimensions, right_unique):
     """
     Currently just apply the easiest diff calculation by looking at the root of each unique branches
@@ -16,24 +19,30 @@ def calc_diff_dimensions(left_dimension, left_unique, right_dimensions, right_un
         right_unique_dimen.update({e: right_dimensions.get(e, default_d) for e in branch})
     left_total_diff = 0
     for branch in left_unique:
-        root = branch[0]
-        root_dimen = left_unique_dimen[root]
-        if root in right_unique_dimen:
-            right_dimen = right_unique_dimen[root]
-            dimen_diff = abs(root_dimen['width']*root_dimen['height'] - right_dimen['width']*right_dimen['height'])
-        else:
-            dimen_diff = root_dimen['width']*root_dimen['height']
-        left_total_diff += dimen_diff
+        max_dimen_diff = 0
+        for e in branch:
+            e_dimen = left_unique_dimen[e]
+            e_type = e.split('/')[-1].split('[')[0]
+            if e_type not in content_tag and e in right_unique_dimen:
+                right_dimen = right_unique_dimen[e]
+                dimen_diff = abs(e_dimen['width']*e_dimen['height'] - right_dimen['width']*right_dimen['height'])
+            else:
+                dimen_diff = e_dimen['width']*e_dimen['height']
+            max_dimen_diff = max(max_dimen_diff, dimen_diff)
+        left_total_diff += max_dimen_diff
     right_total_diff = 0
     for branch in right_unique:
-        root = branch[0]
-        root_dimen = right_unique_dimen[root]
-        if root in left_unique_dimen:
-            left_dimen = left_unique_dimen[root]
-            dimen_diff = abs(root_dimen['width']*root_dimen['height'] - left_dimen['width']*left_dimen['height'])
-        else:
-            dimen_diff = root_dimen['width']*root_dimen['height']
-        right_total_diff += dimen_diff
+        max_dimen_diff = 0
+        for e in branch:
+            e_dimen = right_unique_dimen[e]
+            e_type = e.split('/')[-1].split('[')[0]
+            if e_type not in content_tag and e in left_unique_dimen:
+                left_dimen = left_unique_dimen[e]
+                dimen_diff = abs(e_dimen['width']*e_dimen['height'] - left_dimen['width']*left_dimen['height'])
+            else:
+                dimen_diff = e_dimen['width']*e_dimen['height']
+            max_dimen_diff = max(max_dimen_diff, dimen_diff)
+        right_total_diff += max_dimen_diff
     return left_total_diff, right_total_diff
 
 def total_space(elements):
@@ -62,7 +71,7 @@ def fidelity_issue_impact(dirr, left_prefix='live', right_prefix='archive') -> f
 if __name__ == "__main__":
     import fidelity_detect
     import check_utils
-    base = '../../fidelity-files/writes/ground_truth_0/'
+    base = '../../fidelity-files/writes/ground_truth/'
     dirr = 'civilwarstudies.org_4930885bed'
     dirr = base + dirr
     left_impact, right_impact = fidelity_issue_impact(dirr)

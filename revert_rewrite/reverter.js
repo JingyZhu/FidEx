@@ -70,7 +70,7 @@ function addHostname(url, hostname) {
 }
 
 class Reverter {
-    constructor(code, { parse=true }={}) {
+    constructor(code, { parse=true, wombat=null }={}) {
         this.code = code;
         this.source = parse ? espree.parse(code, { loc: true, range: true, ecmaVersion: "latest"}): null;
         // * BlockStatement is less ideal. It is used as the final backup
@@ -89,8 +89,16 @@ class Reverter {
                     from: `;?${escapeRegex('_____WB$wombat$check$this$function_____(this).')}`,
                     to: 'this.'
                 }
+            ],
+            DOMException: [
+                {
+                    from: escapeRegex('__WB_pmw(self).postMessage'),
+                    to: 'postMessage',
+                    hint: 'revertWombatWrapScriptTextJsProxy'
+                }
             ]
         }
+        this.wombat = wombat || {url: '', code: fs.readFileSync(path.join(__dirname, 'static', 'defaultWombat.js'), 'utf-8')};
     }
 
     /**
@@ -161,6 +169,20 @@ class Reverter {
             idx += lines[i].length + 1;
         idx += column - one_indexed;
         return idx;
+    }
+
+    /**
+     * @returns {string} Updated wombat code
+     */
+    revertWombatWrapScriptTextJsProxy() {
+        const from = /\.replace\(this\.DotPostMessageRe,\s*"\.__WB_pmw\(self\.window\)\$1"\)/g;
+        const to = '.replace(this.DotPostMessageRe,"$1")';
+        const updatedWombat = this.wombat.code.replace(from, to);
+        if (updatedWombat === this.wombat.code) {
+            return {}
+        } else {
+            return {[this.wombat.url]: updatedWombat}
+        }
     }
 
     /**
@@ -240,6 +262,7 @@ class Reverter {
      * Revert the code by revert some lines that are rewritten
      * More details refer to pywb's regex_rewriter
      * @param {string} exception Exception lines to hint with revert should be done 
+     * @returns {object} {updatedCode: updateCode, hint: hint} New code(s) after revert, and hint for another revert
      */
     revertLines(startLoc, exception) {
         const startIdx = this._loc2idx(startLoc);
@@ -261,10 +284,10 @@ class Reverter {
             }
         }
         if (closestMatch === null)
-            return this.code;
+            return {updatedCode: this.code, hint: null};
         // Apply the replace for the whole code
         let newCode = this.code.replace(new RegExp(closestMatch.from, 'g'), closestMatch.to);
-        return newCode;
+        return {updatedCode: newCode, hint: closestMatch.hint || null};
     }
 
     _addId(url) {

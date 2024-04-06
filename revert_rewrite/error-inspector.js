@@ -219,7 +219,9 @@ class ErrorInspector {
                 for (const frame of details.stackTrace.callFrames) {
                     // Maybe need to deal with trailing handlers (similar to _recordException). Currently not implemented
                     if (!(frame.scriptId in this.scriptInfo)) return;
-                    const { startLine } = this.scriptInfo[frame.scriptId];
+                    const { url, startLine } = this.scriptInfo[frame.scriptId];
+                    if (skipJS(url))
+                        continue;
                     info.addFrame(frame.url, frame.scriptId, frame.lineNumber-startLine, frame.columnNumber);
                 }
             } else { // * Assume this is syntax error on parsing the whole resources
@@ -257,6 +259,8 @@ class ErrorInspector {
                     if (match == null)
                         continue;
                     const [url, lineNum, columnNum] = match;
+                    if (skipJS(url))
+                        continue;
                     info.addFrame(url, null, lineNum-1, columnNum-1);
                 }
                 console.log("ErrorInspector:", "console.error", description.split('\n')[0]);
