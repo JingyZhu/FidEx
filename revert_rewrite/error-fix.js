@@ -125,6 +125,7 @@ class PageRecorder {
             'dir': dirname,
             'left': left,
             'right': right,
+            'strict': true,
         }));
         pythonProcess.stdin.end();
         let data = await new Promise((resolve, reject) => {

@@ -236,13 +236,16 @@ class ErrorInspector {
             const extractUrls = (str) => {
                 const urlLocRegex = /(https?:\/\/[^\s]+)/g;
                 // Get the first match
-                const matches = str.match(urlLocRegex);
-                if (matches == null)
+                const match1 = str.match(urlLocRegex);
+                if (match1 == null)
                     return null;
-                const urlWithLoc = matches[0];
+                const urlWithLoc = match1[0];
                 // Split urlWithLoc into url, line, column, by regex
                 const urlRegex = /(.*):(\d+):(\d+)/;
-                const [url, line, column] = urlWithLoc.match(urlRegex).slice(1);
+                const match2 = urlWithLoc.match(urlRegex);
+                if (match2 == null)
+                    return null;
+                const [url, line, column] = match2.slice(1);
                 return [url, line, column];
             }
             // Check if the args have any exception
