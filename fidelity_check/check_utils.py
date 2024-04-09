@@ -93,7 +93,14 @@ class htmlElement:
         # * Add style and throw away certain attr
         def _filter_style(style):
             new_style = []
-            filter_keys = ['background-image', 'opacity', 'width', 'height', 'display']
+            filter_keys = [
+                            'background-image', 
+                            'opacity', 
+                            'width', 
+                            'height', 
+                            'display', 
+                            'transform'
+                        ]
             for s in style.split(';'):
                 to_filter = False
                 for k in filter_keys:
