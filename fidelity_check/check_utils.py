@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from collections import defaultdict
 import cv2
 import numpy as np
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import sys
 sys.path.append('../')
@@ -62,11 +62,21 @@ class htmlElement:
             href = href[:-1]
         return href
 
+    def _get_src(self, img):
+        src = img.attrs.get('src')
+        if src is None:
+            return None
+        us = urlsplit(src)
+        if us.query or us.fragment:
+            us = us._replace(query='', fragment='')
+            src = urlunsplit(us)
+        return src
+
     def features(self):
         """Collect tag name and other important attributes that matters to the rendering"""
         all_rules = [] # List of lambda func to get the attribute
         tag_rules = {
-            'img': [lambda img: img.attrs.get('src')],
+            'img': [lambda img: self._get_src(img)],
             'a': [lambda a: a.attrs.get('class'), lambda a: self._norm_href(a.attrs.get('href'))],
         }
         tag = BeautifulSoup(self.text, 'html.parser').find()
@@ -83,7 +93,7 @@ class htmlElement:
         # * Add style and throw away certain attr
         def _filter_style(style):
             new_style = []
-            filter_keys = ['background-image', 'opacity']
+            filter_keys = ['background-image', 'opacity', 'width', 'height', 'display']
             for s in style.split(';'):
                 to_filter = False
                 for k in filter_keys:
@@ -120,13 +130,16 @@ class htmlElement:
             else:
                 return t1.features == t2.features
 
-        if self.text == other.text:
-            # return True
-            # return self.dimension == other.dimension
-            return dimension_eq(self.dimension, other.dimension)
-        if features_eq(self, other) and self.dimension == other.dimension:
-            return True
-        return False
+        # # Version 1
+        # if self.text == other.text:
+        #     # return True
+        #     return self.dimension == other.dimension?
+        #     return dimension_eq(self.dimension, other.dimension)
+        # if features_eq(self, other) and self.dimension == other.dimension:
+        #     return True
+        # return False
+        # Version 2
+        return features_eq(self, other) and dimension_eq(self.dimension, other.dimension)
 
     def __hash__(self) -> int:
         return hash((self.xpath, self.text, self.dimension.get('width', 0), self.dimension.get('height', 0)))
