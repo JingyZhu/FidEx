@@ -3,6 +3,7 @@
  */
 const puppeteer = require("puppeteer");
 const fs = require('fs');
+const os = require('os');
 const { program } = require('commander');
 
 const eventSync = require('../utils/event_sync');
@@ -12,6 +13,7 @@ const { loadToChromeCTX } = require('../utils/load');
 const { logger } = require("../utils/logger");
 const { fixDecider } = require('../error_match/fix-decider');
 
+const HOME = os.homedir();
 // * Used for recording patched overrides across different loads
 var workingOverrides = {};
 
@@ -23,10 +25,9 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-async function startChrome(){
+async function startChrome(chromeData=null){
+    chromeData = chromeData || `../chrome_data`;
     const launchOptions = {
-        // other options (headless, args, etc)
-        // executablePath: '/usr/bin/chromium-browser',
         args: [
             '--disk-cache-size=1', 
             // '-disable-features=IsolateOrigins,site-per-process',
@@ -36,13 +37,13 @@ async function startChrome(){
             // '--disable-features=PreloadMediaEngagementData,MediaEngagementBypassAutoplayPolicies',
             // '--autoplay-policy=no-user-gesture-required',
             // `--user-data-dir=/tmp/chrome/${Date.now()}`
-            '--user-data-dir=../chrome_data',
+            `--user-data-dir=${chromeData}`,
             '--enable-automation'
         ],
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: false,
+        headless: 'new',
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
@@ -315,6 +316,7 @@ async function enableFields(client) {
         .option('-m, --manual', "Manual control for finishing loading the page")
         .option('-i, --interaction', "Interact with the page")
         .option('-o, --optimized', "Apply a fix decider for runtime optimization")
+        .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
         
     program
         .argument("<url>")
@@ -322,7 +324,7 @@ async function enableFields(client) {
     program.parse();
     const options = program.opts();
     let dirname = options.dir;
-    const browser = await startChrome();
+    const browser = await startChrome(options.chrome_data);
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))

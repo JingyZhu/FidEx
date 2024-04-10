@@ -294,7 +294,8 @@ class ErrorInspector {
                 this.responses[url] = {
                     status: 'CSP',
                     headers: null,
-                    body: null
+                    body: null,
+                    initiator: []
                 }
             } else {
                 const textReg = /Failed to decode downloaded font: (https?:\/\/[^\s]+).*/;
@@ -306,7 +307,8 @@ class ErrorInspector {
                 this.responses[url] = {
                     status: 'Font',
                     headers: null,
-                    body: null
+                    body: null,
+                    initiator: []
                 }
             }
                

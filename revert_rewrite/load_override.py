@@ -4,11 +4,14 @@ Read metadata that including archive URLs, and run load_wayback.js accordingly
 """
 import json
 import subprocess
-import os
+import os, socket
 import time
+from threading import Thread
 
+HOME = os.path.expanduser("~")
+MACHINE = socket.gethostname()
 input_file = 'ground_truth_200.json'
-write_dir = 'writes'
+write_dir = 'writes_multiproc'
 data = json.load(open(f'inputs/{input_file}', 'r'))
 
 def run_load_override(decider=False, interact=False):
@@ -16,16 +19,16 @@ def run_load_override(decider=False, interact=False):
     for i, datum in enumerate(data):
         hostname, archive_url = datum['hostname'], datum['archive_url']
         print(i, archive_url)
-        if os.path.exists(f'writes/{hostname}/results.json'):
+        if os.path.exists(f'{write_dir}/{hostname}/results.json'):
             print(f'{hostname} already processed')
             continue
         # Try removing the directory (it is fine the if the directory does not exist)
         try:
-            subprocess.call(['rm', '-rf', f'writes/{hostname}'])
+            subprocess.call(['rm', '-rf', f'{write_dir}/{hostname}'])
         except:
             pass
         try:
-            args = ['node', 'load_override.js', '-d', f'writes/{hostname}', archive_url]
+            args = ['node', 'load_override.js', '-d', f'{write_dir}/{hostname}', archive_url]
             if decider:
                 args.append('-o')
             if interact:
@@ -40,10 +43,65 @@ def run_load_override(decider=False, interact=False):
             process.wait()
         except subprocess.CalledProcessError as e:
             output = e.output.decode()
-        f = open(f'writes/{hostname}/log.log', 'w+')
+        f = open(f'{write_dir}/{hostname}/log.log', 'w+')
         f.write(output)
         f.close()
         print('Till Now:', time.time()-start)
+
+def run_load_override_multiproc(num_workers=4, decider=False, interact=False):
+    def worker_load_override(data, worker_id):
+        start = time.time()
+        for i, datum in enumerate(data):
+            hostname, archive_url = datum['hostname'], datum['archive_url']
+            print(worker_id, i, archive_url)
+            # Try removing the directory (it is fine the if the directory does not exist)
+            try:
+                subprocess.call(['rm', '-rf', f'{write_dir}/{hostname}'])
+            except:
+                pass
+            try:
+                args = ['node', 'load_override.js', 
+                        '-d', f'{write_dir}/{hostname}', 
+                        '-c', f'{HOME}/chrome_data/load_override_{worker_id}',
+                        archive_url]
+                if decider:
+                    args.append('-o')
+                if interact:
+                    args.append('-i')
+                process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                output = ''
+                for line in iter(process.stdout.readline, b''):
+                    line = line.decode()
+                    print(line, end='')  # print to stdout immediately
+                    output += line  # save to the output string
+                process.stdout.close()
+                process.wait()
+            except subprocess.CalledProcessError as e:
+                output = e.output.decode()
+            f = open(f'{write_dir}/{hostname}/log.log', 'w+')
+            f.write(output)
+            f.close()
+            print('Till Now:', time.time()-start)
+
+    for i in range(num_workers):
+        subprocess.call(['rm', '-rf', f'{HOME}/chrome_data/load_override_{i}'])
+        subprocess.call(['cp', '-r', f'{HOME}/chrome_data/base', f'{HOME}/chrome_data/load_override_{i}'])
+    torun_data = []
+    for datum in data[:16]:
+        hostname = datum['hostname']
+        if os.path.exists(f'{write_dir}/{hostname}/results.json'):
+            print(f'{hostname} already processed')
+            continue
+        torun_data.append(datum)
+    
+    pools = []
+    for i in range(num_workers):
+        data_slice = torun_data[i::num_workers]
+        pools.append(Thread(target=worker_load_override, args=(data_slice, i)))
+        pools[-1].start()
+    for p in pools:
+        p.join()
+    
 
 def count_results(strict=True):
     count = {}
@@ -103,6 +161,8 @@ def correlate_labels():
     fixed = json.load(open('fixed_count.json', 'r'))
     table = {'tp': [], 'fp': [], 'tn': [], 'fn': []}
     for hostname, diff in labels.items():
+        if not os.path.exists(f'{write_dir}/{hostname}/results.json'):
+            continue
         if diff:
             if hostname in fixed:
                 table['tp'].append(hostname)
@@ -120,5 +180,7 @@ def correlate_labels():
     json.dump(table, open('ground_truth_results_new.json', 'w+'), indent=2)
 
 # run_load_override(decider=False, interact=True)
+run_load_override_multiproc(decider=False, interact=False)
+
 # count_results(strict=True)
-correlate_labels()
+# correlate_labels()
