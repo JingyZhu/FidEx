@@ -371,7 +371,10 @@ class ErrorInspector {
             };
         });
         this.client.on('Network.responseReceived', async params => {
-            const { url, initiator } = this._requestURL[params.requestId];
+            const response = this._requestURL[params.requestId];
+            if (!response)
+                return;
+            const { url, initiator } = response;
             this.responses[url] = {
                 requestId: params.requestId,
                 status: params.response.status,

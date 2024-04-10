@@ -340,6 +340,9 @@ class Reverter {
         // Replace the archive hostname with web.archive.org
         let urlObj = new URL(url);
         urlObj.host = 'web.archive.org';
+        let pathname = urlObj.pathname.split('/');
+        pathname[0] = 'web';
+        urlObj.pathname = pathname.join('/');
         urlObj.port = '';
         const waybackURL = urlObj.toString();
         let retry = 0;
@@ -361,12 +364,16 @@ class Reverter {
         urlObj = new URL(url);
         const pathParts = urlObj.pathname.split('/');
         if (pathParts.length >= 3) {
-            const origURL = pathParts.slice(3).join('/');
-            let res = await fetch(origURL);
-            if (res.status === 200) {
-                const buffer = await res.buffer();
-                return buffer.toString('base64');
-            }
+            try {
+                let origURL = pathParts.slice(3).join('/');
+                if (origURL.startsWith('//'))
+                    origURL = 'http:' + origURL;
+                let res = await fetch(origURL);
+                if (res.status === 200) {
+                    const buffer = await res.buffer();
+                    return buffer.toString('base64');
+                }
+            } catch {return;}
         }
         return; 
     }

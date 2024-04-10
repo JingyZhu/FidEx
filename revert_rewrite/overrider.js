@@ -47,7 +47,8 @@ class Overrider {
     }
 
     replaceContentType(url, headers) {
-        const inferType = mime.getType(url);
+        const path = new URL(url).pathname;
+        const inferType = mime.getType(path);
         if (inferType !== null) {
             let newHeaders = headers.filter(header => header.name.toLowerCase() != 'content-type');
             newHeaders.push({
