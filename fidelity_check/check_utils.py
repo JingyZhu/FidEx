@@ -77,7 +77,9 @@ class htmlElement:
         all_rules = [] # List of lambda func to get the attribute
         tag_rules = {
             'img': [lambda img: self._get_src(img)],
-            'a': [lambda a: a.attrs.get('class'), lambda a: self._norm_href(a.attrs.get('href'))],
+            'a': [
+                # lambda a: a.attrs.get('class'), 
+                lambda a: self._norm_href(a.attrs.get('href'))],
         }
         tag = BeautifulSoup(self.text, 'html.parser').find()
         if tag is None:

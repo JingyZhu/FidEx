@@ -303,6 +303,7 @@ async function enableFields(client) {
     await client.send('Network.enable');
     await client.send('Runtime.enable');
     await client.send('Debugger.enable');
+    await client.send('Log.enable');
     await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
     await sleep(100);
 }

@@ -1,14 +1,15 @@
 import fidelity_detect
 import os
 
-base = '/vault-swift/jingyz/fidelity-files/writes/ground_truth/'
+base = '/vault-swift/jingyz/fidelity-files/writes/ground_truth_1/'
 
 def test_no_issue():
     dirs = [
         'mview.md.gov_58ccccb7a7',
         'www.hirschlandadler.com_ad3c962cee',
         'www.cdc.gov_e1302c87d2',
-        'www.nationalarchivesstore.org_5843d6ab64'
+        'www.nationalarchivesstore.org_5843d6ab64',
+        'www.upsilongallery.com_45a62846cb'
     ]
     for dirr in dirs:
         print(dirr)
