@@ -17,3 +17,4 @@ results*
 *.log
 !fidelity_check/testcases*.json
 !misc/examples/*
+!package.json

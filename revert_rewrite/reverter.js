@@ -341,18 +341,19 @@ class Reverter {
         let urlObj = new URL(url);
         urlObj.host = 'web.archive.org';
         let pathname = urlObj.pathname.split('/');
-        pathname[0] = 'web';
+        pathname[1] = 'web';
         urlObj.pathname = pathname.join('/');
         urlObj.port = '';
         const waybackURL = urlObj.toString();
         let retry = 0;
         while (retry < 3) {
             let res = await fetch(waybackURL);
+            let resURL = new URL(res.url);
             if (res.status === 429) {
                 retry += 1
                 await new Promise(resolve => setTimeout(resolve, Math.exp(2, retry+1)*1000));
                 continue
-            } else if (res.status !== 200) {
+            } else if (res.status !== 200 || ['/', ''].includes(resURL.pathname)) { // Redirected to web.archive.org/
                 break;
             } else {
                 const buffer = await res.buffer();
