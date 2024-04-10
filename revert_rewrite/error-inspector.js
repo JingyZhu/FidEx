@@ -1,6 +1,7 @@
 const { logger } = require('../utils/logger');
 const reverter = require('./reverter');
 const { filterArchive } = require('../error_match/fix-decider');
+const { parseStack } = require('../utils/execution');
 
 function skipJS(url) {
     const skipKeywords = [
@@ -8,6 +9,14 @@ function skipJS(url) {
     ]
     for (const keyword of skipKeywords) {
         if (url.includes(keyword))
+            return true;
+    }
+    return false;
+}
+
+function initiatedBy(stack, url) {
+    for (const callframe of stack) {
+        if (callframe.url == url)
             return true;
     }
     return false;
@@ -266,10 +275,41 @@ class ErrorInspector {
                         continue;
                     info.addFrame(url, null, lineNum-1, columnNum-1);
                 }
-                console.log("ErrorInspector:", "console.error", description.split('\n')[0]);
+                logger.log("ErrorInspector:", "console.error", description.split('\n')[0]);
                 this.exceptions.push(info);
                 break;
             }
+        })
+
+        this.client.on('Log.entryAdded', params => {
+            const entry = params.entry;
+            // Check for CSP violation
+            if (entry.source == 'security' && entry.level == 'error') {
+                const textReg = /Refused to load .* '([^']+)'.*Content Security Policy.*/;
+                const match = entry.text.match(textReg);
+                if (match == null)
+                    return;
+                const url = match[1];
+                logger.log("ErrorInspector:", "Log.entryAdded CSP", url, entry.text.split('\n')[0]);
+                this.responses[url] = {
+                    status: 'CSP',
+                    headers: null,
+                    body: null
+                }
+            } else {
+                const textReg = /Failed to decode downloaded font: (https?:\/\/[^\s]+).*/;
+                const match = entry.text.match(textReg);
+                if (match == null)
+                    return;
+                const url = match[1];
+                logger.log("ErrorInspector:", "Log.entryAdded font", url, entry.text.split('\n')[0]);
+                this.responses[url] = {
+                    status: 'Font',
+                    headers: null,
+                    body: null
+                }
+            }
+               
         })
 
         await this.client.send('Debugger.setPauseOnExceptions', {state: type});
@@ -319,14 +359,24 @@ class ErrorInspector {
         });
 
         this.client.on('Network.requestWillBeSent', params => {
-            this._requestURL[params.requestId] = params.request.url;
+            const stackInfo = parseStack(params.initiator.stack);
+            let stackList = [];
+            for (const stack of stackInfo) {
+                for (const callframe of stack.callFrames)
+                    stackList.push(callframe);
+            }
+            this._requestURL[params.requestId] = {
+                url: params.request.url,
+                initiator: stackList
+            };
         });
         this.client.on('Network.responseReceived', async params => {
-            const url = this._requestURL[params.requestId];
+            const { url, initiator } = this._requestURL[params.requestId];
             this.responses[url] = {
                 requestId: params.requestId,
                 status: params.response.status,
                 headers: params.response.headers,
+                initiator: initiator,
                 body: null
             }
         })
@@ -334,14 +384,24 @@ class ErrorInspector {
 
     setNetworkListener(){
         this.client.on('Network.requestWillBeSent', params => {
-            this._requestURL[params.requestId] = params.request.url;
+            const stackInfo = parseStack(params.initiator.stack);
+            let stackList = [];
+            for (const stack of stackInfo.callFrames) {
+                for (const callframe of stack.callFrames)
+                    stackList.push(callframe);
+            }
+            this._requestURL[params.requestId] = {
+                url: params.request.url,
+                initiator: stackList
+            };
         });
         this.client.on('Network.responseReceived', async params => {
-            const url = this._requestURL[params.requestId];
+            const { url, initiator } = this._requestURL[params.requestId];
             this.responses[url] = {
                 requestId: params.requestId,
                 status: params.response.status,
                 headers: params.response.headers,
+                initiator: initiator,
                 body: null
             }
         })
@@ -399,6 +459,7 @@ class ErrorInspector {
 }
 
 module.exports = {
+    initiatedBy,
     ExceptionInfo,
     ErrorInspector
 }

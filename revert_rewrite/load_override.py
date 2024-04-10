@@ -101,7 +101,6 @@ def correlate_labels():
     labels = json.load(open('inputs/ground_truth_200.json', 'r'))
     labels = {l['hostname']: l['diff'] for l in labels}
     fixed = json.load(open('fixed_count.json', 'r'))
-    fixed = set(fixed.keys())
     table = {'tp': [], 'fp': [], 'tn': [], 'fn': []}
     for hostname, diff in labels.items():
         if diff:
@@ -111,11 +110,14 @@ def correlate_labels():
                 table['fn'].append(hostname)
         else:
             if hostname in fixed:
-                table['fp'].append(hostname)
+                if 'interaction' not in fixed[hostname]:
+                    table['fp'].append(hostname)
+                else:
+                    table['tp'].append(hostname)
             else:
                 table['tn'].append(hostname)
     print({k: len(v) for k, v in table.items()})
-    json.dump(table, open('ground_truth_results.json', 'w+'), indent=2)
+    json.dump(table, open('ground_truth_results_new.json', 'w+'), indent=2)
 
 # run_load_override(decider=False, interact=True)
 # count_results(strict=True)

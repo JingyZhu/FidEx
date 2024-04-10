@@ -355,6 +355,8 @@ async function enableFields(client) {
             timeout: timeout
         })}
         let {result, log, workingOverrides: newWorkingOverrides} = await loadAndFix(url, page, client, 'load', options, loadFunc);
+        if (!result['success'])
+            throw new Error("load_override.js: Failed to load the page");
         workingOverrides = newWorkingOverrides;
         results['load'] = result;
         logs['load'] = log;
