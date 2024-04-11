@@ -145,6 +145,8 @@ class ErrorInspector {
      */
     async _recordException(params){
         const {callFrames, data} = params; // data looks similar to Runtime.RemoteObject
+        if (!data)
+            return;
         const description = "description" in data ? data.description : "";
         let info = new ExceptionInfo(data.className, description, params.data.uncaught, false);
         // TODO: This could be merged into decider's functionality

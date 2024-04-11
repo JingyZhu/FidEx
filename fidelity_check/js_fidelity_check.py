@@ -23,7 +23,7 @@ if __name__ == '__main__':
     strict = data['strict']
     left_writes, right_writes = json.load(open(f'{dirr}/{left}_writes.json', 'r')), json.load(open(f'{dirr}/{right}_writes.json', 'r'))
     left_elements, right_elements = json.load(open(f'{dirr}/{left}_elements.json', 'r')), json.load(open(f'{dirr}/{right}_elements.json', 'r'))
-    has_issue, (left_unique, right_unique) = fidelity_detect.fidelity_issue(dirr, left, right)
+    has_issue, (left_unique, right_unique) = fidelity_detect.fidelity_issue(dirr, left, right, meaningful=True)
     if strict:
         has_issue = has_issue and _strict_decide(left_elements, left_writes, right_writes, right_elements)
     sys.stdout.write(json.dumps({

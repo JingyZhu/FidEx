@@ -15,9 +15,13 @@ def find_diff_elements(dirr, left_file, right_file) -> (list, list):
     left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
     return left_unique, right_unique
 
-def fidelity_issue(dirr, left_prefix='live', right_prefix='archive') -> (bool, (list, list)):
+def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=False) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
-    left_unique, right_unique = find_diff_elements(dirr, f'{left_prefix}_elements', f'{right_prefix}_elements')
+    left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
+    right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
+    left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
+    if meaningful:
+        left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
 
 def fidelity_issue_screenshot(dirr, left_file='live', right_file='archive') -> (bool, float):

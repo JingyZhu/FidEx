@@ -464,4 +464,54 @@ def associate_writes(element_xpath: str, writes: list) -> list:
             if write['wid'] not in related_seen:
                 related_writes.append(write)
                 related_seen.add(write['wid'])
-    return related_writes        
+    return related_writes
+
+def meaningful_diff(left_element, left_unique, right_element, right_unique):
+    """
+    Classify if the unique layout tree is actually meaningfug, not some random noise(e.g. recaptcha)
+
+    Returns:
+        (List, List): updated left_unique and right_unique
+    """
+    left_xpaths_map = {e['xpath']: e for e in left_element}
+    right_xpaths_map = {e['xpath']: e for e in right_element}
+    def _from_recaptcha(xpath):
+        paths = xpath.split('/')
+        iframe_idx = -1
+        for i, p in enumerate(paths):
+            if p.startswith('iframe'):
+                iframe_idx = i
+                break
+        iframe_path = paths[:iframe_idx+1]
+        element = left_xpaths_map.get('/'.join(iframe_path), None)
+        if element is None:
+            return False
+        if 'recaptcha' in element['text'].lower():
+            return True
+
+    new_left_unique = []
+    for branch in left_unique:
+        branch_meaningful = True
+        for xpath in branch:            
+            # * ruffle based
+            if xpath.split('/')[-1].startswith('ruffle-embed'):
+                return False
+            if _from_recaptcha(xpath):
+                branch_meaningful = False
+                break
+        if branch_meaningful:
+            new_left_unique.append(branch)
+    
+    new_right_unique = []
+    for branch in right_unique:
+        branch_meaningful = True
+        for xpath in branch:
+            if xpath.split('/')[-1].startswith('ruffle-embed'):
+                return False
+            if _from_recaptcha(xpath):
+                branch_meaningful = False
+                break
+        if branch_meaningful:
+            new_right_unique.append(branch)
+
+    return new_left_unique, new_right_unique
