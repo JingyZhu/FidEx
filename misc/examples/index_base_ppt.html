@@ -1,20 +1,20 @@
-<html>
-  <body>
-    <div id="target"></div>
-    <button id="button">What's new?</button>
+<body>
+  <div id="target"></div>
+  <button id="button">What's new?</button>
 
-    <script>
-        async function getUpdates() {
-            const domain = new URL(document.location.href).host;
-            let response = await fetch('https://' + domain + '/updates.json');
-            response = await response.json();
-            for (const update of response) {
-                // ... Apply updates ...
-            }
+  <script>
+    async function getUpdates() {
+      const domain = document.location.host;
+      let response = await fetch(`https://${domain}/updates.json`);
+        response = await response.json();
+        for (const update of response) {
+            // ... Apply updates to target div ...
         }
+    }
 
-        document.getElementById('button').addEventListener('click', getUpdates);
-    </script>
-  </body>
+    document.getElementById('button')
+            .addEventListener('click', getUpdates);
+  </script>
+</body>
 
   
