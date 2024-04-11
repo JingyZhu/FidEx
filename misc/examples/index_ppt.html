@@ -1,36 +1,27 @@
-<html>
-  <body>
-    <div id="target"></div>
-    <button id="button">What's new?</button>
-    <iframe src="c.com/iframe.html" style="display: none;"></iframe>
+<div id="target"></div>
+<button id="button">What's new?</button>
+<iframe src="c.com/iframe.html"></iframe>
+<script src="/button.js"></script>
 
-    <script>
+<script>
+  // @\textbf{Step 1}@: Ask the child iframe for updates
+  let button = document.getElementById('button')
+  button.addEventListener('click', () => {
+    let iframe = document.getElementsById('frame');
+    iframe.contentWindow.postMessage('getUpdates', "*");
+  })
 
-        // Step 1: Ask the child iframe for updates
-        async function getUpdates() {
-            const domain = new URL(document.location.href).host;
-            const iframe = document.getElementsByTagName('iframe')[0];
-            await iframe.contentWindow.postMessage('getUpdates', "*");
-        }        
-
-        // Step 3: Apply updates and create corresponding elements
-        window.addEventListener('message', function(event) {
-            const tagCreateMethods = {
-                'img': Document.prototype.createElement,
-                'text': Document.prototype.createTextNode,
-            }
-            response = event.data;
-            for (const update of response) {
-                // Create element based on the type of update
-                const element = tagCreateMethods[update.type].call(document, update.value);
-                // ... Apply updates to element ...
-                document.getElementById('target').appendChild(element);
-            }
-        });
-        
-        document.getElementById('button').addEventListener('click', getUpdates);
-    </script>
-  </body>
-
-  
-  
+  // @\textbf{Step 3}@: Apply updates and create related elements
+  window.addEventListener('message', event => {
+    const tagCreateMethods = {
+      'img': Document.prototype.createElement,
+      // ... Other element creation methods
+    }
+    for (const update of event.data) {
+      // Create element based on the type of update
+      const method = tagCreateMethods[update.type]
+      const element = method.call(document, update.value)
+      // ... Apply updates with the element ...
+    }
+  });
+</script>
