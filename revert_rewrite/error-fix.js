@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 const eventSync = require('../utils/event_sync');
 
 const reverter = require('./reverter');
-const { ErrorInspector, ExceptionInfo } = require('./error-inspector');
+const { ErrorInspector, ExceptionInfo, initiatedBy } = require('./error-inspector');
 const { Overrider } = require('./overrider');
 const { topRewrittenFrameURL, FixDecider, fixDecider } = require('../error_match/fix-decider');
 
@@ -22,8 +22,13 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-function fileSyntaxError(exception) {
-    return exception.type == 'SyntaxError' && exception.uncaught;
+function fileSyntaxError(exception, {notInRuntime=false}={}) {
+    const uncaughtSyntax = exception.type == 'SyntaxError' && exception.uncaught;
+    return uncaughtSyntax;
+    if (!notInRuntime)
+        return uncaughtSyntax;
+    else
+        return uncaughtSyntax && exception.frames[0].source == null;
 }
 
 async function collectWombat(url) {
@@ -125,6 +130,7 @@ class PageRecorder {
             'dir': dirname,
             'left': left,
             'right': right,
+            'strict': true,
         }));
         pythonProcess.stdin.end();
         let data = await new Promise((resolve, reject) => {
@@ -208,30 +214,32 @@ class ErrorFixer {
         const stage = this.stage;
         this.exceptions[stage] = [];
         for (let exception of this.inspector.exceptions){
-            if (!fileSyntaxError(exception)) { 
-                for (let frame of exception.frames) {
-                    if (frame.scriptId === null) { // console error frames, not scriptId
-                        for (let [scriptId, info] of Object.entries(this.inspector.scriptInfo)) {
-                            if (info.url === frame.url) {
-                                frame.scriptId = scriptId;
-                                break;
-                            }
+            // if (!fileSyntaxError(exception)) { 
+            for (let frame of exception.frames) {
+                if (frame.scriptId === null) { // console error frames, not scriptId
+                    for (let [scriptId, info] of Object.entries(this.inspector.scriptInfo)) {
+                        if (info.url === frame.url) {
+                            frame.scriptId = scriptId;
+                            break;
                         }
                     }
-                    const sourceObj = this.inspector.scriptInfo[frame.scriptId];
-                    frame.source = {
-                        source: sourceObj.source,
-                        start: null,
-                        end: null
-                    }
-                    const numLines = sourceObj.source.split('\n').length;
-                    // * Script is part of the file not the whole page.
-                    if (sourceObj.startLine != 0 || sourceObj.endLine != numLines-1) {
-                        frame.source.start = {line: sourceObj.startLine, column: sourceObj.startColumn},
-                        frame.source.end = {line: sourceObj.endLine, column: sourceObj.endColumn}
-                    }
+                }
+                if (!frame.scriptId === null || !this.inspector.scriptInfo[frame.scriptId])
+                    continue;
+                const sourceObj = this.inspector.scriptInfo[frame.scriptId];
+                frame.source = {
+                    source: sourceObj.source,
+                    start: null,
+                    end: null
+                }
+                const numLines = sourceObj.source.split('\n').length;
+                // * Script is part of the file not the whole page.
+                if (sourceObj.startLine != 0 || sourceObj.endLine != numLines-1) {
+                    frame.source.start = {line: sourceObj.startLine, column: sourceObj.startColumn},
+                    frame.source.end = {line: sourceObj.endLine, column: sourceObj.endColumn}
                 }
             }
+            // }
             this.exceptions[stage].push(exception);
         }
         // Sort the exceptions by their type, uncaught first, then caught
@@ -361,17 +369,27 @@ class ErrorFixer {
      */
     async fixNetwork() {
         const stage = this.stage;
-        let result = new FixResult('Network404');
+        let result = new FixResult('Network');
         let revert = new reverter.Reverter("");
+        const revertMethods = {
+            CSP: async (url, hostname) => {return 'CSP';},
+            Font: revert.revertOutSrcResponse,
+            404: revert.revert404response,
+            503: revert.revertOutSrcResponse,
+        }
         let promises = [];
+        let cspReload = false;
         for (const [url, response] of Object.entries(this.inspector.responses)){
             const status = response.status;
-            if (status != 404)
+            if (!(status in revertMethods))
                 continue;
             if (url in this.overrider.baseOverrides)
                 continue;
-            promises.push(revert.revert404response(url, this.hostname).then(overrideContent => {
-                if (overrideContent !== null) {
+            const revertMethod = revertMethods[status];
+            promises.push(revertMethod(url, this.hostname).then(overrideContent => {
+                if (overrideContent === 'CSP')
+                    cspReload = true;
+                else if (overrideContent !== null) {
                     this.overrider.networkOverrides[url] = {
                         source: overrideContent,
                         start: null,
@@ -381,7 +399,7 @@ class ErrorFixer {
             }));
         }
         await Promise.all(promises);
-        if (Object.keys(this.overrider.networkOverrides).length == 0)
+        if (!cspReload && Object.keys(this.overrider.networkOverrides).length == 0)
             return result;
         const success = await this.reloadWithOverride({}, true);
         if (!success)
@@ -405,6 +423,7 @@ class ErrorFixer {
      * @returns {Generator} generator that yields {url: updatedCode} everytime
      */
     async *_findSyntaxReverts(exceptions) {
+        // * RevertLines
         let updatedCodes = {};
         for (const exception of exceptions) {
             const frame = exception.frames[0];
@@ -431,6 +450,7 @@ class ErrorFixer {
         }
         yield updatedCodes;
 
+        // * Revert to original file
         updatedCodes = {}
         for (const exception of exceptions) {
             const frame = exception.frames[0];
@@ -456,7 +476,7 @@ class ErrorFixer {
         const stage = this.stage;
         let result = new FixResult('SyntaxError');
         const latestExceptions = this.exceptions[stage];
-        const syntaxErrorExceptions = latestExceptions.filter(excep => fileSyntaxError(excep));
+        const syntaxErrorExceptions = latestExceptions.filter(excep => fileSyntaxError(excep, {notInRuntime: true}));
         if (syntaxErrorExceptions.length == 0)
             return result;
         
@@ -515,8 +535,9 @@ class ErrorFixer {
      * @param {ExceptionInfo} exception The exception the frame is from
      * @returns {Generator} generator that yields {{url: updatedCode}, needCalcExcep: boolean}
      */
-    *_findExceptionReverts(source, frame, exception) {
+    async *_findExceptionReverts(source, frame, exception) {
         let revert = null;
+        // * RevertLines
         let updatedCodes = {}
         const startLoc = {line: frame.line+1, column: frame.column+1};
         revert = new reverter.Reverter(source, {parse: false, wombat: this.wombat});
@@ -546,6 +567,7 @@ class ErrorFixer {
             needCalcExcep: true
         };
 
+        // * Revert variables
         updatedCodes = {};
         try {
             revert = new reverter.Reverter(source);
@@ -566,7 +588,38 @@ class ErrorFixer {
             updatedCodes: {[frame.url]: updatedCode},
             needCalcExcep: true
         };
+
+        // * Revert fetch
+        if (exception.type == 'SyntaxError') {
+            updatedCodes = {};
+            let initiateResources = [];
+            for (const [url, response] of Object.entries(this.overrider.seenResponses)){
+                if (initiatedBy(response.initiator, frame.url))
+                    initiateResources.push(url);
+            }
+            for (const url of initiateResources){
+                updatedCode = await revert.revertFile2Original(url);
+                logger.verbose("ExceptionHandler.fixException:", "Revert Fetch ", url)
+                this.log.push({
+                    type: 'revertFetch',
+                    url: url,
+                    updated: updatedCode
+                })
+                updatedCodes[url] = updatedCode;
+            }
+            yield {
+                updatedCodes: updatedCodes,
+                needCalcExcep: true
+            };
+        } else {
+            yield {
+                updatedCodes: {},
+                needCalcExcep: true
+            };
+        }
+
         
+        // * Revert try-catch
         if (!exception.uncaught)
             return;
         updatedCode = revert.revertWithTryCatch(startLoc);
@@ -615,7 +668,7 @@ class ErrorFixer {
 
         // * Try fixes
         let fix_id = -1;
-        for (const { updatedCodes, needCalcExcep } of this._findExceptionReverts(frame.source.source, frame, exception)) {
+        for await (const { updatedCodes, needCalcExcep } of this._findExceptionReverts(frame.source.source, frame, exception)) {
             fix_id += 1;
             if (this.decider) {
                 const decision = this.decider.decide(exception);
@@ -626,17 +679,18 @@ class ErrorFixer {
             }
             result.unSkip();
             const updatedCode = updatedCodes[frame.url];
-            if (updatedCode === frame.source.source) {
+            if (updatedCode === frame.source.source && Object.keys(updatedCodes).length == 1){
                 logger.verbose("ExceptionHandler.fixException:", "No revert found for the code");
                 continue;
             }
 
-            let overrideMap = {[frame.url]: {
-                source: updatedCode, 
-                start: frame.source.start, 
-                end: frame.source.end, 
-                plainText: true
-            }};
+            let overrideMap = updatedCode && updatedCode != frame.source.source ?
+                                {[frame.url]: {
+                                    source: updatedCode, 
+                                    start: frame.source.start, 
+                                    end: frame.source.end, 
+                                    plainText: true
+                                }} : {}
             for (const [updatedURL, updatedCode]of Object.entries(updatedCodes)) {
                 if (updatedURL !== frame.url)
                     overrideMap[updatedURL] = {
@@ -646,6 +700,8 @@ class ErrorFixer {
                         plainText: true
                     }
                 }
+            if (Object.keys(overrideMap).length == 0)
+                continue;
             const success = await this.reloadWithOverride(overrideMap);
             if (!success)
                 continue;
@@ -685,14 +741,12 @@ class ErrorFixer {
         const networkFix = await this.fixNetwork();
         if (networkFix.fixed)
             return "NW";
-        if (networkFix.reloadCount) {
-            // console.log("Network reloaded", networkFix.reloaded)
+        if (networkFix.reloadCount)
             await this.collectLoadInfo(false);
-        }
         const syntaxFix = await this.fixSyntaxError(stage);
         if (syntaxFix.fixed)
             return `SE_${syntaxFix.fixedID}`;
-        const latestExceptions = this.exceptions[stage].filter(excep => !fileSyntaxError(excep) );
+        const latestExceptions = this.exceptions[stage].filter(excep => !fileSyntaxError(excep, {notInRuntime: true}) );
         for (let i = 0; i < latestExceptions.length; i++) {
             const excepFix = await this.fixException(latestExceptions, i);
             if (excepFix.fixed)

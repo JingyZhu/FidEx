@@ -10,13 +10,14 @@
 from subprocess import PIPE, check_call, Popen, call
 import os
 import json
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 import requests
 import sys
 import re
 import hashlib
 import socket
 import time
+import random
 from threading import Thread
 
 sys.path.append('../../')
@@ -43,6 +44,8 @@ def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}'
         pw_archive: Name of the archive to import for warc on pywb
         remote_host: True if run on remote host, False if run on local host
     """
+    # Remove url fragments
+    url = urlunsplit(urlsplit(url)._replace(fragment=''))
     suffix = chrome_data.strip('/').split('/')[-1]
     p = Popen(['node', 'record.js', '-d', f'writes/{archive_name}',
                 '-f', 'live',
@@ -94,19 +97,38 @@ def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}'
 def record_replay_all_urls(urls, worker_id=0, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
                            wr_archive=default_wr_archive,
                            pw_archive=default_pw_archive, remote_host=REMOTE):
-    metadata_file = f'metadata/{metadata_prefix}_{worker_id}.json'
+    # sys.stdout = open(f'logs/autorecord_{worker_id}.log', 'w')
+    # sys.stderr = sys.stdout
+    metadata_file = f'metadata/{metadata_prefix}.json'
+    metadata_worker_file = f'metadata/{metadata_prefix}_{worker_id}.json'
     if not os.path.exists(metadata_file):
         json.dump({}, open(metadata_file, 'w+'), indent=2)
+    if not os.path.exists(metadata_worker_file):
+        json.dump({}, open(metadata_worker_file, 'w+'), indent=2)
     metadata = json.load(open(metadata_file, 'r'))
+    metadata_worker = json.load(open(metadata_worker_file, 'r'))
     start = time.time()
     for i, url in list(enumerate(urls)):
         print(worker_id, i, url)
         if url in metadata or url.replace('http://', 'https://') in metadata:
             continue
         sys.stdout.flush()
-        try:
-            req_url = requests.get(url, timeout=20).url # * In case of redirection, only focusing on getting new hostname
-        except:
+        retry, success= 0, False
+        while retry < 5:
+            try:
+                req_url = requests.get(url, timeout=20).url # * In case of redirection, only focusing on getting new hostname
+                success = True
+                break
+            except Exception as e:
+                if 'Temporary failure in name resolution' in str(e):
+                    print("Temporary failure in name resolution, retrying", worker_id, url)
+                    retry += 1
+                    time.sleep(2 ** retry)
+                    continue
+                else:
+                    print("Exception encountered on requests", worker_id, str(e))
+                    break
+        if not success:
             continue
         if req_url in metadata:
             continue
@@ -118,13 +140,13 @@ def record_replay_all_urls(urls, worker_id=0, chrome_data=f'{HOME}/chrome_data/{
                                 wr_archive, pw_archive, remote_host=remote_host)
         if ts == '':
             continue
-        metadata[url] = {
+        metadata_worker[url] = {
             'ts': ts,
             'archive': f'{HOST}/{pw_archive}/{ts}/{url}',
             'directory': archive_name,
         }
         print('Till Now:', time.time()-start)
-        json.dump(metadata, open(metadata_file, 'w+'), indent=2)
+        json.dump(metadata_worker, open(metadata_worker_file, 'w+'), indent=2)
 
 
 def record_replay_all_urls_multi(urls, num_workers=8,
@@ -134,6 +156,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         call(['rm', '-rf', f'{HOME}/chrome_data/record_replay_{i}'])
         call(['cp', '-r', f'{HOME}/chrome_data/base', f'{HOME}/chrome_data/record_replay_{i}'])
     threads = []
+    random.shuffle(urls)
     for i in range(num_workers):
         urls_worker = urls[i::num_workers]
         chrome_data = f'{HOME}/chrome_data/record_replay_{i}'
@@ -149,4 +172,4 @@ if __name__ == '__main__':
     print("Total URLs:", len(urls))
     record_replay_all_urls_multi(urls, 16)
     
-    # record_replay('http://banking.delaware.gov/', 'banking.delaware.gov')
+    # record_replay('https://ers.cr.usgs.gov/login?redirectUrl=https://ers.cr.usgs.gov/', 'ers.cr.usgs.gov_0')

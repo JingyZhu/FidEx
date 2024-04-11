@@ -317,6 +317,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             console.log("Record: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
         }
+        const onloadURL = recordPage.url();
 
         // * Step 8: Interact with the webpage
         if (options.interaction){
@@ -325,7 +326,6 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
         }
-        const finalURL = recordPage.url();
         await recordPage.close();
         
         // * Step 9: Download recorded archive
@@ -341,7 +341,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await removeRecordings(page, 0)
 
         // ! Signal of the end of the program
-        console.log("recorded page:", JSON.stringify({ts: ts, url: finalURL}));
+        console.log("recorded page:", JSON.stringify({ts: ts, url: onloadURL}));
     } catch (err) {
         console.error(err);
     } finally {

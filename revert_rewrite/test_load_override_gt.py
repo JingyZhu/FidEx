@@ -65,40 +65,91 @@ def run_on_testcases(urls, decider=False, manual=False, interaction=False):
 
 def test_run_load_override_gt():
     urls = [
-        # 404 + 503？
+        # # 404 + 503？
+        # {
+        #     "hostname": "www.utb.uscourts.gov_3e9fd71510",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403070039/https://www.utb.uscourts.gov/",
+        # },
+        # # Syntax + DOMException
+        # {
+        #     "hostname": "tahoe.ca.gov_f2a21b3d59",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403070044/https://tahoe.ca.gov/#main-content",
+        # },
+        # # Google translate
+        # {
+        #     "hostname": "ltgov.nv.gov_2597bb1290",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403061730/https://ltgov.nv.gov/",
+        # },
+        # # illegal invocation
+        # {
+        #     "hostname": "dws.arkansas.gov_f80b6da677",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055906/https://dws.arkansas.gov/",
+        # },
+        # # SyntaxError
+        # {
+        #     "hostname": "www.laphil.com_1634459bf8",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404054835/https://www.laphil.com/campaigns/celebrate-inglewood-community-festival",
+        # },
+        # # SyntaxError
+        # {
+        #     "hostname": "airandspace.si.edu_5bf8cf6ff5",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
+        # },
+        # # Google translate
+        # {
+        #     "hostname": "bmt.ky.gov_9f4115a9f2",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052121/https://bmt.ky.gov/",
+        # },
+        # # Need fidelity check strict mode embeded
+        # {
+        #     "hostname": "dot.alaska.gov_7aa47e3461",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405042829/https://dot.alaska.gov/",
+        # },
+        # # error-inspector bug
+        # {
+        #     "hostname": "dem.utah.gov_987e1ab413",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405042831/https://dem.utah.gov/",
+        # },
+        # # error-inspector bug
+        # {
+        #     "hostname": "science.nasa.gov_79e1de08e9",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405042940/https://science.nasa.gov/universe/",
+        # },
+        # # Syntax error, back to top not available
+        # {
+        #     "hostname": "boe.ca.gov_58486781a5",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405053533/https://boe.ca.gov/",
+        # },
+        # Syntax error + Suspect google translate
         {
-            "hostname": "www.utb.uscourts.gov_3e9fd71510",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403070039/https://www.utb.uscourts.gov/",
-        },
-        # Syntax + DOMException
+            "hostname": "www.in.gov_4559663ea2",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409081734/https://www.in.gov/sos/elections/voter-information/photo-id-law/",
+        }
+    ]
+    results = run_on_testcases(urls)
+    print(json.dumps(results, indent=2))
+
+def test_run_load_override_gt_network():
+    urls = [
+        # # Many CSP to original resources (not fixing the problem)
+        # {
+        #     "hostname": "corinabricenoi.blogspot.com_b99d307fa5",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405045302/http://corinabricenoi.blogspot.com/",
+        # },
+        # # font issue
+        # {
+        #     "hostname": "ccr.cancer.gov_9e8d77b4b8",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052525/https://ccr.cancer.gov/molecular-imaging-branch",
+        # },
+        # # 503
+        # {
+        #     "hostname": "mirecc.va.gov_f602190372",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409074945/https://mirecc.va.gov/visn3/",
+        # }
+        # 503 on xhr
         {
-            "hostname": "tahoe.ca.gov_f2a21b3d59",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403070044/https://tahoe.ca.gov/#main-content",
-        },
-        # Google translate
-        {
-            "hostname": "ltgov.nv.gov_2597bb1290",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403061730/https://ltgov.nv.gov/",
-        },
-        # illegal invocation
-        {
-            "hostname": "dws.arkansas.gov_f80b6da677",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055906/https://dws.arkansas.gov/",
-        },
-        # SyntaxError
-        {
-            "hostname": "www.laphil.com_1634459bf8",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404054835/https://www.laphil.com/campaigns/celebrate-inglewood-community-festival",
-        },
-        # SyntaxError
-        {
-            "hostname": "airandspace.si.edu_5bf8cf6ff5",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
-        },
-        # Google translate
-        {
-            "hostname": "bmt.ky.gov_9f4115a9f2",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052121/https://bmt.ky.gov/",
+            "hostname": "citrus.floridahealth.gov_48bd35942a",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409082007/https://citrus.floridahealth.gov/",
         },
     ]
     results = run_on_testcases(urls)
@@ -122,6 +173,52 @@ def test_run_load_override_gt_hard():
     print(json.dumps(results, indent=2))
 
 
+def test_run_load_override_gt_no_fidelity():
+    urls = [
+        # # Fragmentation of URL
+        # {
+        #     "hostname": "www.caringjobs.nd.gov_b7336a3d1c",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405051257/https://www.caringjobs.nd.gov/",
+        # },
+        # {
+        #     "hostname": "blogs.cdc.gov_6cba792575",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052941/https://blogs.cdc.gov/",
+        # },
+        # Target closed
+        # {
+        #     "hostname": "www.miandn.com_339f86e8d5",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405051739/https://www.miandn.com/",
+        # },
+        # # Interaction 1
+        # {
+        #     "hostname": "public.govdelivery.com_3052688d2f",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405044112/https://public.govdelivery.com/accounts/IACIO/subscriber/new?qsp=IACIO_22",
+        # },
+        # # revertVar seems introduce some problem
+        # {
+        #     "hostname": "bsr.frb.gov_0939bdce0d",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405051425/https://bsr.frb.gov/my.logout.php3?errorcode=19",
+        # },
+        # # ! Need to remove check for display:block
+        # {
+        #     "hostname": "www.cdc.gov_e1302c87d2",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405051810/https://www.cdc.gov/#print",
+        # },
+        # # Last time check, fixed
+        # {
+        #     "hostname": "www.fws.gov_5f81d32ad8",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409070511/https://www.fws.gov/program/national-wetlands-inventory",
+        # },
+        # Last time check, fixed
+        {
+            "hostname": "dropstuff.nl_d96a6eef1a",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409070628/https://dropstuff.nl/en/",
+        },
+    ]
+    results = run_on_testcases(urls)
+    print(json.dumps(results, indent=2))
+
+
 def test_run_load_override_temp():
     urls = [
         # Google translate
@@ -134,5 +231,4 @@ def test_run_load_override_temp():
     print(json.dumps(results, indent=2))
 
 
-
-test_run_load_override_temp()
+test_run_load_override_gt()
