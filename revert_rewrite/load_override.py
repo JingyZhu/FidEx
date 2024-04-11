@@ -10,7 +10,7 @@ from threading import Thread
 
 HOME = os.path.expanduser("~")
 MACHINE = socket.gethostname()
-input_file = 'ground_truth_200.json'
+input_file = 'ground_truth_remain.json'
 write_dir = 'writes_multiproc'
 data = json.load(open(f'inputs/{input_file}', 'r'))
 
@@ -48,7 +48,7 @@ def run_load_override(decider=False, interact=False):
         f.close()
         print('Till Now:', time.time()-start)
 
-def run_load_override_multiproc(num_workers=4, decider=False, interact=False):
+def run_load_override_multiproc(num_workers=8, decider=False, interact=False):
     def worker_load_override(data, worker_id):
         start = time.time()
         for i, datum in enumerate(data):
@@ -87,7 +87,7 @@ def run_load_override_multiproc(num_workers=4, decider=False, interact=False):
         subprocess.call(['rm', '-rf', f'{HOME}/chrome_data/load_override_{i}'])
         subprocess.call(['cp', '-r', f'{HOME}/chrome_data/base', f'{HOME}/chrome_data/load_override_{i}'])
     torun_data = []
-    for datum in data[:16]:
+    for datum in data:
         hostname = datum['hostname']
         if os.path.exists(f'{write_dir}/{hostname}/results.json'):
             print(f'{hostname} already processed')
@@ -134,6 +134,8 @@ def count_results(strict=True):
                 if result['fixedIdx'] == -1:
                     continue
                 any_fixed = stage
+                if stage == 'extraInteraction':
+                    result['fixedIdx'] = 0
                 if not strict:
                     count[hostname] = f"{stage}_{result['fixedIdx']}"
                 else:
@@ -156,7 +158,7 @@ def count_results(strict=True):
     json.dump(count, open('fixed_count.json', 'w+'), indent=2)
 
 def correlate_labels():
-    labels = json.load(open('inputs/ground_truth_200.json', 'r'))
+    labels = json.load(open('inputs/ground_truth_remain.json', 'r'))
     labels = {l['hostname']: l['diff'] for l in labels}
     fixed = json.load(open('fixed_count.json', 'r'))
     table = {'tp': [], 'fp': [], 'tn': [], 'fn': []}
@@ -180,7 +182,7 @@ def correlate_labels():
     json.dump(table, open('ground_truth_results_new.json', 'w+'), indent=2)
 
 # run_load_override(decider=False, interact=True)
-run_load_override_multiproc(decider=False, interact=False)
+run_load_override_multiproc(decider=False, interact=True, num_workers=4)
 
 # count_results(strict=True)
 # correlate_labels()
