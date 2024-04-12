@@ -317,6 +317,7 @@ def plot_heatmap(data, xtitle="", ytitle="", title="", show=True):
     fig.add_trace(go.Heatmap(z=data))
     fig.update_layout(
         autosize=False,
+        yaxis_autorange='reversed',
         title={
             'text': title,
             'x':0.5,
