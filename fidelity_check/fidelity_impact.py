@@ -1,9 +1,106 @@
 import json
+import multiprocessing
+import os
+import numpy as np
 
 # HTML tag that are important for the content
-content_tag = ['img', 'video', 'audio', 'canvas', 'map']
+content_tag = ['img', 'video', 'audio', 'canvas', 'map', 'a']
+resolution = (1000, 1000)
 
-def calc_diff_dimensions(left_dimension, left_unique, right_dimensions, right_unique):
+def diff_rectangle(left, right):
+    ll, lt, lw, lh = left['left'], left['top'], left['width'], left['height']
+    rl, rt, rw, rh = right['left'], right['top'], right['width'], right['height']
+    larger_width = lw >= rw
+    larger_height = lh >= rh
+    if larger_width and larger_height:
+        return [
+            {'top': lt, 'left': ll+rw, 'width': lw-rw, 'height': rh},
+            {'top': lt+rh, 'left': ll, 'width': lw, 'height': lh-rh},
+        ]
+    elif larger_width:
+        return [
+            {'top': lt, 'left': ll+rw, 'width': lw-rw, 'height': lh},
+        ]
+    elif larger_height:
+        return [
+            {'top': lt+rh, 'left': ll, 'width': lw, 'height': lh-rh},
+        ]
+    else:
+        return []
+
+def calculate_total_area(rectangles):
+    """Apply sweep-line algorithm to calculate the total area of the rectangles, each rect in the format of (width, height, top, left)"""
+    events = []
+    for (width, height, top, left) in rectangles:
+        start = left
+        end = left + width
+        bottom = top + height
+        events.append((start, top, bottom, 1))  # Start of rectangle
+        events.append((end, top, bottom, -1))   # End of rectangle
+    # Sort events, handling end before start if they have the same x-coordinate
+    events.sort(key=lambda x: (x[0], -x[3]))
+    last_x = 0
+    active_intervals = []
+    total_area = 0
+
+    def compute_y_coverage():
+        if not active_intervals:
+            return 0
+        # Merging intervals and calculating total y length
+        merged_intervals = []
+        sorted_intervals = sorted(active_intervals)
+        current_start, current_end = sorted_intervals[0]
+
+        for start, end in sorted_intervals[1:]:
+            if start > current_end:  # No overlap
+                merged_intervals.append((current_start, current_end))
+                current_start, current_end = start, end
+            else:  # Overlapping intervals
+                current_end = max(current_end, end)
+        merged_intervals.append((current_start, current_end))
+        # Sum up all lengths of merged intervals
+        return sum(end - start for start, end in merged_intervals)
+
+    for x, y1, y2, typ in events:
+        if x != last_x:
+            # Calculate the area contribution from last_x to current x
+            current_y_length = compute_y_coverage()
+            total_area += current_y_length * (x - last_x)
+            last_x = x
+
+        if typ == 1:  # Adding new interval
+            active_intervals.append((y1, y2))
+        elif typ == -1:  # Removing interval
+            active_intervals.remove((y1, y2))
+    return total_area
+
+def _get_dimem(dimensions, xpaths):
+    new_dimensions = {}
+    for xpath in xpaths:
+        if xpath in dimensions and dimensions[xpath]:
+            new_dimensions[xpath] = dimensions[xpath]
+            continue
+        paths = xpath.split('/')
+        for i in range(len(paths)-1, 0, -1):
+            parent = '/'.join(paths[:i])
+            if parent in dimensions and dimensions[parent]:
+                new_dimensions[xpath] = dimensions[parent]
+                break
+    return new_dimensions
+
+def _leaves(xpaths):
+    leaves = []
+    for xpath in xpaths:
+        paths = xpath.split('/')
+        for i in range(len(paths)-1, 0, -1):
+            parent = '/'.join(paths[:i])
+            if parent in xpaths:
+                break
+        else:
+            leaves.append(xpath)
+    return leaves
+
+def calc_diff_dimensions(left_dimensions, left_unique, right_dimensions, right_unique):
     """
     Currently just apply the easiest diff calculation by looking at the root of each unique branches
     1. If the xpath is unique, count the whole element as contributing to the overall dimension diff
@@ -12,38 +109,36 @@ def calc_diff_dimensions(left_dimension, left_unique, right_dimensions, right_un
     Assumption: change(parent) -> sum(change(children))
     """
     left_unique_dimen, right_unique_dimen = {}, {}
-    default_d = {'width': 0, 'height': 0}
     for branch in left_unique:
-        left_unique_dimen.update({e: left_dimension.get(e, default_d) for e in branch})
+        left_unique_dimen.update(_get_dimem(left_dimensions, branch))
     for branch in right_unique:
-        right_unique_dimen.update({e: right_dimensions.get(e, default_d) for e in branch})
-    left_total_diff = 0
+        right_unique_dimen.update(_get_dimem(right_dimensions, branch))
+    left_total_diffs = []
     for branch in left_unique:
-        max_dimen_diff = 0
+        branch = _leaves(branch)
         for e in branch:
             e_dimen = left_unique_dimen[e]
             e_type = e.split('/')[-1].split('[')[0]
-            if e_type not in content_tag and e in right_unique_dimen:
-                right_dimen = right_unique_dimen[e]
-                dimen_diff = abs(e_dimen['width']*e_dimen['height'] - right_dimen['width']*right_dimen['height'])
-            else:
-                dimen_diff = e_dimen['width']*e_dimen['height']
-            max_dimen_diff = max(max_dimen_diff, dimen_diff)
-        left_total_diff += max_dimen_diff
-    right_total_diff = 0
+            # if e_type not in content_tag and e in right_unique_dimen:
+            #     right_dimen = right_unique_dimen[e]
+            #     dimen_diffs = diff_rectangle(e_dimen, right_dimen)
+            # else:
+            dimen_diffs = [e_dimen]
+            left_total_diffs += dimen_diffs
+    right_total_diffs = []
     for branch in right_unique:
-        max_dimen_diff = 0
+        branch = _leaves(branch)
         for e in branch:
             e_dimen = right_unique_dimen[e]
             e_type = e.split('/')[-1].split('[')[0]
-            if e_type not in content_tag and e in left_unique_dimen:
-                left_dimen = left_unique_dimen[e]
-                dimen_diff = abs(e_dimen['width']*e_dimen['height'] - left_dimen['width']*left_dimen['height'])
-            else:
-                dimen_diff = e_dimen['width']*e_dimen['height']
-            max_dimen_diff = max(max_dimen_diff, dimen_diff)
-        right_total_diff += max_dimen_diff
-    return left_total_diff, right_total_diff
+            # if e_type not in content_tag and e in left_unique_dimen:
+            #     left_dimen = left_unique_dimen[e]
+            #     dimen_diffs = diff_rectangle(e_dimen, left_dimen)
+            # else:
+            dimen_diffs = [e_dimen]
+            right_total_diffs += dimen_diffs
+    return left_total_diffs, right_total_diffs
+
 
 def total_space(elements):
     max_width, max_height = 0, 0
@@ -51,7 +146,7 @@ def total_space(elements):
         if e['dimension']:
             max_width = max(max_width, e['dimension']['width'] + e['dimension']['left'])
             max_height = max(max_height, e['dimension']['height'] + e['dimension']['top'])
-    return max_width * max_height
+    return max_width * max_height, (max_width, max_height)
 
 
 def fidelity_issue_impact(dirr, left_prefix='live', right_prefix='archive') -> float:
@@ -61,22 +156,168 @@ def fidelity_issue_impact(dirr, left_prefix='live', right_prefix='archive') -> f
     left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
     left_dimensions = {e['xpath']: e['dimension'] for e in left_element if e['dimension']}
     right_dimensions = {e['xpath']: e['dimension'] for e in right_element if e['dimension']}
-    left_diff, right_diff = calc_diff_dimensions(left_dimensions, left_unique, right_dimensions, right_unique)
-    # * Currently use body, but can use max width and height
-    left_total = total_space(left_element)
-    right_total = total_space(right_element)
-    return left_diff / left_total, right_diff / right_total
+    left_diffs, right_diffs = calc_diff_dimensions(left_dimensions, left_unique, right_dimensions, right_unique)
+    left_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left']) for e in left_diffs])
+    right_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left']) for e in right_diffs])
+    left_total_area, _ = total_space(left_element)
+    right_total_area, _ = total_space(right_element)
+    return left_diffs_area, right_diffs_area
 
+def fidelity_issue_impact_heatmap(dirr, left_prefix='live', right_prefix='archive') -> np.ndarray:
+    """Returns: Rectangle area of the fidelity issue"""
+    left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
+    right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
+    left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
+    
+    left_dimensions = {e['xpath']: e['dimension'] for e in left_element if e['dimension']}
+    right_dimensions = {e['xpath']: e['dimension'] for e in right_element if e['dimension']}
+    
+    left_diffs, right_diffs = calc_diff_dimensions(left_dimensions, left_unique, right_dimensions, right_unique)
+    left_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left']) for e in left_diffs])
+    right_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left']) for e in right_diffs])
+    _, (total_left_w, total_left_h) = total_space(left_element)
+    _, (total_right_w, total_right_h) = total_space(right_element)
+    target_diffs = left_diffs if left_diffs_area >= right_diffs_area else right_diffs
+    target_w, target_h = (total_left_w, total_left_h) if left_diffs_area >= right_diffs_area else (total_right_w, total_right_h)
+    target_diffs = [(e['width'] / target_w * resolution[0],
+        e['height'] / target_h * resolution[1],
+        e['top'] / target_h * resolution[1],
+        e['left'] / target_w * resolution[0],
+    ) for e in target_diffs]
+    def in_rect(x, y, rect):
+        return rect[3] <= x <= rect[3] + rect[0] and rect[2] <= y <= rect[2] + rect[1]
+    array = np.zeros(resolution)
+    for x in range(resolution[1]):
+        for y in range(resolution[0]):
+            array[y, x] = any([in_rect(x, y, rect) for rect in target_diffs])
+    return array
+
+
+def _worker(base, hostname, left, right):
+    print(hostname)
+    dirr = base + hostname
+    try:
+        left_impact, right_impact = fidelity_issue_impact(dirr, left, right)
+    except Exception as e:
+        print(str(e))
+        return
+    impact = max(left_impact, right_impact)
+    return {
+        'hostname': hostname,
+        'impact': impact,
+    }
+
+def fidelity_impact_ground_truth(base, hostnames):
+    results = []
+    with multiprocessing.Pool(31) as pool:
+        results = pool.starmap(_worker, [(base, h, 'live', 'archive') for h in hostnames])
+        results = [r for r in results if r]
+    json.dump(results, open('fidelity_impact_gt.json', 'w+'), indent=2)
+
+def fidelity_impact_detection(base):
+    results = []
+    inputs = []
+    hostnames = os.listdir(base)
+    for hostname in hostnames:
+        dirr = base + hostname
+        if not os.path.exists(os.path.join(dirr, 'results.json')):
+            continue
+        results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
+        stage, fixedIdx = None, None
+        for stage, result in results.items():
+            if result['fixedIdx'] == -1:
+                continue
+            fixedIdx = result['fixedIdx']
+            break
+        if fixedIdx is None:
+            continue
+        inputs.append((base, hostname, f'{stage}_initial', f'{stage}_exception_{fixedIdx}'))
+    with multiprocessing.Pool(31) as pool:
+        results = pool.starmap(_worker, inputs)
+        results = [r for r in results if r]
+    json.dump(results, open('fidelity_impact.json', 'w+'), indent=2)
+
+def _worker_heatmap(base, hostname, left, right):
+    print(hostname)
+    dirr = base + hostname
+    try:
+        heatmap = fidelity_issue_impact_heatmap(dirr, left, right)
+    except Exception as e:
+        print(str(e))
+        return
+    return heatmap
+
+def fidelity_impact_heatmap_ground_truth(base, hostnames):
+    results = []
+    print("Total inputs", len(hostnames))
+    with multiprocessing.Pool(31) as pool:
+        results = pool.starmap(_worker_heatmap, [(base, h, 'live', 'archive') for h in hostnames])
+        results = [r for r in results if r is not None]
+    total_heatmap = np.zeros(resolution)
+    print("Total length", len(results))
+    for heatmap in results:
+        total_heatmap += heatmap
+    total_heatmap /= len(results)
+    # Store the heatmap
+    np.save('fidelity_impact_heatmap_gt.npy', total_heatmap)
+
+def fidelity_impact_heatmap_detection(base):
+    results = []
+    inputs = []
+    hostnames = os.listdir(base)
+    for hostname in hostnames:
+        dirr = base + hostname
+        if not os.path.exists(os.path.join(dirr, 'results.json')):
+            continue
+        results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
+        stage, fixedIdx = None, None
+        for stage, result in results.items():
+            if result['fixedIdx'] == -1:
+                continue
+            fixedIdx = result['fixedIdx']
+            break
+        if fixedIdx is None:
+            continue
+        inputs.append((base, hostname, f'{stage}_initial', f'{stage}_exception_{fixedIdx}'))
+    # inputs = [i for i in inputs if i[1] in ['miami.va.gov_5576']]
+    
+    print("Total inputs", len(inputs))
+    with multiprocessing.Pool(31) as pool:
+        results = pool.starmap(_worker_heatmap, inputs)
+        results = [r for r in results if r is not None]
+    total_heatmap = np.zeros(resolution)
+    print("Total length", len(results))
+    for heatmap in results:
+        total_heatmap += heatmap
+    total_heatmap /= len(results)
+    # Store the heatmap
+    np.save('fidelity_impact_heatmap.npy', total_heatmap)
 
 if __name__ == "__main__":
     import fidelity_detect
     import check_utils
-    base = '../../fidelity-files/writes/ground_truth/'
-    dirr = 'civilwarstudies.org_4930885bed'
-    dirr = base + dirr
-    left_impact, right_impact = fidelity_issue_impact(dirr)
-    _, simi = fidelity_detect.fidelity_issue_screenshot(dirr)
-    print(left_impact, right_impact, 1- simi)
+    # base = '../../fidelity-files/writes/ground_truth/'
+    # dirr = 'civilwarstudies.org_4930885bed'
+    # dirr = base + dirr
+    # left_impact, right_impact = fidelity_issue_impact(dirr)
+    # _, simi = fidelity_detect.fidelity_issue_screenshot(dirr)
+    # print(left_impact, right_impact, 1- simi)
+
+    # * Ground-truth impact
+    gt_diff = json.load(open('../datacollect/ground-truth/gt_diff.json'))
+    hostnames = [g['hostname'] for g in gt_diff if g['diff']]
+    fidelity_impact_ground_truth('../../fidelity-files/writes/ground_truth/', hostnames)
+
+    # * Detection impact
+    fidelity_impact_detection('../revert_rewrite/writes_multiproc/')
+
+    # * Ground-truth heatmap
+    # gt_diff = json.load(open('../datacollect/ground-truth/gt_diff.json'))
+    # hostnames = [g['hostname'] for g in gt_diff if g['diff']]
+    # fidelity_impact_heatmap_ground_truth('../../fidelity-files/writes/ground_truth/', hostnames)
+
+    # * Detection heatmap
+    # fidelity_impact_heatmap_detection('../revert_rewrite/writes_multiproc/')
 else:
     import sys, os
     # * To make it available to be imported from another directory

@@ -307,3 +307,40 @@ def plot_Line(df, xtitle="", ytitle="", title="", show=True):
         fig.show()
     else:
         return fig
+
+def plot_heatmap(data, xtitle="", ytitle="", title="", show=True):
+    """
+    Plot the heatmap for different class
+    data should be a numpy array. 
+    """
+    fig = go.Figure()
+    fig.add_trace(go.Heatmap(z=data))
+    fig.update_layout(
+        autosize=False,
+        title={
+            'text': title,
+            'x':0.5,
+            'yanchor': 'top'
+        },
+        xaxis_title=xtitle,
+        yaxis_title=ytitle,
+        width=1000,
+        height=1000,
+        font=dict(
+            family="Time New Roman",
+            size=16,
+            color="#7f7f7f"
+        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=go.layout.Margin(
+            l=50,
+            r=50,
+            b=50,
+            t=30,
+            pad=4
+        ),
+    )
+    if show:
+        fig.show()
+    else:
+        return fig

@@ -15,6 +15,7 @@ results*
 *.html
 *.warc
 *.log
+*.npy
 !fidelity_check/testcases*.json
 !misc/examples/*
 !package.json

@@ -475,7 +475,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
     """
     left_xpaths_map = {e['xpath']: e for e in left_element}
     right_xpaths_map = {e['xpath']: e for e in right_element}
-    def _from_recaptcha(xpath):
+    def _from_recaptcha(branch, xpaths_map):
+        xpath = branch[0]
         paths = xpath.split('/')
         iframe_idx = -1
         for i, p in enumerate(paths):
@@ -483,11 +484,16 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
                 iframe_idx = i
                 break
         iframe_path = paths[:iframe_idx+1]
-        element = left_xpaths_map.get('/'.join(iframe_path), None)
-        if element is None:
-            return False
-        if 'recaptcha' in element['text'].lower():
-            return True
+        iframe_element = xpaths_map.get('/'.join(iframe_path), None)
+        if iframe_element is not None:
+            if 'recaptcha' in iframe_element['text'].lower():
+                return True
+        if len(branch) == 1:
+            element = xpaths_map[xpath]
+            recaptcha_background = re.compile('<div style="width: 100%; height: 100%; position: fixed; top: 0px; left: 0px; z-index: \d+; background-color: rgb\\(255, 255, 255\\);\\ opacity:\\ 0\\.05;">')
+            if recaptcha_background.search(element['text'].lower()):
+                return True
+        return False
 
     new_left_unique = []
     for branch in left_unique:
@@ -495,10 +501,9 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         for xpath in branch:            
             # * ruffle based
             if xpath.split('/')[-1].startswith('ruffle-embed'):
-                return False
-            if _from_recaptcha(xpath):
-                branch_meaningful = False
-                break
+                return [], []
+        if _from_recaptcha(branch, left_xpaths_map):
+            branch_meaningful = False
         if branch_meaningful:
             new_left_unique.append(branch)
     
@@ -507,10 +512,9 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         branch_meaningful = True
         for xpath in branch:
             if xpath.split('/')[-1].startswith('ruffle-embed'):
-                return False
-            if _from_recaptcha(xpath):
-                branch_meaningful = False
-                break
+                return [], []
+        if _from_recaptcha(branch, right_xpaths_map):
+            branch_meaningful = False
         if branch_meaningful:
             new_right_unique.append(branch)
 

@@ -16,7 +16,7 @@ def diff_worker(dirr, url):
     full_dir = f'{writes_dir}/{dirr}'
     if not os.path.exists(f'{full_dir}/archive_elements.json'):
         return
-    diff, _ = fidelity_detect.fidelity_issue(full_dir, 'live', 'archive')
+    diff, _ = fidelity_detect.fidelity_issue(full_dir, 'live', 'archive', meaningful=True)
     return {
         'hostname': dirr,
         'url': url,
