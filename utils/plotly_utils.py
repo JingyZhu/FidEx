@@ -308,13 +308,17 @@ def plot_Line(df, xtitle="", ytitle="", title="", show=True):
     else:
         return fig
 
-def plot_heatmap(data, xtitle="", ytitle="", title="", show=True):
+def plot_heatmap(data, xtitle="", ytitle="", title="", zrange=None, show=True):
     """
     Plot the heatmap for different class
     data should be a numpy array. 
     """
     fig = go.Figure()
-    fig.add_trace(go.Heatmap(z=data))
+    heapmap_args = {}
+    if zrange:
+        heapmap_args['zmin'] = zrange[0]
+        heapmap_args['zmax'] = zrange[1]
+    fig.add_trace(go.Heatmap(z=data, **heapmap_args))
     fig.update_layout(
         autosize=False,
         yaxis_autorange='reversed',
