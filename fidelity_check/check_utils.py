@@ -475,8 +475,17 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
     """
     left_xpaths_map = {e['xpath']: e for e in left_element}
     right_xpaths_map = {e['xpath']: e for e in right_element}
+    def _ignore_tag(branch):
+        ignore_list = ['ruffle-embed', 'rs-progress-bar']
+        for xpath in branch:
+            for ig in ignore_list:
+                if xpath.split('/')[-1].startswith(ig):
+                    return True
+        return False
+        
     def _from_recaptcha(branch, xpaths_map):
         xpath = branch[0]
+        # * Check parent
         paths = xpath.split('/')
         iframe_idx = -1
         for i, p in enumerate(paths):
@@ -488,6 +497,12 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if iframe_element is not None:
             if 'recaptcha' in iframe_element['text'].lower():
                 return True
+        # * Check children
+        for br in branch:
+            element = xpaths_map[br]
+            if 'recaptcha' in element['text'].lower():
+                return True
+        # * Check background
         if len(branch) == 1:
             element = xpaths_map[xpath]
             recaptcha_background = re.compile('<div style="width: 100%; height: 100%; position: fixed; top: 0px; left: 0px; z-index: \d+; background-color: rgb\\(255, 255, 255\\);\\ opacity:\\ 0\\.05;">')
@@ -498,10 +513,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
     new_left_unique = []
     for branch in left_unique:
         branch_meaningful = True
-        for xpath in branch:            
-            # * ruffle based
-            if xpath.split('/')[-1].startswith('ruffle-embed'):
-                return [], []
+        if _ignore_tag(branch):
+            branch_meaningful = False
         if _from_recaptcha(branch, left_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
@@ -510,9 +523,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
     new_right_unique = []
     for branch in right_unique:
         branch_meaningful = True
-        for xpath in branch:
-            if xpath.split('/')[-1].startswith('ruffle-embed'):
-                return [], []
+        if _ignore_tag(branch):
+            branch_meaningful = False
         if _from_recaptcha(branch, right_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:

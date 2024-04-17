@@ -24,11 +24,19 @@ function waitTimeout(event, ms) {
 
 function fileSyntaxError(exception, {notInRuntime=false}={}) {
     const uncaughtSyntax = exception.type == 'SyntaxError' && exception.uncaught;
-    return uncaughtSyntax;
+    // return uncaughtSyntax;
     if (!notInRuntime)
         return uncaughtSyntax;
     else
         return uncaughtSyntax && exception.frames[0].source == null;
+}
+
+function canBeTryCatch(exception) {
+    if (!exception.uncaught)
+        return false;
+    if (exception.description && exception.description.includes('defined'))
+        return false;
+    return true;
 }
 
 async function collectWombat(url) {
@@ -620,8 +628,8 @@ class ErrorFixer {
 
         
         // * Revert try-catch
-        if (!exception.uncaught)
-            return;
+        if (!canBeTryCatch(exception))
+            return
         updatedCode = revert.revertWithTryCatch(startLoc);
         logger.verbose("ExceptionHandler.fixException:", "Revert TryCatch. Location", startLoc, frame.url)
         this.log.push({

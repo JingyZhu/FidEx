@@ -44,6 +44,7 @@ async function startChrome(chromeData=null){
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
         headless: 'new',
+        // headless: false,
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
