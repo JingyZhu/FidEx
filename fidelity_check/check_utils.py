@@ -101,7 +101,8 @@ class htmlElement:
                             'width', 
                             'height', 
                             'display', 
-                            'transform'
+                            'transform',
+                            'transition'
                         ]
             for s in style.split(';'):
                 to_filter = False
@@ -114,7 +115,8 @@ class htmlElement:
             return ';'.join(new_style)
         if 'style' in tag.attrs and tag.attrs['style'] != '':
             style = _filter_style(tag.attrs['style'])
-            features.append(style)
+            if len(style) > 0:
+                features.append(style)
         return tuple(features)
     
     def __eq__(self, other):
