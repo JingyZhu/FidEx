@@ -11,8 +11,11 @@ const fs = require('fs');
 const fetch = require('node-fetch');
 const { Logger } = require('../utils/logger');
 const path = require('path');
+const DiffMatchPatch = require('diff-match-patch');
 
 let logger = new Logger();
+const dmp = new DiffMatchPatch();
+dmp.Match_Threshold = 0.2;
 
 const HEADER = `
 let __document = document;
@@ -67,6 +70,50 @@ function addHostname(url, hostname) {
     origURL = `http://${hostname}/${origURL}`;
     urlObj.pathname = `${pathParts.slice(0, 3).join('/')}/${origURL}`;
     return urlObj.toString();
+}
+
+class Merger {
+    constructor() {
+
+    }
+
+    createPatch(text1, text2) {
+        const diffs = dmp.diff_main(text1, text2);
+        dmp.diff_cleanupSemantic(diffs);
+        const patch = dmp.patch_make(text1, diffs);
+        return dmp.patch_toText(patch);
+    }
+    
+    applyPatch(text, patchesText) {
+        let patches = [];
+        for (const patchText of patchesText)
+            patches.push(...dmp.patch_fromText(patchText));
+        const [newText, results] = dmp.patch_apply(patches, text);
+        return results.every(result => result) ? newText : null; // null if any patch fails
+    }
+
+    /**
+     * 
+     * @param {Array[string]} codes 
+     * @returns {string | null} Merged code if successful, null if conflict detected
+     */
+    merge(codes) {
+        let currentText = codes[0];
+        let patches = []
+        for (let i = 1; i < codes.length; i++) {
+            const text = codes[i];
+            const patch = this.createPatch(currentText, text);
+            patches.push(patch);
+        }
+
+        const mergedText = this.applyPatch(currentText, patches);
+        if (mergedText === null) {
+            logger.verbose('Merger.merge', 'Conflict detected, merge aborted.');
+            return null;
+        }
+        currentText = mergedText;
+        return currentText;
+    }
 }
 
 class Reverter {
@@ -384,5 +431,7 @@ module.exports = {
     loc2idx,
     addHostname,
     Reverter,
-    isRewritten
+    isRewritten,
+
+    Merger,
 }

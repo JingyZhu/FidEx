@@ -135,8 +135,24 @@ function testRevertWombatWrapScriptTextJsProxy() {
     // * Should console log something instead of the empty object.
     console.log(updates);
 }
+
+function testMerger() {
+    console.log("1")
+    let codes = ['aaa', 'bbb', 'ccc']
+    const merger = new reverter.Merger()
+    console.log(merger.merge(codes))
+
+    console.log("2")
+    codes = ['aaa', 'ccc\naaa', 'aaa\nbbb']
+    console.log(merger.merge(codes))
+
+    console.log("3")
+    codes = ['aaa']
+    console.log(merger.merge(codes))
+}
 // testReverterTryCatch();
 // testReverterLines();
 // testAbilitytoParse();
 // testAbilityToFindStatements()
-testRevertWombatWrapScriptTextJsProxy()
+// testRevertWombatWrapScriptTextJsProxy()
+testMerger()

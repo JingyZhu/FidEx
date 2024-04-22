@@ -369,7 +369,7 @@ class ErrorFixer {
     }
 
     /**
-     * Fix all the files that gives 404
+     * Fix all the files that gives 404, 503, CSP
      * One reason found for 404 is that the path is not constructed correctly (e.g. ///)
      * Fix is done by adding the default hostname if URL doesn't look reasonable.
      * These fixes will be put in Overrider, and overide everytime
