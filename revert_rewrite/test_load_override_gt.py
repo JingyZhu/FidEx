@@ -38,7 +38,7 @@ def run_on_testcases(urls, decider=False, manual=False, interaction=False):
         except:
             pass
         try:
-            args = ['node', 'load_override.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
+            args = ['node', 'load_override_all.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
             if decider:
                 args.append('-o')
             if manual:
@@ -85,16 +85,17 @@ def test_run_load_override_gt():
         #     "hostname": "dws.arkansas.gov_f80b6da677",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055906/https://dws.arkansas.gov/",
         # },
+        # * Starting from here 200 ground truth are added
         # # SyntaxError
         # {
         #     "hostname": "www.laphil.com_1634459bf8",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404054835/https://www.laphil.com/campaigns/celebrate-inglewood-community-festival",
         # },
-        # # SyntaxError
-        # {
-        #     "hostname": "airandspace.si.edu_5bf8cf6ff5",
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
-        # },
+        # ! Buggy (promise is collected on collecting render tree) SyntaxError
+        {
+            "hostname": "airandspace.si.edu_5bf8cf6ff5",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
+        },
         # # Google translate
         # {
         #     "hostname": "bmt.ky.gov_9f4115a9f2",
@@ -105,25 +106,20 @@ def test_run_load_override_gt():
         #     "hostname": "dot.alaska.gov_7aa47e3461",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405042829/https://dot.alaska.gov/",
         # },
-        # # error-inspector bug
-        # {
-        #     "hostname": "dem.utah.gov_987e1ab413",
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405042831/https://dem.utah.gov/",
-        # },
-        # # error-inspector bug
-        # {
-        #     "hostname": "science.nasa.gov_79e1de08e9",
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405042940/https://science.nasa.gov/universe/",
-        # },
         # # Syntax error, back to top not available
         # {
         #     "hostname": "boe.ca.gov_58486781a5",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405053533/https://boe.ca.gov/",
         # },
-        # Syntax error + Suspect google translate
+        # # Syntax error + Suspect google translate
+        # {
+        #     "hostname": "www.in.gov_4559663ea2",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409081734/https://www.in.gov/sos/elections/voter-information/photo-id-law/",
+        # }
+        # ! Syntax error on fetch JSON: Need to look into
         {
-            "hostname": "www.in.gov_4559663ea2",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409081734/https://www.in.gov/sos/elections/voter-information/photo-id-law/",
+            "hostname": "www.nyed.uscourts.gov_245517ae3e",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409075227/https://www.nyed.uscourts.gov/",
         }
     ]
     results = run_on_testcases(urls)
@@ -131,11 +127,6 @@ def test_run_load_override_gt():
 
 def test_run_load_override_gt_network():
     urls = [
-        # # Many CSP to original resources (not fixing the problem)
-        # {
-        #     "hostname": "corinabricenoi.blogspot.com_b99d307fa5",
-        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405045302/http://corinabricenoi.blogspot.com/",
-        # },
         # # font issue
         # {
         #     "hostname": "ccr.cancer.gov_9e8d77b4b8",
@@ -145,11 +136,16 @@ def test_run_load_override_gt_network():
         # {
         #     "hostname": "mirecc.va.gov_f602190372",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409074945/https://mirecc.va.gov/visn3/",
-        # }
-        # 503 on xhr
+        # },
+        # # 503 on xhr
+        # {
+        #     "hostname": "citrus.floridahealth.gov_48bd35942a",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409082007/https://citrus.floridahealth.gov/",
+        # },
+        # 503 svg
         {
-            "hostname": "citrus.floridahealth.gov_48bd35942a",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409082007/https://citrus.floridahealth.gov/",
+            "hostname": "patientsafety.va.gov_ed652f3b55",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409080646/https://patientsafety.va.gov/",
         },
     ]
     results = run_on_testcases(urls)
@@ -209,10 +205,15 @@ def test_run_load_override_gt_no_fidelity():
         #     "hostname": "www.fws.gov_5f81d32ad8",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409070511/https://www.fws.gov/program/national-wetlands-inventory",
         # },
-        # Last time check, fixed
+        # # Last time check, fixed
+        # {
+        #     "hostname": "dropstuff.nl_d96a6eef1a",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409070628/https://dropstuff.nl/en/",
+        # },
+        # Diff caused by recaptcha
         {
-            "hostname": "dropstuff.nl_d96a6eef1a",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409070628/https://dropstuff.nl/en/",
+            "hostname": "www.mnbookarts.org_8057ac1b26",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409160705/https://www.mnbookarts.org/",
         },
     ]
     results = run_on_testcases(urls)
@@ -221,14 +222,13 @@ def test_run_load_override_gt_no_fidelity():
 
 def test_run_load_override_temp():
     urls = [
-        # Google translate
         {
-            "hostname": "bmt.ky.gov_9f4115a9f2",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240405052121/https://bmt.ky.gov/",
-        },
+    "hostname": "www.nyed.uscourts.gov_245517ae3e",
+    "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409075227/https://www.nyed.uscourts.gov/",
+  }
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
 
-test_run_load_override_gt()
+test_run_load_override_gt_no_fidelity()

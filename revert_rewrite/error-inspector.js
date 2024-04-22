@@ -75,8 +75,9 @@ class ErrorInspector {
      * 
      * @param {Object} client created from page.target().createCDPSession() 
      */
-    constructor(client, { decider=null} = null){
+    constructor(client, { decider=null}={}){
         this.client = client;
+        this._initialized = false;
         this.scriptInfo = {};
         this.resources = {};
         this.exceptions = [];
@@ -340,6 +341,9 @@ class ErrorInspector {
     }
 
     async initialize(){
+        if (this._initialized)
+            return;
+        this._initialized = true;
         this.client.on('Debugger.scriptParsed', async params => {
             // * First add the URL, since getting the source is async
             this.scriptInfo[params.scriptId] = {

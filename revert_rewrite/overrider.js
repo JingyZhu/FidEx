@@ -209,8 +209,6 @@ class Overrider {
      *   start: {line, column}, (null if not set)
      *   end: {line, column} (null if not set)
      * }}
-     * @param {Object} options
-     * {allowCSP: Boolean} (default false) If true, allow the CSP to be bypassed
      */
     async overrideResources(mapping){
         let overrideMapping = {};
