@@ -6,7 +6,7 @@ env/
 __pycache__/
 html_test/
 execution_match/*_examples/*.js
-revert_rewrite/test/load_override/*
+revert_rewrite/test/*
 results*
 */downloads/
 *.json

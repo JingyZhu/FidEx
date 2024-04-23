@@ -18,12 +18,12 @@ const dmp = new DiffMatchPatch();
 dmp.Match_Threshold = 0.2;
 
 const HEADER = `
-let __document = document;
-let __window = window;
-let __self = self;
-let __location = location;
-let __parent = parent;
-let __frames = frames;
+var __document = document;
+var __window = window;
+var __self = self;
+var __location = location;
+var __parent = parent;
+var __frames = frames;
 `
 
 /**
@@ -253,7 +253,7 @@ class Reverter {
         for (const variable of varInStms) {
             let {name, type} = variable;
             
-            let header = `let __temp__${name} = null;\n`
+            let header = `var __temp__${name} = null;\n`
             headers.push(header);
 
             let before =  `__temp__${name} = ${name}, ${name} = __${type}` 
