@@ -15,7 +15,7 @@ const DiffMatchPatch = require('diff-match-patch');
 
 let logger = new Logger();
 const dmp = new DiffMatchPatch();
-dmp.Match_Threshold = 0.2;
+dmp.Match_Threshold = 0.3;
 
 const HEADER = `
 var __document = document;
@@ -78,7 +78,12 @@ class Merger {
     }
 
     createPatch(text1, text2) {
-        const diffs = dmp.diff_main(text1, text2);
+        const a = dmp.diff_linesToChars_(text1, text2);
+        const lineText1 = a.chars1;
+        const lineText2 = a.chars2;
+        const lineArray = a.lineArray;
+        const diffs = dmp.diff_main(lineText1, lineText2);
+        dmp.diff_charsToLines_(diffs, lineArray);
         dmp.diff_cleanupSemantic(diffs);
         const patch = dmp.patch_make(text1, diffs);
         return dmp.patch_toText(patch);
@@ -100,8 +105,12 @@ class Merger {
     merge(codes) {
         let currentText = codes[0];
         let patches = []
+        let seen = new Set([currentText]);
         for (let i = 1; i < codes.length; i++) {
             const text = codes[i];
+            if (seen.has(text)) 
+                continue;
+            seen.add(text);
             const patch = this.createPatch(currentText, text);
             patches.push(patch);
         }

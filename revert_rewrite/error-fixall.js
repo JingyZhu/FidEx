@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { spawn } = require('child_process');
 const fetch = require('node-fetch');
+const prettier = require('prettier');
 const eventSync = require('../utils/event_sync');
 
 const reverter = require('./reverter');
@@ -9,8 +10,6 @@ const { Overrider } = require('./overrider');
 const { topRewrittenFrameURL, FixDecider, fixDecider } = require('../error_match/fix-decider');
 const { FixResult, PageRecorder } = require('./error-fix');
 
-const { loadToChromeCTXWithUtils } = require('../utils/load');
-const measure = require('../utils/measure');
 const { logger } = require('../utils/logger');
 
 logger.level = 'verbose';
@@ -19,9 +18,6 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function waitTimeout(event, ms) {
-    return Promise.race([event, sleep(ms)]);
-}
 
 function fileSyntaxError(exception, {notInRuntime=false}={}) {
     const uncaughtSyntax = exception.type == 'SyntaxError' && exception.uncaught;
@@ -45,6 +41,22 @@ async function collectWombat(url) {
     const wombatURL = `http://${archiveHost}/static/wombat.js`;
     const code = await fetch(wombatURL).then(res => res.text());
     return {url: wombatURL, code: code};
+}
+
+async function formatCode(code, {verbose=true}={}) {
+    if (verbose)
+        return code;
+    try {
+        const formattedCode = await prettier.format(code, {
+            semi: true, // Example of Prettier option, semicolons removed
+            parser: "babel", // Specify the parser
+            printWidth: 800,
+        });
+        return formattedCode;
+    } catch(e) {
+        logger.warn("ErrorFixerAll.formatCode:", "Error in formatting code", e.toString().split('\n')[0]);
+        return code;
+    }
 }
 
 class DefaultDict {
@@ -117,14 +129,44 @@ class ErrorFixerAll {
     }
 
     /**
-     * Pass related information from the actual ErrorFixer
-     * @param {errorFix.ErrorFixer} fixer Other fixer which should have already called on collectLoadInfo
+     * stage
+     * @param {Boolean} record Whether we need to record with PageRecorder
      */
-    async passLoadInfo(fixer) {
+    async collectLoadInfo(record=true) {
         const stage = this.stage;
         this.exceptions[stage] = [];
-        for (const exception of Object.values(fixer.exceptions[stage]))
+        for (let exception of this.inspector.exceptions){
+            // if (!fileSyntaxError(exception)) { 
+            for (let frame of exception.frames) {
+                if (frame.scriptId === null) { // console error frames, not scriptId
+                    for (let [scriptId, info] of Object.entries(this.inspector.scriptInfo)) {
+                        if (info.url === frame.url) {
+                            frame.scriptId = scriptId;
+                            break;
+                        }
+                    }
+                }
+                if (!frame.scriptId === null || !this.inspector.scriptInfo[frame.scriptId])
+                    continue;
+                const sourceObj = this.inspector.scriptInfo[frame.scriptId];
+                frame.source = {
+                    source: sourceObj.source,
+                    start: null,
+                    end: null
+                }
+                const numLines = sourceObj.source.split('\n').length;
+                // * Script is part of the file not the whole page.
+                if (sourceObj.startLine != 0 || sourceObj.endLine != numLines-1) {
+                    frame.source.start = {line: sourceObj.startLine, column: sourceObj.startColumn},
+                    frame.source.end = {line: sourceObj.endLine, column: sourceObj.endColumn}
+                }
+            }
+            // }
             this.exceptions[stage].push(exception);
+        }
+        // Sort the exceptions by their type, uncaught first, then caught
+        const priority = excep => excep.onConsole*10 + excep.uncaught;
+        this.exceptions[stage].sort((a, b) => priority(b) - priority(a));
         let exceptionsInfo = {
             type: 'exceptions',
             stage: stage,
@@ -145,8 +187,14 @@ class ErrorFixerAll {
         }
         this.results.push(exceptionsInfo);
         // Collect network response
-        for (const [url, response] of Object.entries(fixer.overrider.seenResponses))
-            this.overrider.seenResponses[url] = response;
+        await this.inspector.collectResponseBody();
+        for (const [url, response] of Object.entries(this.inspector.responses)){
+            if (!(url in this.overrider.seenResponses))
+                this.overrider.seenResponses[url] = response;
+        }
+        // * No need to record if collectLoadInfo is called after Network fix
+        if (record)
+            await this.recorder.record(this.dirname, `${stage}_initial`, {responses: this.inspector.responses});
     }
 
     /**
@@ -175,6 +223,45 @@ class ErrorFixerAll {
         }
         await sleep(1000);
         return true
+    }
+
+    /**
+     * 
+     * @param {[ExceptionInfo]} origExceptions Exceptions on initial load
+     * @param {[ExceptionInfo]} exceptions Exceptions on the target load
+     * @returns 
+     */
+    _lessException(origExceptions, exceptions){
+        const collectDesc = (excep) => {
+            if (excep.type != 'SyntaxError')
+                return excep.description.split('\n')[0];
+            else
+                return `${excep.description} ${excep.frames[0].url}`;
+        }
+        let origCaughtCounter = {}, origUncaughtCounter = {};
+        for (const excep of origExceptions) {
+            if (excep.uncaught)
+                origUncaughtCounter[collectDesc(excep)] = origUncaughtCounter[collectDesc(excep)] ? origUncaughtCounter[collectDesc(excep)] + 1 : 1;
+            else
+                origCaughtCounter[collectDesc(excep)] = origCaughtCounter[collectDesc(excep)] ? origCaughtCounter[collectDesc(excep)] + 1 : 1;
+        }
+        let caughtCounter = {}, unCaughtCounter = {};
+        for (const excep of exceptions) {
+            if (excep.uncaught)
+                unCaughtCounter[collectDesc(excep)] = unCaughtCounter[collectDesc(excep)] ? unCaughtCounter[collectDesc(excep)] + 1 : 1;
+            else
+                caughtCounter[collectDesc(excep)] = caughtCounter[collectDesc(excep)] ? caughtCounter[collectDesc(excep)] + 1 : 1;
+        }
+        // * Count if there are less exceptions
+        for (const [desc, count] of Object.entries(origCaughtCounter)) {
+            if (!caughtCounter[desc] || caughtCounter[desc] < count)
+                return true;
+        }
+        for (const [desc, count] of Object.entries(origUncaughtCounter)) {
+            if (!unCaughtCounter[desc] || unCaughtCounter[desc] < count)
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -223,11 +310,17 @@ class ErrorFixerAll {
             const revertMethod = revertMethods[status];
             promises.push(revertMethod(url, this.hostname).then(overrideContent => {
                 if (overrideContent !== null) {
-                    networkOverrides.get(url).push({
+                    const override = {
                         source: overrideContent, // overrideContent should be base64,
                         start: null,
                         end: null
-                    });
+                    }
+                    networkOverrides.get(url).push({
+                        fixType: "NW",
+                        fixId: 0,
+                        needCalcExcep: false,
+                        override: override
+                     });
                 }
             }));
         }
@@ -259,7 +352,7 @@ class ErrorFixerAll {
                 type: 'revertLines',
                 url: frame.url,
                 startLoc: startLoc,
-                updated: updatedCode
+                updated: await formatCode(updatedCode)
             })
             updatedCodes[frame.url] = updatedCode;
             if (hint) {
@@ -280,7 +373,7 @@ class ErrorFixerAll {
             this.log.push({
                 type: 'revertFile2Original',
                 url: frame.url,
-                updated: updatedCode
+                updated: await formatCode(updatedCode)
             })
         }
         yield updatedCodes;
@@ -313,12 +406,18 @@ class ErrorFixerAll {
                 let originalSource = this.overrider.seenResponses[url]?.body;
                 if (originalSource)
                     originalSource = originalSource.base64Encoded ? Buffer.from(originalSource.body, 'base64').toString() : originalSource.body;
-                syntaxOverrides.get(url).push({
+                const override = {
                     originalSource: originalSource,
                     source: updatedCode,
                     start: null,
                     end: null,
                     plainText: true
+                };
+                syntaxOverrides.get(url).push({
+                    fixType: "SE",
+                    fixId: fix_id,
+                    needCalcExcep: true,
+                    override: override
                 });
             }
         }
@@ -345,7 +444,7 @@ class ErrorFixerAll {
             type: 'revertLines',
             url: frame.url,
             startLoc: startLoc,
-            updated: updatedCode
+            updated: await formatCode(updatedCode)
         })
         updatedCodes[frame.url] = updatedCode;
         if (hint) {
@@ -355,7 +454,7 @@ class ErrorFixerAll {
                 this.log.push({
                     type: 'revertLines',
                     url: updatedURL,
-                    updated: updatedCode
+                    updated: await formatCode(updatedCode)
                 })
             }
         }
@@ -379,7 +478,7 @@ class ErrorFixerAll {
             type: 'revertVariable',
             url: frame.url,
             startLoc: startLoc,
-            updated: updatedCode
+            updated: await formatCode(updatedCode)
         })
         yield {
             updatedCodes: {[frame.url]: updatedCode},
@@ -400,7 +499,7 @@ class ErrorFixerAll {
                 this.log.push({
                     type: 'revertFetch',
                     url: url,
-                    updated: updatedCode
+                    updated: await formatCode(updatedCode)
                 })
                 updatedCodes[url] = updatedCode;
             }
@@ -425,7 +524,7 @@ class ErrorFixerAll {
             type: 'revertTryCatch',
             url: frame.url,
             startLoc: startLoc,
-            updated: updatedCode
+            updated: await formatCode(updatedCode)
         })
         yield {
             updatedCodes: {[frame.url]: updatedCode},
@@ -442,6 +541,10 @@ class ErrorFixerAll {
         const stage = this.stage;
         const exception = exceptions[i];
         let overrides = new DefaultDict(() => []);
+        const description = exception.description.split('\n')[0];
+        logger.log("ErrorFixer.fixException:", "Start fixing exception", i, 
+                    'out of', exceptions.length-1, '\n  description:', description, '\n',
+                    'onConsole', exception.onConsole, 'uncaught', exception.uncaught);
         // * Iterate throught frames
         // * For each frame, only try looking the top frame that can be reverted
         let frame = null;
@@ -495,40 +598,52 @@ class ErrorFixerAll {
                 }
             }
             for (const [url, override] of Object.entries(overrideMap)) {
-                overrides.get(url).push(override);
+                overrides.get(url).push({
+                    fixType: "Exception",
+                    fixId: fix_id,
+                    needCalcExcep: needCalcExcep,
+                    override: override
+                });
             }
         }
         return overrides;
     }
 
-    mergeOverrides(overrides) {
-        let mergedOverride = {};
-        const merger = new reverter.Merger();
+    /**
+     * Batch overrides based on how they can be combined
+     * @param {object} overrides {url: [{fixType: string, fixId: number, override: {source: string, start: loc/null, end: loc/null}}]}]} 
+     * @returns 
+     */
+    batchOverrides(overrides) {
+        let batches = [];
+        let batchInfo = [];
         for (let [url, overrideList] of Object.entries(overrides.map)){
-            let originalSource = null;
-            let sources = []
-            for (const override of overrideList){
-                if (override.originalSource)
-                    originalSource = override.originalSource;
-                sources.push(override.source);
+            let seenCode = new Set();
+            let counter = 0;
+            for (const value of overrideList) {
+                const {fixType, fixId, override, needCalcExcep} = value;
+                if (seenCode.has(override.source))
+                    continue;
+                seenCode.add(override.source);
+                if (batches.length <= counter) {
+                    batches.push({overrides: {}, needCalcExcep: true});
+                    batchInfo.push([]);
+                }
+                batches[counter]['overrides'][url] = override;
+                batches[counter]['needCalcExcep'] = batches[counter]['needCalcExcep'] && needCalcExcep;
+                batchInfo[counter].push({url: url, fixType: fixType, needCalcExcep: needCalcExcep, fixId: fixId});
+                counter += 1;
             }
-            if (originalSource) {
-                // Push from start
-                sources.unshift(originalSource);
-            }
-            const mergedCode = merger.merge(sources);
-            if (mergedCode == null)
-                continue;
-            overrideList[0].source = mergedCode;
-            mergedOverride[url] = overrideList[0];
-            this.log.push({
-                type: 'Merged Code',
-                url: url,
-                merged: mergedCode
-            })
+            logger.log("ErrorFixerAll.batchOverrides:", "Spliting", url, "into", counter, "batches");
         }
-        return mergedOverride;
+        this.results.push({
+            type: 'batchInfo',
+            stage: this.stage,
+            batches: batchInfo
+        })
+        return batches;
     }
+
     /**
      * Keep trying fix exceptions until seen first fixed exception
     * @returns Index of the fixed exception (-1) if nothing can be fixed
@@ -548,20 +663,28 @@ class ErrorFixerAll {
             overrides = await this.fixException(latestExceptions, i);
             allOverrides.merge(overrides);
         }
-        allOverrides = this.mergeOverrides(allOverrides);
-        // * Reload with overrides
-        const success = await this.reloadWithOverride(allOverrides);
-        if (!success)
-            return -1;
-        await this.recorder.record(this.dirname, `${stage}_exception_all`, {responses: this.inspector.responses});
-        const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_all`);
-        if (fidelity.different) {
-            logger.log("ErrorFixerAll.fix:", "Fixed fidelity issue");
-            return "All";
-        } else {
-            logger.log("ErrorFixerAll.fix:", "No patch works");
-            return -1;
+        let batches = await this.batchOverrides(allOverrides);
+        for (let i = 0; i < batches.length; i++) {
+            let result = new FixResult(`batch_${i}`);
+            const batchOverride = batches[i].overrides;
+            const needCalcExcep = batches[i].needCalcExcep;
+            // * Reload with overrides
+            const success = await this.reloadWithOverride(batchOverride);
+            if (!success)
+                continue;
+            await this.recorder.record(this.dirname, `${stage}_exception_batch_${i}`, {responses: this.inspector.responses});
+            if (needCalcExcep && !this._lessException(this.exceptions[stage], this.inspector.exceptions))
+                continue
+            result.fixException(i);
+            const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_batch_${i}`);
+            if (!fidelity.different)
+                continue;
+            result.fix(i);
+            this.results.push(result);
+            logger.log("ErrorFixerAll.fix:", "Fixed fidelity issue", `batch_${i}`);
+            return `batch_${i}`;
         }
+        return -1;
     }
 
     updateRules({ save=true, path=null }={}) {

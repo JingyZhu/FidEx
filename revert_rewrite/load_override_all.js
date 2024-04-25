@@ -257,15 +257,6 @@ async function loadAndFix(url, page, client, stage, options, loadFunc,
                           {beforeFunc=null, workingOverrides={}}={}) {
     let inspector = new ErrorInspector(client);
     let recorder = new errorFix.PageRecorder(page, client);
-    let errorFixer = new errorFix.ErrorFixer(page, client, {
-                                                            dirname: options.dir, 
-                                                            manual: options.manual,
-                                                            decider: options.optimized,
-                                                            beforeReloadFunc: beforeFunc,
-                                                            reloadFunc: loadFunc,
-                                                            recorder: recorder,
-                                                            errorInspector:inspector
-                                                            });
     let errorFixerAll = new errorFixAll.ErrorFixerAll(page, client, {
                                                             dirname: options.dir, 
                                                             manual: options.manual,
@@ -278,7 +269,6 @@ async function loadAndFix(url, page, client, stage, options, loadFunc,
     await recorder.prepareLogging();
     if(beforeFunc)
         await beforeFunc();                                                    
-    await errorFixer.prepare(url, stage, exceptionType='all');
     await errorFixerAll.prepare(url, stage, exceptionType='all');
     // * For interaction, there is a chance that the interaction will trigger the navigation
     // * If so, need to catch and exit early
@@ -294,42 +284,25 @@ async function loadAndFix(url, page, client, stage, options, loadFunc,
                 results: []
             },
             log: [],
-            logFixAll: [],
             workingOverrides: {}
         };
     }
-    await errorFixer.collectLoadInfo();
-    await errorFixerAll.passLoadInfo(errorFixer);
-
-    let result = {
-        fixedIdx: -1,
+    await errorFixerAll.collectLoadInfo();
+    const fixedIdx = await errorFixerAll.fix();
+    const result = {
+        fixedIdx: fixedIdx,
         stage: stage,
         success: true,
-        results: errorFixer.results
+        results: errorFixerAll.results
     }
-    const fixAllIdx = await errorFixerAll.fix();
-    if (fixAllIdx == -1)
-        return {
-            result: result,
-            log: errorFixer.log,
-            logFixAll: errorFixerAll.log,
-            workingOverrides: workingOverrides
-        }
-    console.log("===========================")
-    errorFixer.overrider.baseOverrides = workingOverrides;
-    
-    const fixedIdx = await errorFixer.fix();
-    // const fixedIdx = -1;
-    result.fixedIdx = fixedIdx;
     if (options.optimized)
-        errorFixer.updateRules();
-    errorFixer.overrider.flushCache();
-    errorFixer.finish();
+        errorFixerAll.updateRules();
+    errorFixerAll.overrider.flushCache();
+    errorFixerAll.finish();
     return {
         result: result,
-        log: errorFixer.log,
-        logFixAll: errorFixerAll ? errorFixerAll.log : [],
-        workingOverrides: errorFixer.overrider.popWorkingOverrides()
+        log: errorFixerAll.log,
+        workingOverrides: errorFixerAll.overrider.popWorkingOverrides()
     }
 }
 

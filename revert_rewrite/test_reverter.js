@@ -149,10 +149,56 @@ function testMerger() {
     console.log("3")
     codes = ['aaa']
     console.log(merger.merge(codes))
+
+    
+    console.log("4")
+    codes = ['aaa', 'ccc\naaa\nbbb', 'ccc\naaa\nbbb']
+    console.log(merger.merge(codes))
+}
+
+function testMergerRealCase() {
+    const merger = new reverter.Merger();
+    let original = `
+    var c = new MessageChannel();
+    a.Db.contentWindow.__WB_pmw(self).postMessage({ url: b, callbackName: a.h }, "*", [c.port2]);`
+
+    let code1 = `
+    var c = new MessageChannel();
+    /* Added by jingyz */ (__temp__self = self), (self = __window);
+    /* End of addition */
+    a.Db.contentWindow.__WB_pmw(self).postMessage({ url: b, callbackName: a.h }, "*", [c.port2]);
+    // Added by jingyz
+
+    self = __temp__self;
+    // End of addition`
+
+    let code2 = `
+    var c = new MessageChannel();
+    a.Db.contentWindow.postMessage({ url: b, callbackName: a.h }, "*", [c.port2]);`
+
+    let codes = [original, code1, code2]
+    console.log(merger.merge(codes))
+}
+
+function testMergerRealFullCase() {
+    let original = fs.readFileSync('test/js_revert/reverts/original.js', 'utf-8');   
+    const idxs = ['revertLines_0','revertLines_2', 'revertTryCatch_1', 'revertVariable_3', 'revertVariable_4'];
+    codes = [original]
+    for (let i = 0; i < idxs.length; i++) {
+        let code = fs.readFileSync(`test/js_revert/reverts/${idxs[i]}.js`, 'utf-8');
+        codes.push(code)
+    }
+    const merger = new reverter.Merger();
+    const mergedCode = merger.merge(codes);
+    console.log(mergedCode ? mergedCode.length: null);
+    if (mergedCode)
+        fs.writeFileSync('test/js_revert/reverts/merger_merged.js', mergedCode);
 }
 // testReverterTryCatch();
 // testReverterLines();
 // testAbilitytoParse();
 // testAbilityToFindStatements()
 // testRevertWombatWrapScriptTextJsProxy()
-testMerger()
+// testMerger()
+// testMergerRealCase()
+testMergerRealFullCase()
