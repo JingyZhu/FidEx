@@ -45,8 +45,8 @@ async function startChrome(chromeData=null){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        // headless: 'new',
-        headless: false,
+        headless: 'new',
+        // headless: false,
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
@@ -164,12 +164,69 @@ async function checkExtraEventsFidelity(page, client, options, loadAndCollectLis
 }
 
 /**
+ * Collect events from initialEvents that can be triggered in parallel
+ * @param {Array} allEvents
+ */
+function collectParallelEvents(allEvents) {
+    let parallelEvents = [];
+    /**
+     * @returns {int} -1 if different length, if same length, number of different components
+     */
+    function xpathDiff(path1, path2) {
+        path1 = path1.split('/');
+        path2 = path2.split('/');
+        if (path1.length != path2.length)
+            return -1;
+        let diff = 0;
+        for (let i = 0; i < path1.length; i++) {
+            if (path1[i] != path2[i])
+                diff++;
+        }
+        return diff;
+    }
+
+    function filterEvent(uevent, event) {
+        for (const [name, funcs] of Object.entries(event.events)) {
+            if (!(name in uevent.events))
+                continue
+            uevent.events[name] = uevent.events[name].filter(func => !funcs.includes(func));
+        }
+        return uevent;
+    }
+
+    function uniqueEvent(allEvents, targetEvent) {
+        let uevent = JSON.parse(JSON.stringify(targetEvent));
+        for (const {event} of allEvents) {
+            if (targetEvent.path.includes(event.path))
+                uevent = filterEvent(uevent, event);
+            if (xpathDiff(event.path, targetEvent.path) == 1)
+                uevent = filterEvent(uevent, event);
+        }
+        // Delete empty events
+        for (const event of Object.keys(uevent.events)) {
+            if (uevent.events[event].length == 0)
+                delete uevent.events[event];
+        }
+        return Object.keys(uevent.events).length > 0 ? uevent : null;
+    }
+
+    for (let i = 0; i < allEvents.length; i++) {
+        let event = allEvents[i];
+        const uevent = uniqueEvent(parallelEvents, event);
+        if (uevent)
+            parallelEvents.push({idx: i, event: uevent});
+    }
+    return parallelEvents;
+}
+
+/**
  * 
  * @returns {object} A mapping from interaction id to their metadata
  */
 async function interaction(browser, url, timeout, options) {
     // * Step 1: Collect number of events, before and after patch.
     // * Note that if the number of events is different, will first try additional events.
+    let profile = {extraInteraction: {start: Date.now(), end: null}}
     let page = await browser.newPage();
     const client = await page.target().createCDPSession();
     await enableFields(client);
@@ -184,13 +241,15 @@ async function interaction(browser, url, timeout, options) {
             await client.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});    
         }
     };
-    const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);
+    let loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);
     const exEvtResult = await checkExtraEventsFidelity(page, client, options, loadAndCollectListeners);
     await page.close();
+    profile['extraInteraction'].end = Date.now();
     if (exEvtResult.fixedIdx != -1) {
         return {
             results: {extraInteraction: exEvtResult},
             logs: {extraInteraction: []},
+            profile: profile
         }
     } else if (exEvtResult.extraEvents.length > 0) {
         results['extraInteraction'] = exEvtResult;
@@ -200,53 +259,54 @@ async function interaction(browser, url, timeout, options) {
 
     // * Step 2: Trigger events
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
-    const initialEvents = exEvtResult.initialEvents;
-    const initialNumEvents = initialEvents.length;
-    for (let i = 0; i < initialNumEvents && i < 20; i++) {
-        if (options.optimized) {
-            const decision = fixDecider.decideInteract(initialEvents[i]);
-            if (!decision.couldBeFixed) {
-                logger.verbose("load_override.js:", "Skipping event", i);
-                continue;
-            }
-        }
-        logger.verbose("load_override.js:", "Triggering events", i);
-        let page = await browser.newPage();
-        const client = await page.target().createCDPSession();
-        await enableFields(client);
-        const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);   
-        const triggerEvent = ((page, i) => {
-            return async () => {
-                await page.waitForFunction(async (idx) => {
+    profile['interaction'] = {start: Date.now(), end: null}
+    const initialEvents = exEvtResult.initialEvents.slice(0, 20);
+    const parallelEvents = collectParallelEvents(initialEvents);
+    let idxs = [];
+    for (const {idx} of parallelEvents)
+        idxs.push(idx);
+    logger.verbose("load_override.js:", "Triggering parallel events", parallelEvents.length);
+    const ipage = await browser.newPage();
+    const iclient = await ipage.target().createCDPSession();
+    await enableFields(iclient);
+    loadAndCollectListeners = getBeforeFunc(url, ipage, iclient, timeout);   
+    const triggerEvents = ((page, idxs) => {
+        return async () => {
+            let promises = [];
+            for (const i of idxs) {
+                const p =  page.waitForFunction(async (idx) => {
                     await eli.triggerNth(idx);
                     return true;
                 }, {timeout: 10000}, i);
+                promises.push(p);
             }
-        })(page, i)
-        let {result, log} = await loadAndFix(url, page, client, `interaction_${i}`, options, triggerEvent, 
-                                                                {
-                                                                    beforeFunc: loadAndCollectListeners,
-                                                                    workingOverrides: workingOverrides
-                                                                });
-        result = {
-            fixedIdx: result.fixedIdx,
-            stage: `interaction_${i}`,
-            events: initialEvents[i],
-            success: result.success,
-            results: result.results
+            await Promise.all(promises);
         }
-        if (options.optimized) {
-            fixDecider.parseInteractionResult(result)
-        }
-        results[`interaction_${i}`] = result;
-        logs[`interaction_${i}`] = log;
-        await page.close();
-        if (result.fixedIdx != -1)
-            break
+    })(ipage, idxs)
+    let {result, log} = await loadAndFix(url, ipage, iclient, `interaction`, options, triggerEvents, 
+                                                            {
+                                                                beforeFunc: loadAndCollectListeners,
+                                                                workingOverrides: workingOverrides
+                                                            });
+    result = {
+        fixedIdx: result.fixedIdx,
+        stage: `interaction`,
+        events: parallelEvents,
+        success: result.success,
+        results: result.results
     }
+    
+    // if (options.optimized) {
+    //     fixDecider.parseInteractionResult(result)
+    // }
+    results[`interaction`] = result;
+    logs[`interaction`] = log;
+    await ipage.close();
+    profile['interaction'].end = Date.now();
     return {
         results: results,
-        logs: logs
+        logs: logs,
+        profile: profile
     }
 }
 
@@ -288,6 +348,7 @@ async function loadAndFix(url, page, client, stage, options, loadFunc,
         };
     }
     await errorFixerAll.collectLoadInfo();
+    errorFixerAll.overrider.baseOverrides = workingOverrides;
     const fixedIdx = await errorFixerAll.fix();
     const result = {
         fixedIdx: fixedIdx,
@@ -295,8 +356,10 @@ async function loadAndFix(url, page, client, stage, options, loadFunc,
         success: true,
         results: errorFixerAll.results
     }
-    if (options.optimized)
-        errorFixerAll.updateRules();
+    // ! New parser is required for decider for parse batch patching
+    // if (options.optimized)
+    //     errorFixerAll.updateRules()
+    
     errorFixerAll.overrider.flushCache();
     errorFixerAll.finish();
     return {
@@ -351,12 +414,14 @@ async function enableFields(client) {
         deviceScaleFactor: 0,
         mobile: false
     });
-    
+
+    let profile = {overall: {start: Date.now(), end: null}}
     try {
         await enableFields(client);
         const timeout = options.wayback ? 200*1000 : 60*1000;
         
-        let results = {}, logs = {}, logsFixAll = {};
+        let results = {}, logs = {}
+        profile['load'] = {start: Date.now(), end: null};
         // * Step 2: Load the page
         const loadFunc = async () => {await page.goto(url, {
             waitUntil: 'networkidle0',
@@ -368,19 +433,18 @@ async function enableFields(client) {
         workingOverrides = newWorkingOverrides;
         results['load'] = result;
         logs['load'] = log;
-        logsFixAll['load'] = logFixAll;
+        profile['load'].end = Date.now();
         await page.close();
 
         if (options.interaction && results['load']['fixedIdx'] == -1 ) {
-            const {results: interactionResults, logs: interactionLogs} = await interaction(browser, urlStr, timeout, options);
+            const {results: interactionResults, logs: interactionLogs, profile: interactionProfile} = await interaction(browser, urlStr, timeout, options);
             results = {...results, ...interactionResults};
             logs = {...logs, ...interactionLogs};
+            profile = {...profile, ...interactionProfile};
         }
         
         fs.writeFileSync(`${dirname}/results.json`, JSON.stringify(results, null, 2));
         fs.writeFileSync(`${dirname}/log.json`, JSON.stringify(logs, null, 2));
-        fs.writeFileSync(`${dirname}/logFixAll.json`, JSON.stringify(logsFixAll, null, 2));
-
         
         if (options.manual)
             await eventSync.waitForReady();
@@ -389,6 +453,8 @@ async function enableFields(client) {
         console.error(err);
     } finally {
         await browser.close();
+        profile['overall'].end = Date.now();
+        fs.writeFileSync(`${dirname}/profile.json`, JSON.stringify(profile, null, 2));
         process.exit();
     }
 })()

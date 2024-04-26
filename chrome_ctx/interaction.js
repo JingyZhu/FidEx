@@ -475,6 +475,34 @@ class eventListenersIterator {
             return {}
         }
     }
+
+    async triggerAll() {
+        const idxs = Math.min(20, this.listeners.length);
+        let events = []
+        for (const idx of idxs) {
+            let _e = this.listeners[idx];
+            let orig_path = this.origPath[idx]
+            try {
+                var [elem, handlers] = _e;
+                handlers = Object.keys(handlers);
+                let uncancel_handlers = _filter_handlers(handlers);
+                for (const h of uncancel_handlers) {
+                    _triggerEvent(elem, h);
+                };
+                events.push({
+                    element: getElemId(elem),
+                    path: orig_path,
+                    events: uncancel_handlers,
+                    url: window.location.href,
+                    _verbose_length: this.listeners.length
+                });
+            } catch (e) {
+                events.push(null);
+            }
+        }
+        await delay(1000);
+        return events;
+    }
 }
 
 // let eli = new eventListenersIterator();

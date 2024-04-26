@@ -84,7 +84,8 @@ class ErrorFixerAll {
     constructor(page, client, { dirname='.', 
                                 timeout=30, 
                                 manual=false, 
-                                decider=false, 
+                                decider=false,
+                                deciderPath=null, 
                                 beforeReloadFunc=null,
                                 reloadFunc=null,
                                 recorder=null,
@@ -101,7 +102,8 @@ class ErrorFixerAll {
         this.log = [];
         if (decider) {
             this.decider = fixDecider;
-            this.decider.loadRules();
+            this.deciderPath = deciderPath;
+            this.decider.loadRules({path: deciderPath});
         }
         this.inspector = errorInspector || new ErrorInspector(client, {decider: this.decider});
         this.stage = '';
@@ -673,12 +675,17 @@ class ErrorFixerAll {
             if (!success)
                 continue;
             await this.recorder.record(this.dirname, `${stage}_exception_batch_${i}`, {responses: this.inspector.responses});
-            if (needCalcExcep && !this._lessException(this.exceptions[stage], this.inspector.exceptions))
+            if (needCalcExcep && !this._lessException(this.exceptions[stage], this.inspector.exceptions)) {
+                this.results.push(result);
                 continue
+            }
             result.fixException(i);
+            this.overrider.recordCurrentOverrides();
             const fidelity = await this.recorder.fidelityCheck(this.dirname, `${stage}_initial`, `${stage}_exception_batch_${i}`);
-            if (!fidelity.different)
+            if (!fidelity.different) {
+                this.results.push(result);
                 continue;
+            }
             result.fix(i);
             this.results.push(result);
             logger.log("ErrorFixerAll.fix:", "Fixed fidelity issue", `batch_${i}`);
