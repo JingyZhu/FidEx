@@ -103,7 +103,7 @@ function _origURL(url){
  * @param {boolean} replay Whether the render tree is collected on replay
  * @returns {object} renderTree {renderTree: [], renderHTML: string}
  */
-async function collectRenderTree(iframe, parentInfo, replay=false){
+async function collectRenderTree(iframe, parentInfo){
     // Wait until document.body is ready
     // await iframe.evaluate(async () => {
     //     while (document.body === null)
@@ -157,12 +157,21 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
     const childFrames = await iframe.childFrames();
     let childRenderTrees = [], childidx = [];
     for (const childFrame of childFrames){
-        const childURL = replay ? _origURL(childFrame.url()) :  childFrame.url();
-        if (!(childURL in htmlIframes))
-            continue
-        let prefix = htmlIframes[childURL].html.match(/^\s+/)
+        const childURL = childFrame.url();
+        let htmlIframeURL = null;
+        for (const url in htmlIframes){
+            // url is suffix of childURL
+            if (childURL.endsWith(url)){
+                htmlIframeURL = url;
+                break;
+            }
+        }
+        console.log("htmlIframeURL", htmlIframeURL)
+        if (!htmlIframeURL)
+            continue;
+        let prefix = htmlIframes[htmlIframeURL].html.match(/^\s+/)
         prefix = prefix ? prefix[0] : '';
-        let currentInfo = htmlIframes[childURL].info;
+        let currentInfo = htmlIframes[htmlIframeURL].info;
         currentInfo = {
             xpath: parentInfo.xpath + currentInfo.xpath,
             dimension: {
@@ -173,9 +182,9 @@ async function collectRenderTree(iframe, parentInfo, replay=false){
             depth: parentInfo.depth + currentInfo.depth + 1,
         }
         try {
-            const childInfo = await collectRenderTree(childFrame, currentInfo, replay);
+            const childInfo = await collectRenderTree(childFrame, currentInfo);
             childRenderTrees.push(childInfo.renderTree)
-            childidx.push(htmlIframes[childURL].idx);
+            childidx.push(htmlIframes[htmlIframeURL].idx);
         } catch {}
     }
     childidx.push(renderTree.length-1)
