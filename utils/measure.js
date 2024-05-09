@@ -10,6 +10,24 @@ const { execSync } = require("child_process");
 const { Puppeteer } = require('puppeteer');
 const { parse: HTMLParse } = require('node-html-parser');
 
+function identicalURL(liveURL, archiveURL){
+    let archiveURLObj = new URL(archiveURL);
+    if (archiveURLObj.pathname.includes('http:') || archiveURLObj.pathname.includes('https:'))
+        // Collect the last http:// or https:// part
+        archiveURL = archiveURLObj.pathname.match(/(http:\/\/|https:\/\/)([\s\S]+)/)[0];
+    archiveURLObj = new URL(archiveURL);
+    let liveURLObj = new URL(liveURL);
+    if (archiveURLObj.hostname !== liveURLObj.hostname)
+        return false;
+    let archivePath = archiveURLObj.pathname.endsWith('/') ? archiveURLObj.pathname.slice(0, -1) : archiveURLObj.pathname;
+    let livePath = liveURLObj.pathname.endsWith('/') ? liveURLObj.pathname.slice(0, -1) : liveURLObj.pathname;
+    if (archivePath !== livePath)
+        return false;
+    if (archiveURLObj.search !== liveURLObj.search)
+        return false;
+    return true;
+}
+
 async function getDimensions(page) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
     const result = await page.evaluate(() => JSON.stringify(getDimensions()))
@@ -161,7 +179,7 @@ async function collectRenderTree(iframe, parentInfo){
         let htmlIframeURL = null;
         for (const url in htmlIframes){
             // url is suffix of childURL
-            if (childURL.endsWith(url)){
+            if (identicalURL(url, childURL)){
                 htmlIframeURL = url;
                 break;
             }
