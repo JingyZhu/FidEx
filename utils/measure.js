@@ -184,7 +184,6 @@ async function collectRenderTree(iframe, parentInfo){
                 break;
             }
         }
-        console.log("htmlIframeURL", htmlIframeURL)
         if (!htmlIframeURL)
             continue;
         let prefix = htmlIframes[htmlIframeURL].html.match(/^\s+/)

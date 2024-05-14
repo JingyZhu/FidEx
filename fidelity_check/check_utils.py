@@ -70,6 +70,7 @@ class htmlElement:
         if us.query or us.fragment:
             us = us._replace(query='', fragment='')
             src = urlunsplit(us)
+        src = unquote(src)
         return src
 
     def features(self):
@@ -471,6 +472,9 @@ def associate_writes(element_xpath: str, writes: list) -> list:
 def meaningful_diff(left_element, left_unique, right_element, right_unique):
     """
     Classify if the unique layout tree is actually meaningfug, not some random noise(e.g. recaptcha)
+    Currently, filtration involves:
+        - All recaptcha like elements
+        - All youtube video elements (class includes "ytp")
 
     Returns:
         (List, List): updated left_unique and right_unique
@@ -512,12 +516,26 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
                 return True
         return False
 
+    def _from_youtube(branch, xpaths_map):
+        for br in branch:
+            element = xpaths_map[br]
+            element_tag = BeautifulSoup(element['text'], 'html.parser')
+            # if element_tag is pure text continue
+            if element_tag.find() is None:
+                continue
+            # First element's class name includes "ytp"
+            if 'ytp' in ' '.join(element_tag.find().attrs.get('class', '')):
+                return True
+        return False
+
     new_left_unique = []
     for branch in left_unique:
         branch_meaningful = True
         if _ignore_tag(branch):
             branch_meaningful = False
         if _from_recaptcha(branch, left_xpaths_map):
+            branch_meaningful = False
+        if _from_youtube(branch, left_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
             new_left_unique.append(branch)
@@ -528,6 +546,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if _ignore_tag(branch):
             branch_meaningful = False
         if _from_recaptcha(branch, right_xpaths_map):
+            branch_meaningful = False
+        if _from_youtube(branch, right_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
             new_right_unique.append(branch)

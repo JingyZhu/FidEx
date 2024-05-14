@@ -17,14 +17,14 @@ import re
 import hashlib
 
 sys.path.append('../')
-from utils import upload
+from utils import upload, url_utils
 
 
 REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_archive = 'eot-writes'
 metadata_file = 'carta_moma_test_metadata.json'
-arguments = ['-w', '-s', '-i']
+arguments = ['-w', '-s', '--scroll']
 
 def record_replay(url, archive_name, 
                   wr_archive=default_archive, 
@@ -59,7 +59,7 @@ def record_replay(url, archive_name,
 
     os.rename(f'downloads/{wr_archive}.warc', f'downloads/{archive_name}.warc')
     if remote_host:
-        upload.upload_warc(f'downloads/{archive_name}.warc', pw_archive, directory=default_archive)
+        upload.upload_warc(f'downloads/{archive_name}.warc', pw_archive, directory=pw_archive)
     else:
         check_call(['wb-manager', 'add', pw_archive, 
                     f'../record_replay/downloads/{archive_name}.warc'], cwd='../collections')
@@ -142,16 +142,16 @@ def replay_all_wayback():
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
 # record_replay_all_urls('../datacollect/data/eot_good_all.json')
-record_replay_all_urls('../datacollect/data/carta_moma_200.json',
-                       wr_archive='test_moma', pw_archive='fidelity_check')
+# record_replay_all_urls('../datacollect/data/carta_moma_200.json',
+                    #    wr_archive='test_moma', pw_archive='fidelity_check')
 
 # * Test single URL
-# test_url = "https://www.globe.gov/"
-# test_req_url = requests.get(test_url).url # * In case of redirection
-# print(test_req_url)
-# test_archive = "test"
-# wr_archive = 'test'
-# pw_archive = 'exec_match'
-# ts, test_url = record_replay(test_url, test_archive, 
-#                              wr_archive=wr_archive, pw_archive=pw_archive)
-# print(f'{HOST}/{pw_archive}/{ts}/{test_url}')
+test_url = "https://swcmembers.si.edu/"
+test_req_url = requests.get(test_url).url # * In case of redirection
+test_archive = url_utils.calc_hostname(test_req_url)
+print(test_req_url, test_archive)
+wr_archive = 'test'
+pw_archive = 'test'
+ts, test_url = record_replay(test_url, test_archive, 
+                             wr_archive=wr_archive, pw_archive=pw_archive)
+print(f'{HOST}/{pw_archive}/{ts}/{test_url}')
