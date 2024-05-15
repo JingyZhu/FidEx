@@ -56,8 +56,10 @@ class htmlElement:
             if href.startswith(c):
                 return None
         # If the href is puny encoded or percent encoded, decode it
-        if '%' in href:
+        i = 0
+        while i < 3 and '%' in href:
             href = unquote(href)
+            i += 1
         if href.endswith('#'):
             href = href[:-1]
         return href
@@ -70,7 +72,10 @@ class htmlElement:
         if us.query or us.fragment:
             us = us._replace(query='', fragment='')
             src = urlunsplit(us)
-        src = unquote(src)
+        i = 0
+        while i < 3 and '%' in src:
+            src = unquote(src)
+            i += 1
         return src
 
     def features(self):
@@ -97,6 +102,7 @@ class htmlElement:
         def _filter_style(style):
             new_style = []
             filter_keys = [
+                            'background',
                             'background-image', 
                             'opacity', 
                             'width', 
@@ -528,6 +534,21 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
                 return True
         return False
 
+    def _from_vimeo(branch, xpaths_map):
+        xpath = branch[0]
+        # * Check parent
+        paths = xpath.split('/')
+        iframe_idx = -1
+        for i, p in enumerate(paths):
+            if p.startswith('iframe'):
+                iframe_idx = i
+                break
+        iframe_path = paths[:iframe_idx+1]
+        iframe_element = xpaths_map.get('/'.join(iframe_path), None)
+        if iframe_element is not None:
+            if 'player.vimeo.com' in iframe_element['text'].lower():
+                return True
+
     new_left_unique = []
     for branch in left_unique:
         branch_meaningful = True
@@ -536,6 +557,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if _from_recaptcha(branch, left_xpaths_map):
             branch_meaningful = False
         if _from_youtube(branch, left_xpaths_map):
+            branch_meaningful = False
+        if _from_vimeo(branch, left_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
             new_left_unique.append(branch)
@@ -548,6 +571,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if _from_recaptcha(branch, right_xpaths_map):
             branch_meaningful = False
         if _from_youtube(branch, right_xpaths_map):
+            branch_meaningful = False
+        if _from_vimeo(branch, right_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
             new_right_unique.append(branch)

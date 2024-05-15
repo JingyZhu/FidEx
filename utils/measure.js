@@ -14,7 +14,7 @@ function identicalURL(liveURL, archiveURL){
     let archiveURLObj = new URL(archiveURL);
     if (archiveURLObj.pathname.includes('http:') || archiveURLObj.pathname.includes('https:'))
         // Collect the last http:// or https:// part
-        archiveURL = archiveURLObj.pathname.match(/(http:\/\/|https:\/\/)([\s\S]+)/)[0];
+        archiveURL = archiveURLObj.pathname.match(/(http:\/\/|https:\/\/)([\s\S]+)/)[0] + archiveURLObj.search;
     archiveURLObj = new URL(archiveURL);
     let liveURLObj = new URL(liveURL);
     if (archiveURLObj.hostname !== liveURLObj.hostname)

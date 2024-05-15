@@ -203,10 +203,10 @@ class WARCPathLoader(DefaultResolverMixin, BaseLoader):
                         new_filter.append(fix_f)
                     else:
                         new_filter.append(f)
-                local_params['filter'] = new_filter
-            print("NEW PARAMS: ", local_params)
+                # local_params['filter'] = new_filter
+                # print("Local params: ", local_params)
             # * End of addition
-            
+
             cdx_iter, errs = self.cdx_source(local_params)
             for cdx in cdx_iter:
                 cdx._formatter = formatter
@@ -222,13 +222,18 @@ class WARCPathLoader(DefaultResolverMixin, BaseLoader):
 
         if payload.rec_type in ('response', 'revisit'):
             status = cdx.get('status')
-
+            
             try:
                 orig_size = payload.raw_stream.tell()
             except:
                 orig_size = 0
 
-            http_headers = headers.http_headers or payload.http_headers
+            # * Changed by jingyz
+            # * Reason to change this is because revisit header might have different content length
+            # * Need to prioritize the content length from the original header
+            # http_headers = headers.http_headers or payload.http_headers
+            http_headers = payload.http_headers or headers.http_headers
+            # * End of change
 
             # if status is not set and not, 2xx, 4xx, 5xx
             # go through self-redirect check just in case
@@ -253,7 +258,7 @@ class WARCPathLoader(DefaultResolverMixin, BaseLoader):
                     payload.rec_headers.replace_header('Content-Length', str(new_cl))
 
         warc_headers = payload.rec_headers
-
+        
         if headers != payload:
             warc_headers.replace_header('WARC-Refers-To-Target-URI',
                      payload.rec_headers.get_header('WARC-Target-URI'))
