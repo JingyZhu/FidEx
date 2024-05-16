@@ -16,7 +16,8 @@ async function waitForReady() {
         output: process.stdout
     });
     return new Promise((resolve, reject) => {
-        rl.question("ready? ", (answer) => {
+        console.log("ready? ")
+        rl.question("", (answer) => {
           resolve(answer);
         });
     });

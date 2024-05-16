@@ -203,7 +203,7 @@ class WARCPathLoader(DefaultResolverMixin, BaseLoader):
                         new_filter.append(fix_f)
                     else:
                         new_filter.append(f)
-                # local_params['filter'] = new_filter
+                local_params['filter'] = new_filter
                 # print("Local params: ", local_params)
             # * End of addition
 

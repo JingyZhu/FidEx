@@ -16,6 +16,22 @@ from utils import url_utils
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
+def _sibling_xpath(path1, path2):
+    """Check if path1 and path2 are siblings (same length, differ by one element)"""
+    path1 = path1.split('/')
+    path2 = path2.split('/')
+    if len(path1) != len(path2):
+        return False
+    diff = 0
+    for p1, p2 in zip(path1, path2):
+        e1 = p1.split('[')[0]
+        e2 = p2.split('[')[0]
+        if e1 != e2:
+            return False
+        if p1 != p2:
+            diff += 1
+    return diff <= 1
+
 def compare_screenshot(live_img, archive_img):
     if not os.path.exists(live_img) or not os.path.exists(archive_img):
         return -1
@@ -392,7 +408,7 @@ def associate_writes(element_xpath: str, writes: list) -> list:
         list: list of writes that are associated with the element
     """
     # TODO: Potential next step
-    # In override.js, collect info for beforeIsConnected and afterIsConnected for args
+    # In node_writes_override.js, collect info for beforeIsConnected and afterIsConnected for args
     # When collect info, also collect all args' children and there corresponding xpath
     # When matching, even if the target element is the child of arg, we can find it out, and whether is has any visible effect.                                                
 
@@ -405,6 +421,8 @@ def associate_writes(element_xpath: str, writes: list) -> list:
         'removeChild': None,
         'set:nodeValue': None,
         'set:textContent': None,
+        'set:src': None,
+        'set:style': None,
         'removeAttribute': None,
         'removeAttributeNode': None,
         'removeAttributeNS': None,
@@ -577,4 +595,66 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if branch_meaningful:
             new_right_unique.append(branch)
 
+    return new_left_unique, new_right_unique
+
+def filter_dynamism(left_unique, left_writes,
+                    right_unique, right_writes):
+    """
+    Filter out unique elements that are caused by dynamic components
+    Currently mainly focus on image carousel with the following heuristics
+        - Sibling elements appear at both unique branches
+        - For all writes associated with the sibling elements, there are repetitive writes
+    
+    Returns:
+        (List, List): updated left_unique and right_unique
+    """
+    write_type = 'rawWrites'
+    new_left_unique, new_right_unique = [], []
+    
+    def select_writes(writes, xpaths):
+        xpaths_set = set(xpaths)
+        new_writes = []
+        is_set_class = lambda w: w['method'] == 'setAttribute' and len(w['arg']) == 2 and w['arg'][0]['html'] == 'class'
+        is_set_classname = lambda w: w['method'] == 'set:className'
+        for write in writes:
+            if write['xpath'] not in xpaths_set:
+                continue
+            if is_set_class(write):
+                new_writes.append(write)
+            elif is_set_classname(write):
+                new_writes.append(write)
+        return new_writes
+    
+    def overlap_write(left_writes, right_writes):
+        for left_write in left_writes:
+            for right_write in right_writes:
+                left_write_info = {'method': left_write['method'], 'arg': left_write['arg']}
+                right_write_info = {'method': right_write['method'], 'arg': right_write['arg']}
+                if left_write_info == right_write_info:
+                    return True
+        return False
+    
+    for left_br in left_unique:
+        match_other_unique = False
+        for j, right_br in enumerate(right_unique):
+            sibling_branch = len(left_br) == len(right_br) \
+                           and all([_sibling_xpath(l, r) for l, r in zip(left_br, right_br)])
+            if not sibling_branch:
+                continue
+            left_associate_writes = []
+            for l in left_br:
+                left_associate_writes += associate_writes(l, left_writes[write_type])
+            left_associate_writes = select_writes(left_associate_writes, left_br)
+            for r in right_br:
+                right_associate_writes = associate_writes(r, right_writes[write_type])
+            right_associate_writes = select_writes(right_associate_writes, right_br)
+            # print("left associate writes", left_br, json.dumps(left_associate_writes, indent=2))
+            # print("right associate writes", right_br, json.dumps(right_associate_writes, indent=2))
+            if overlap_write(left_associate_writes, right_associate_writes):
+                match_other_unique = True
+                right_unique = right_unique[:j] + right_unique[j+1:]
+                break
+        if not match_other_unique:
+            new_left_unique.append(left_br)
+    new_right_unique = right_unique
     return new_left_unique, new_right_unique
