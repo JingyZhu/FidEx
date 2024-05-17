@@ -42,7 +42,8 @@ async function startChrome(chromeData=null){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: 'new',
+        // headless: 'new',
+        headless: false,
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
@@ -96,8 +97,20 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             console.error(e.toString().split('\n')[0]);
             continue
         }
-        if (options.scroll)
-            await measure.scroll(page);
+        // if (options.scroll)
+        //     await measure.scroll(page);
+        if (options.write){
+            const writeLog = await page.evaluate(() => {
+                __recording_enabled = false;
+                collect_writes();
+                __recording_enabled = true;
+                return {
+                    writes: __final_write_log_processed,
+                    rawWrites: __raw_write_log_processed
+                }
+            });
+            fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,

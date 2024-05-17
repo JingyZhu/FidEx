@@ -140,7 +140,8 @@ function isHidden(elem) {
             rect.left >= window.innerWidth ||
             rect.right <= 0 ||
             rect.top >= window.innerHeight ||
-            rect.bottom <= 0
+            rect.bottom <= 0 ||
+            rect.width * rect.height == 0
         );
     } catch (e) {
         return true;
@@ -264,6 +265,10 @@ function getCandidateElements(listeners) {
         var [el, handler] = l;
         // * el: element, handler: {event: [handlers]}
         if (IGNORE_ELEMENTS.filter((e) => el.nodeName == e).length == 0) {
+            // * If element is not taking any area, ignore it
+            if (isHidden(el))
+                return;
+
             // * Filtration of tag pointing to other URLs
             if (el && el.href && el.href != ""){
                 // If el.href is not the same as the current URL, ignore it

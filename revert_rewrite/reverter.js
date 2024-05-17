@@ -140,6 +140,12 @@ class Reverter {
                     to: 'eval('
                 }
             ],
+            TypeError: [
+                {
+                    from: escapeRegex('WB_wombat_runEval2((_______eval_arg, isGlobal) => { var ge = eval; return isGlobal ? ge(_______eval_arg) : eval(_______eval_arg); }).eval(this, (function() { return arguments })(),'),
+                    to: 'eval('
+                }
+            ],
             SyntaxError: [
                 {
                     from: `;?${escapeRegex('_____WB$wombat$check$this$function_____(this).')}`,

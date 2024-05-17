@@ -235,8 +235,8 @@ def fidelity_issue_impact(dirr, left_prefix='live', right_prefix='archive') -> f
     left_dimensions = {e['xpath']: e['dimension'] for e in left_element if e['dimension']}
     right_dimensions = {e['xpath']: e['dimension'] for e in right_element if e['dimension']}
     left_diffs, right_diffs = calc_diff_dimensions(left_dimensions, left_unique, right_dimensions, right_unique)
-    left_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left']) for e in left_diffs])
-    right_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left']) for e in right_diffs])
+    left_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left'], e.get('scale', 1)) for e in left_diffs])
+    right_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left'], e.get('scale', 1)) for e in right_diffs])
     left_total_area, _ = total_space(left_element)
     right_total_area, _ = total_space(right_element)
     return left_diffs_area, right_diffs_area
@@ -278,8 +278,7 @@ def fidelity_issue_impact_heatmap(dirr, left_prefix='live', right_prefix='archiv
 
 
 def _worker(base, hostname, left, right):
-    print(hostname)
-    dirr = base + hostname
+    dirr = os.path.join(base, hostname)
     try:
         left_impact, right_impact = fidelity_issue_impact(dirr, left, right)
     except Exception as e:
@@ -298,24 +297,27 @@ def fidelity_impact_ground_truth(base, hostnames):
         results = [r for r in results if r]
     json.dump(results, open('fidelity_impact_gt.json', 'w+'), indent=2)
 
-def fidelity_impact_detection(base, sample_size=0):
+def fidelity_impact_detection(bases, target_hostnames=None, sample_size=0):
     results = []
     inputs = []
-    hostnames = os.listdir(base)
-    for hostname in hostnames:
-        dirr = base + hostname
-        if not os.path.exists(os.path.join(dirr, 'results.json')):
-            continue
-        results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
-        stage, fixedIdx = None, None
-        for stage, result in results.items():
-            if result['fixedIdx'] == -1:
+    for base in bases:
+        hostnames = os.listdir(base)
+        for hostname in hostnames:
+            if target_hostnames and hostname not in target_hostnames:
                 continue
-            fixedIdx = result['fixedIdx']
-            break
-        if fixedIdx is None or stage != 'load':
-            continue
-        inputs.append((base, hostname, f'{stage}_initial', f'{stage}_exception_{fixedIdx}'))
+            dirr = os.path.join(base, hostname)
+            if not os.path.exists(os.path.join(dirr, 'results.json')):
+                continue
+            results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
+            stage, fixedIdx = None, None
+            for stage, result in results.items():
+                if result['fixedIdx'] == -1:
+                    continue
+                fixedIdx = result['fixedIdx']
+                break
+            if fixedIdx is None:
+                continue
+            inputs.append((base, hostname, f'{stage}_initial', f'{stage}_exception_{fixedIdx}'))
     if sample_size > 0:
         inputs = random.sample(inputs, min(sample_size, len(inputs)))
     with multiprocessing.Pool(31) as pool:
@@ -325,7 +327,7 @@ def fidelity_impact_detection(base, sample_size=0):
 
 def _worker_heatmap(base, hostname, left, right):
     print(hostname)
-    dirr = base + hostname
+    dirr = os.path.join(base, hostname)
     try:
         heatmap = fidelity_issue_impact_heatmap(dirr, left, right)
     except Exception as e:
@@ -347,13 +349,15 @@ def fidelity_impact_heatmap_ground_truth(base, hostnames):
     # Store the heatmap
     np.save('fidelity_impact_heatmap_gt.npy', total_heatmap)
 
-def fidelity_impact_heatmap_detection(bases, sample_size=0):
+def fidelity_impact_heatmap_detection(bases, target_hostnames=None, sample_size=0):
     results = []
     inputs = []
     for base in bases:
         hostnames = os.listdir(base)
         for hostname in hostnames:
-            dirr = base + hostname
+            if target_hostnames and hostname not in target_hostnames:
+                continue
+            dirr = os.path.join(base, hostname)
             if not os.path.exists(os.path.join(dirr, 'results.json')):
                 continue
             results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
@@ -401,7 +405,7 @@ if __name__ == "__main__":
     # fidelity_impact_ground_truth('../../fidelity-files/writes/ground_truth/', hostnames)
 
     # * Detection impact
-    # fidelity_impact_detection('../revert_rewrite/writes_gt/', sample_size=0)
+    fidelity_impact_detection('../revert_rewrite/writes_gt/', sample_size=0)
 
     # * Ground-truth heatmap
     # gt_diff = json.load(open('../datacollect/ground-truth/gt_diff.json'))

@@ -291,22 +291,29 @@ for (const method of element_write_methods) {
     Element.prototype[method] = newWriteMethod(originalFn, method);
 }
 
-// Override Element setter
-element_properties = [
-    'className',
-    'id',
-    'innerHTML',
-    // aria attributes
-]
 
-for (const property of element_properties) {
-    const originalFn = Object.getOwnPropertyDescriptor(Element.prototype, property).set;
-    Object.defineProperty(Element.prototype, property, {
-        set: newSetMethod(originalFn, property)
-    });
+element_properties = {
+    Element: ['className', 'id', 'innerHTML'],
+    HTMLElement: ['hidden', 'style'],
+    HTMLImageElement: ['src', 'srcset'],
+    HTMLAnchorElement: ['href'],
+    HTMLScriptElement: ['src'],
+    HTMLIFrameElement: ['src'],
+    HTMLVideoElement: ['src'],
+    HTMLAudioElement: ['src']
 }
 
-
+for (const [element, properties] of Object.entries(element_properties)) {
+    for (const property of properties) {
+        const originalDesc = Object.getOwnPropertyDescriptor(window[element].prototype, property);
+        // if (originalDesc == null || originalDesc.set == null)
+        //     continue;
+        const originalFn = originalDesc.set;
+        Object.defineProperty(window[element].prototype, property, {
+            set: newSetMethod(originalFn, property)
+        });
+    }
+}
 // // * Override setTimeout and setInterval
 // const original_setTimeout = window.setTimeout;
 // window.setTimeout = function(callback, delay, ...args) {

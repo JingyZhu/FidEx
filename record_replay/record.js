@@ -102,6 +102,19 @@ async function getActivePage(browser) {
     else return pages[pages.length-1]; // ! Fall back solution
 }
 
+async function preventNavigation(page) {
+    page.on('dialog', async dialog => {
+        console.log(dialog.message());
+        await dialog.dismiss(); // or dialog.accept() to accept
+    });
+    await page.evaluateOnNewDocument(() => {
+        window.addEventListener('beforeunload', (event) => {
+            event.preventDefault();
+            event.returnValue = '';
+        });
+    });
+}
+
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
     await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
@@ -126,16 +139,42 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     console.log("load_override.js:", "Number of events", numEvents);
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     for (let i = 0; i < numEvents && i < 20; i++) {
-        await page.waitForFunction(async (idx) => {
-            await eli.triggerNth(idx);
-            return true;
-        }, {timeout: 10000}, i);
+        console.log("Record: Triggering interaction", i);
+        try {
+            await page.waitForFunction(async (idx) => {
+                await eli.triggerNth(idx);
+                return true;
+            }, {timeout: 10000}, i);
+        } catch(e) { // Print top line of the error
+            console.error(e.toString().split('\n')[0]);
+            continue
+        }
         excepFF.afterInteraction(allEvents[i]);
-        if (options.scroll)
-            await measure.scroll(page);
-        if (options.screenshot)
-            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)        
+        // if (options.scroll)
+        //     await measure.scroll(page);
+        if (options.write){
+            const writeLog = await page.evaluate(() => {
+                __recording_enabled = false;
+                collect_writes();
+                __recording_enabled = true;
+                return {
+                    writes: __final_write_log_processed,
+                    rawWrites: __raw_write_log_processed
+                }
+            });
+            fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+        if (options.screenshot) {
+            const rootFrame = page.mainFrame();
+            const renderInfo = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
+            console.log("Record: Collected render tree");    
+            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
+            console.log("Record: Collected screenshot");
+            fs.writeFileSync(`${dirname}/${filename}_${i}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
+        }  
     }
+    return allEvents;
 }
 
 /*
@@ -193,6 +232,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
             {waitUntil: 'load'}
         )
+        await sleep(1000);
         await dummyRecording(page, url);
         await sleep(1000);
         
@@ -232,6 +272,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // recordPage.on('response', async response => executableResources.onResponse(response));
         await sleep(1000);
 
+        await preventNavigation(recordPage);
         const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         await recordPage.evaluateOnNewDocument(script);
         if (options.write)
@@ -293,9 +334,10 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
 
         // * Step 8: Interact with the webpage
         if (options.interaction){
-            await interaction(recordPage, client, excepFF, url, dirname, filename, options);
+            const allEvents = await interaction(recordPage, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
+            fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
         }
         const finalURL = recordPage.url();
         fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));

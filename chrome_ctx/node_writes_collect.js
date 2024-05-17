@@ -41,6 +41,9 @@ function _normalSRC(node){
 }
 
 function collect_writes(){
+    __raw_write_log_processed = [];
+    __final_write_log = [];
+    __final_write_log_processed = [];
     // Process raw_args so that it can be stringified
     function process_args(raw_args) {
         let args = [];

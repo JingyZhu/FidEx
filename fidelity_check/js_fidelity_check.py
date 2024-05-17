@@ -5,14 +5,14 @@ import json
 import sys
 import fidelity_detect
 
-def _strict_decide(initial_elements, initial_writes, final_writes, final_elements):
+def _strict_decide(initial_elements, initial_writes, final_writes, final_elements, write_type='rawWrites'):
     """
     1. More writes
     2. Same writes no missing elements
     """
-    if len(initial_writes["rawWrites"]) < len(final_writes["rawWrites"]):
+    if len(initial_writes[write_type]) < len(final_writes[write_type]):
         return True
-    elif len(initial_writes["rawWrites"]) == len(final_writes["rawWrites"]):
+    elif len(initial_writes[write_type]) == len(final_writes[write_type]):
         return len(initial_elements) <= len(final_elements)
     return False
 
