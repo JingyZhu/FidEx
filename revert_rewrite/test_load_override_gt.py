@@ -38,7 +38,8 @@ def run_on_testcases(urls, decider=False, manual=False, interaction=False):
         except:
             pass
         try:
-            args = ['node', 'load_override_all.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
+            args = ['node', 'load_override.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
+            # args = ['node', 'load_override_all.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
             if decider:
                 args.append('-o')
             if manual:
@@ -86,16 +87,16 @@ def test_run_load_override_gt():
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240403055906/https://dws.arkansas.gov/",
         # },
         # * Starting from here 200 ground truth are added
-        # # SyntaxError
+        # SyntaxError
         # {
         #     "hostname": "www.laphil.com_1634459bf8",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404054835/https://www.laphil.com/campaigns/celebrate-inglewood-community-festival",
         # },
-        # ! Buggy (promise is collected on collecting render tree) SyntaxError
-        {
-            "hostname": "airandspace.si.edu_5bf8cf6ff5",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
-        },
+        # # ! Buggy (promise is collected on collecting render tree) SyntaxError
+        # {
+        #     "hostname": "airandspace.si.edu_5bf8cf6ff5",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240404060436/https://airandspace.si.edu/",
+        # },
         # # Google translate
         # {
         #     "hostname": "bmt.ky.gov_9f4115a9f2",
@@ -116,13 +117,18 @@ def test_run_load_override_gt():
         #     "hostname": "www.in.gov_4559663ea2",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409081734/https://www.in.gov/sos/elections/voter-information/photo-id-law/",
         # }
-        # ! Syntax error on fetch JSON: Need to look into
-        {
-            "hostname": "www.nyed.uscourts.gov_245517ae3e",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409075227/https://www.nyed.uscourts.gov/",
-        }
+        # # Revert Fetches (should work now)
+        # {
+        #     "hostname": "www.nyed.uscourts.gov_245517ae3e",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409075227/https://www.nyed.uscourts.gov/",
+        # },
+        # # Revert line of eval should help
+        # {
+        #     "hostname": "www.reginajosegalindo.com_f8c82b5bef",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409080113/https://www.reginajosegalindo.com/en/home-en/",
+        # }
     ]
-    results = run_on_testcases(urls)
+    results = run_on_testcases(urls, manual=True)
     print(json.dumps(results, indent=2))
 
 def test_run_load_override_gt_network():
@@ -222,13 +228,17 @@ def test_run_load_override_gt_no_fidelity():
 
 def test_run_load_override_temp():
     urls = [
+        # {
+        #     "hostname": "www.nyed.uscourts.gov_245517ae3e",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409075227/https://www.nyed.uscourts.gov/",
+        # },
         {
-    "hostname": "www.nyed.uscourts.gov_245517ae3e",
-    "archive_url": "http://pistons.eecs.umich.edu:8080/ground_truth/20240409075227/https://www.nyed.uscourts.gov/",
-  }
+            "hostname": "mass.gov",
+            "archive_url": "http://pistons.eecs.umich.edu:8080/test/20240429200034/https://www.mass.gov/"
+        },
     ]
     results = run_on_testcases(urls)
     print(json.dumps(results, indent=2))
 
 
-test_run_load_override_gt_no_fidelity()
+test_run_load_override_gt()

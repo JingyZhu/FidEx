@@ -274,9 +274,11 @@ function getCandidateElements(listeners) {
                 // If el.href is not the same as the current URL, ignore it
                 // Taking fragments into account
                 let url = new URL(el.href);
-                if (url.origin != window.location.origin 
-                   || url.pathname != window.location.pathname 
-                   || url.search != window.location.search) 
+                // * Need to consider in archived copy, the location needs to be get from window.WB_wombat_location
+                const windowLocation = 'WB_wombat_location' in window ? window.WB_wombat_location : window.location;
+                if (url.origin != windowLocation.origin 
+                   || url.pathname != windowLocation.pathname 
+                   || url.search != windowLocation.search) 
                     return;
             }
 

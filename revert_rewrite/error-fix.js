@@ -36,6 +36,8 @@ function canBeTryCatch(exception) {
         return false;
     if (exception.description && exception.description.includes('defined'))
         return false;
+    if (exception.description && exception.description.includes('not a function'))
+        return false;
     return true;
 }
 
@@ -205,6 +207,7 @@ class ErrorFixer {
      * @param {string} exceptionType 
      */
     async prepare(url, stage, exceptionType='uncaught') {
+        url = typeof url === 'string' ? url : url.toString();
         this.url = url;
         this.stage = stage;
         const origURL = new URL(url).pathname.split('/').slice(3).join('/');
@@ -604,6 +607,9 @@ class ErrorFixer {
             updatedCodes = {};
             let initiateResources = [];
             for (const [url, response] of Object.entries(this.overrider.seenResponses)){
+                // * Do not revert fetch not returning 200 status code
+                if (Math.floor(response.status/100) != 2 )
+                    continue;
                 if (initiatedBy(response.initiator, frame.url))
                     initiateResources.push(url);
             }

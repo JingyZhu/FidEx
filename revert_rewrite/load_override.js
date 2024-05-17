@@ -43,8 +43,8 @@ async function startChrome(chromeData=null){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        headless: 'new',
-        // headless: false,
+        // headless: 'new',
+        headless: false,
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);
@@ -168,6 +168,7 @@ async function checkExtraEventsFidelity(page, client, options, loadAndCollectLis
 async function interaction(browser, url, timeout, options) {
     // * Step 1: Collect number of events, before and after patch.
     // * Note that if the number of events is different, will first try additional events.
+    let profile = {extraInteraction: {start: Date.now(), end: null}}
     let page = await browser.newPage();
     const client = await page.target().createCDPSession();
     await enableFields(client);
@@ -185,10 +186,12 @@ async function interaction(browser, url, timeout, options) {
     const loadAndCollectListeners = getBeforeFunc(url, page, client, timeout);
     const exEvtResult = await checkExtraEventsFidelity(page, client, options, loadAndCollectListeners);
     await page.close();
+    profile['extraInteraction'].end = Date.now();
     if (exEvtResult.fixedIdx != -1) {
         return {
             results: {extraInteraction: exEvtResult},
             logs: {extraInteraction: []},
+            profile: profile
         }
     } else if (exEvtResult.extraEvents.length > 0) {
         results['extraInteraction'] = exEvtResult;
@@ -201,6 +204,7 @@ async function interaction(browser, url, timeout, options) {
     const initialEvents = exEvtResult.initialEvents;
     const initialNumEvents = initialEvents.length;
     for (let i = 0; i < initialNumEvents && i < 20; i++) {
+        profile[`interaction_${i}`] = {start: Date.now(), end: null}
         if (options.optimized) {
             const decision = fixDecider.decideInteract(initialEvents[i]);
             if (!decision.couldBeFixed) {
@@ -238,13 +242,15 @@ async function interaction(browser, url, timeout, options) {
         }
         results[`interaction_${i}`] = result;
         logs[`interaction_${i}`] = log;
+        profile[`interaction_${i}`].end = Date.now();
         await page.close();
         if (result.fixedIdx != -1)
             break
     }
     return {
         results: results,
-        logs: logs
+        logs: logs,
+        profile: profile
     }
 }
 
@@ -262,7 +268,7 @@ async function loadAndFix(url, page, client, stage, options, loadFunc,
                                                             });
     await errorFixer.recorder.prepareLogging();
     if(beforeFunc)
-        await beforeFunc();                                                    
+        await beforeFunc();
     await errorFixer.prepare(url, stage, exceptionType='all');
     // * For interaction, there is a chance that the interaction will trigger the navigation
     // * If so, need to catch and exit early
@@ -316,7 +322,7 @@ async function enableFields(client) {
         .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
         .option('-m, --manual', "Manual control for finishing loading the page")
         .option('-i, --interaction', "Interact with the page")
-        .option('-o, --optimized', "Apply a fix decider for runtime optimization")
+        .option('-o, --optimized <oid>', "Apply a fix decider for runtime optimization")
         .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
         
     program
@@ -347,11 +353,13 @@ async function enableFields(client) {
         mobile: false
     });
     
+    let profile = {overall: {start: Date.now(), end: null}}
     try {
         await enableFields(client);
         const timeout = options.wayback ? 200*1000 : 60*1000;
         
         let results = {}, logs = {};
+        profile['load'] = {start: Date.now(), end: null};
         // * Step 2: Load the page
         const loadFunc = async () => {await page.goto(url, {
             waitUntil: 'networkidle0',
@@ -363,12 +371,14 @@ async function enableFields(client) {
         workingOverrides = newWorkingOverrides;
         results['load'] = result;
         logs['load'] = log;
+        profile['load'].end = Date.now();
         await page.close();
 
         if (options.interaction && results['load']['fixedIdx'] == -1 ) {
-            const {results: interactionResults, logs: interactionLogs} = await interaction(browser, urlStr, timeout, options);
+            const {results: interactionResults, logs: interactionLogs, profile: interactionProfile} = await interaction(browser, urlStr, timeout, options);
             results = {...results, ...interactionResults};
             logs = {...logs, ...interactionLogs};
+            profile = {...profile, ...interactionProfile};
         }
         
         fs.writeFileSync(`${dirname}/results.json`, JSON.stringify(results, null, 2));
@@ -381,6 +391,8 @@ async function enableFields(client) {
         console.error(err);
     } finally {
         await browser.close();
+        profile['overall'].end = Date.now();
+        fs.writeFileSync(`${dirname}/profile.json`, JSON.stringify(profile, null, 2));
         process.exit();
     }
 })()

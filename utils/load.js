@@ -24,7 +24,29 @@ async function loadToChromeCTXWithUtils(page, file) {
     // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, contextId: contextId});
 }
 
+class BrowserFetcher {
+    constructor({page=null}={}) {
+        this.page = page;
+    }
+
+    setPage(page) {
+        this.page = page;
+    }
+
+    async fetch(url) {
+        const response = await this.page.evaluate(async (url) => {
+            const response = await fetch(url);
+            return response.text();
+        }, url);
+        return response;
+    }
+}
+
+let browserFetcher = new BrowserFetcher();
+
 module.exports = {
     loadToChromeCTX,
-    loadToChromeCTXWithUtils
+    loadToChromeCTXWithUtils,
+    BrowserFetcher,
+    browserFetcher
 }

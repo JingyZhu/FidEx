@@ -38,7 +38,9 @@ def run_on_testcases(urls, decider=False, manual=False, interaction=False):
         except:
             pass
         try:
-            args = ['node', 'load_override.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
+            # args = ['node', 'load_override.js', '-d', f'test/load_override/writes/{hostname}', f'{archive_url}']
+            # args = ['node', 'load_override_all.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
+            args = ['node', 'load_override_rw.js', '-d', f'test/load_override/writes/{hostname}', archive_url]
             if decider:
                 args.append('-o')
             if manual:
@@ -204,12 +206,21 @@ def test_run_load_override_temp():
         #     "hostname": "observer.com",
         #     "archive_url": "http://pistons.eecs.umich.edu:8080/fidelity_check/20240328235840/https://observer.com/2020/08/philadelphia-museum-of-art-reopening/"
         # },
+        # {
+        #     "hostname": "antimundo.org_702_2_5a7caff81b39d21034316034ac713eb594e6d8d2748d464786f7e03af80c6c72",
+        #     "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20231220232443/https://antimundo.org/"
+        # },
+        # Should run till the end
+        # {
+        #     "archive_url": "http://localhost:9990/?source=http%3A%2F%2Flocalhost%3A8887%2Ftest/archive/airbnb.com.warc#view=resources&url=https%3A%2F%2Fwww.airbnb.com%2F&ts=20240426184919",
+        #     "hostname": "airbnb.com",
+        # },
         {
-            "hostname": "antimundo.org_702_2_5a7caff81b39d21034316034ac713eb594e6d8d2748d464786f7e03af80c6c72",
-            "archive_url": "http://pistons.eecs.umich.edu:8080/carta_crawled_200/20231220232443/https://antimundo.org/"
+            "archive_url": "http://localhost:9990/?source=http%3A%2F%2Flocalhost%3A8887%2Feot-1k/archive/eta.lbl.gov_1.warc#view=resources&url=https%3A%2F%2Feta.lbl.gov%2F&ts=20240129135149",
+            "hostname": "eta.lbl.gov",
         }
     ]
-    results = run_on_testcases(urls)
+    results = run_on_testcases(urls, interaction=False, manual=False)
     print(json.dumps(results, indent=2))
 
 
@@ -331,4 +342,4 @@ def test_run_load_override_buggy():
     print("Gap:", gap)
 
 
-test_run_load_override_exception()
+test_run_load_override_temp()

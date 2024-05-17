@@ -27,10 +27,11 @@ REMOTE = True
 HOME = os.path.expanduser("~")
 MACHINE = socket.gethostname()
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
-default_pw_archive = 'ground_truth'
-default_wr_archive = 'ground_truth'
-metadata_prefix = 'gt_metadata'
-arguments = ['-s', '-i']
+default_pw_archive = 'gt_imp_intat_v0'
+default_wr_archive = 'test'
+metadata_prefix = 'gt_imp_intat_v0_metadata'
+# arguments = ['-s', '-i']
+arguments = ['-w', '-s', '-i', '--scroll']
 
 def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
                   wr_archive=default_wr_archive, 
@@ -66,6 +67,7 @@ def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}'
             break
     if ts is None:
         return '', url
+    p.wait()
 
     os.rename(f'downloads_{suffix}/{wr_archive}.warc', f'downloads_{suffix}/{archive_name}.warc')
     if remote_host:
@@ -167,9 +169,15 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         t.join()
 
 if __name__ == '__main__':
+    # data = json.load(open('determinism_results/determinism_results.json', 'r'))
+    # urls = [d['url'] for d in data if d['deterministic']]
+    # print("Total URLs:", len(urls))
+    # record_replay_all_urls_multi(urls, 16)
+    
+    # record_replay('http://collinlab.blogspot.com/', 'collinlab.blogspot.com_0')
+
     data = json.load(open('determinism_results/determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
     print("Total URLs:", len(urls))
-    record_replay_all_urls_multi(urls, 16)
-    
-    # record_replay('https://ers.cr.usgs.gov/login?redirectUrl=https://ers.cr.usgs.gov/', 'ers.cr.usgs.gov_0')
+    urls = urls[:min(200, len(urls))]
+    record_replay_all_urls_multi(urls, 1)

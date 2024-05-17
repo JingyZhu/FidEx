@@ -246,7 +246,8 @@ def test_no_issue_record_replay_gt():
         # "https://ssaiseattle.usajobs.gov/search/results/",
         # "https://www.kyeb.uscourts.gov/",
         # 'https://www.jankossen.com/',
-        'https://piers.wyo.gov/', # * Test for extraInteraction (should have no extraInteraction)
+        # 'https://piers.wyo.gov/', # * Test for extraInteraction (should have no extraInteraction)
+        'https://statehood.dc.gov/', # * Test for A tag interaction in archive (previously wrongly filtered out)
     ]
     dir_issue = {}
     for i, url in enumerate(urls):
@@ -305,7 +306,9 @@ def test_no_issue_multi_replay_gt():
     urls = [
         # "https://www.ndhin.nd.gov/", # ? No issue, but might be a good example for testing carousel
         # "https://www.morganlehmangallery.com/", # ? No issue, but might be a good example for testing carousel
-        'https://usda-fsa.usajobs.gov/search/results/', # ? Non-determinism on certain elements' dimension
+        # 'https://usda-fsa.usajobs.gov/search/results/', # ? Non-determinism on certain elements' dimension
+        'https://fitbir-demo.cit.nih.gov/', # ? Need test, but looks to be a good example for carousel
+        'https://statehood.dc.gov/', # ? Need test, but looks to be a good example for carousel
     ]
     dir_issue = {}
     check_times = 5

@@ -13,8 +13,11 @@ const { parse: HTMLParse } = require('node-html-parser');
 function identicalURL(liveURL, archiveURL){
     if (liveURL == archiveURL)
         return true;
-    if (!liveURL || !archiveURL)
-        return false;
+    try {
+        let _ = new URL(liveURL);
+        _ = new URL(archiveURL);
+    } catch { return false }
+    
     let archiveURLObj = new URL(archiveURL);
     if (archiveURLObj.pathname.includes('http:') || archiveURLObj.pathname.includes('https:'))
         // Collect the last http:// or https:// part

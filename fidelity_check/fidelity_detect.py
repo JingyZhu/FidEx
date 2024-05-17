@@ -20,6 +20,22 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
     left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
     left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
+    # * Same visual part
+    if len(left_unique) + len(right_unique) > 0:
+        if os.path.exists(f"{dirr}/{left_prefix}.png") and os.path.exists(f"{dirr}/{right_prefix}.png"):
+            left_img, right_img = f"{dirr}/{left_prefix}.png", f"{dirr}/{right_prefix}.png"
+            left_unique, right_unique = check_utils.filter_same_visual_part(left_img, left_unique, left_element,
+                                                                            right_img, right_unique, right_element)
+        else:
+            print("Warning: diff layout tree but no screenshots found")
+    # * Dynamic components filtration
+    if len(left_unique) + len(right_unique) > 0:
+        if os.path.exists(f"{dirr}/{left_prefix}_writes.json") and os.path.exists(f"{dirr}/{right_prefix}_writes.json"):
+            left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))
+            right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))
+            left_unique, right_unique = check_utils.filter_dynamism(left_unique, left_writes, right_unique, right_writes)
+        else:
+            print("Warning: diff layout tree but no writes found")
     if meaningful:
         left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)

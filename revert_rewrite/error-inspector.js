@@ -4,6 +4,9 @@ const { filterArchive } = require('../error_match/fix-decider');
 const { parseStack } = require('../utils/execution');
 
 function skipJS(url) {
+    // * Empty URL usually means it is from some VM
+    if (url == "")
+        return true;
     const skipKeywords = [
         'wombat.js'
     ]

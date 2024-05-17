@@ -16,8 +16,12 @@ from utils import url_utils
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-def _sibling_xpath(path1, path2):
-    """Check if path1 and path2 are siblings (same length, differ by one element)"""
+def _sibling_xpath(path1, path2, max_diff=1):
+    """Check if path1 and path2 are siblings (same length, differ by one element)
+    
+    Arguments:
+        max_diff (int): Max number of different elements for path to be considered as "sibling" (default 1)
+    """
     path1 = path1.split('/')
     path2 = path2.split('/')
     if len(path1) != len(path2):
@@ -30,7 +34,7 @@ def _sibling_xpath(path1, path2):
             return False
         if p1 != p2:
             diff += 1
-    return diff <= 1
+    return diff <= max_diff
 
 def compare_screenshot(live_img, archive_img):
     if not os.path.exists(live_img) or not os.path.exists(archive_img):
@@ -651,6 +655,62 @@ def filter_dynamism(left_unique, left_writes,
             # print("left associate writes", left_br, json.dumps(left_associate_writes, indent=2))
             # print("right associate writes", right_br, json.dumps(right_associate_writes, indent=2))
             if overlap_write(left_associate_writes, right_associate_writes):
+                match_other_unique = True
+                right_unique = right_unique[:j] + right_unique[j+1:]
+                break
+        if not match_other_unique:
+            new_left_unique.append(left_br)
+    new_right_unique = right_unique
+    return new_left_unique, new_right_unique
+
+def filter_same_visual_part(left_img, left_unique, left_elements, 
+                            right_img, right_unique, right_elements):
+    """
+    Filter out unique elements that are have the same screenshot images
+    To be defined as "same visual part", the two 
+    
+    Returns:
+        (List, List): updated left_unique and right_unique
+    """
+    if not os.path.exists(left_img) or not os.path.exists(right_img):
+        return left_unique, right_unique
+    left_xpaths_map = {e['xpath']: e for e in left_elements}
+    right_xpaths_map = {e['xpath']: e for e in right_elements}
+    def update_crop(crop, element):
+        if 'dimension' not in element:
+            return crop
+        dimen = element['dimension']
+        t, b, l, r = crop
+        t = min(t, dimen['top'])
+        b = max(b, dimen['top'] + dimen['height'])
+        l = min(l, dimen['left'])
+        r = max(r, dimen['left'] + dimen['width'])
+        return [t, b, l, r]
+    new_left_unique, new_right_unique = [], []
+    img1 = cv2.imread(left_img)
+    img1_dimen = img1.shape[:2]
+    img2 = cv2.imread(right_img)
+    img2_dimen = img2.shape[:2]
+    for left_br in left_unique:
+        match_other_unique = False
+        for j, right_br in enumerate(right_unique):
+            sibling_branch = len(left_br) == len(right_br) \
+                           and all([_sibling_xpath(l, r, max_diff=0) for l, r in zip(left_br, right_br)])
+            if not sibling_branch:
+                continue
+            crop_area = [float('inf'), float('-inf'), float('inf'), float('-inf')]
+            for xpath in left_br:
+                crop_area = update_crop(crop_area, left_xpaths_map[xpath])
+            for xpath in right_br:
+                crop_area = update_crop(crop_area, right_xpaths_map[xpath])
+            crop_area = [int(c) for c in crop_area]
+            if crop_area[1] > img1_dimen[0] or crop_area[3] > img1_dimen[1] \
+                or crop_area[1] > img2_dimen[0] or crop_area[3] > img2_dimen[1]:
+                continue
+            left_crop = img1[crop_area[0]:crop_area[1], crop_area[2]:crop_area[3], :]
+            right_crop = img2[crop_area[0]:crop_area[1], crop_area[2]:crop_area[3], :]
+            diff = left_crop - right_crop
+            if np.count_nonzero(diff == 0) == diff.shape[0]*diff.shape[1]*diff.shape[2]:
                 match_other_unique = True
                 right_unique = right_unique[:j] + right_unique[j+1:]
                 break
