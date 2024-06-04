@@ -299,8 +299,6 @@ element_properties = {
     HTMLAnchorElement: ['href'],
     HTMLScriptElement: ['src'],
     HTMLIFrameElement: ['src'],
-    HTMLVideoElement: ['src'],
-    HTMLAudioElement: ['src']
 }
 
 for (const [element, properties] of Object.entries(element_properties)) {
