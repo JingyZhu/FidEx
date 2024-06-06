@@ -1,6 +1,15 @@
 import json
 # Other imports are down below
 
+def dedeup_elements(elements):
+    seen_xpath = set()
+    new_elements = []
+    for element in elements:
+        if element['xpath'] not in seen_xpath:
+            seen_xpath.add(element['xpath'])
+            new_elements.append(element)
+    return new_elements
+
 def find_diff_elements(dirr, left_file, right_file) -> (list, list):
     """Find the unique elements between live and archive
     
@@ -19,6 +28,7 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
     left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
+    left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
     left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
     # * Same visual part
     if len(left_unique) + len(right_unique) > 0:

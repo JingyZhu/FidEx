@@ -331,7 +331,37 @@ def test_no_issue_multi_replay_gt():
         print(dirr, issue)
 
 
+def test_no_issue_historical():
+    def get_stage_fixedIdx(dirr):
+        results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
+        stage, fixedIdx = None, None
+        for stage, result in results.items():
+            if result['fixedIdx'] == -1:
+                continue
+            fixedIdx = result['fixedIdx']
+            break
+        return stage, fixedIdx
+
+    dirs = [
+        "elizabethchitty.ca_735_0", # No issue but different (dedup + crop sreenshot)
+    ]
+    for dirr in dirs:
+        print(dirr)
+        full_dir = os.path.join(base, dirr)
+        stage, fixedIdx = get_stage_fixedIdx(full_dir)
+        left = f'{stage}_initial'
+        right = f'{stage}_exception_{fixedIdx}'
+        issue, (left_u, right_u) = fidelity_detect.fidelity_issue(full_dir, left, right, meaningful=True)
+        if issue:
+            print('Issue:', issue)
+            print('Left unique:', len(left_u), [len(u) for u in left_u], '\n', json.dumps(left_u, indent=2))
+            print('Right unique:', len(right_u), [len(u) for u in right_u], '\n', json.dumps(right_u, indent=2))
+        else:
+            print('No issue')
+
 # test_no_issue_gt()
-test_no_issue_record_replay_gt()
+# test_no_issue_record_replay_gt()
 # test_no_issue_multi_record_gt()
 # test_no_issue_multi_replay_gt()
+
+test_no_issue_historical()

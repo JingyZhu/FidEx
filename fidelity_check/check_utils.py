@@ -676,45 +676,53 @@ def filter_same_visual_part(left_img, left_unique, left_elements,
         return left_unique, right_unique
     left_xpaths_map = {e['xpath']: e for e in left_elements}
     right_xpaths_map = {e['xpath']: e for e in right_elements}
-    def update_crop(crop, element):
-        if 'dimension' not in element:
+    def update_crop(crop, element, img_dimen):
+        if element.get('dimension', None) is None:
             return crop
         dimen = element['dimension']
+        im_t, im_b, im_l, im_r = 0, img_dimen[0], 0, img_dimen[1]
         t, b, l, r = crop
-        t = min(t, dimen['top'])
-        b = max(b, dimen['top'] + dimen['height'])
-        l = min(l, dimen['left'])
-        r = max(r, dimen['left'] + dimen['width'])
+        t = max(im_t, min(t, dimen['top']))
+        b = min(im_b, max(b, dimen['top'] + dimen['height']))
+        l = max(im_l, min(l, dimen['left']))
+        r = min(im_r, max(r, dimen['left'] + dimen['width']))
         return [t, b, l, r]
-    new_left_unique, new_right_unique = [], []
+    def crop_intersect(crop1, crop2):
+        return crop1[0] < crop2[1] and crop1[1] > crop2[0] and crop1[2] < crop2[3] and crop1[3] > crop2[2]
+    def branch_crop(branch, xpaths_map, img_dimen):
+        crop_area = [float('inf'), float('-inf'), float('inf'), float('-inf')]
+        for xpath in branch:
+            crop_area = update_crop(crop_area, xpaths_map[xpath], img_dimen)
+        return crop_area
     img1 = cv2.imread(left_img)
     img1_dimen = img1.shape[:2]
     img2 = cv2.imread(right_img)
     img2_dimen = img2.shape[:2]
+    img_dimen = [min(img1_dimen[0], img2_dimen[0]), min(img1_dimen[1], img2_dimen[1])]
+    left_crops, right_crops = [], []
     for left_br in left_unique:
-        match_other_unique = False
-        for j, right_br in enumerate(right_unique):
-            sibling_branch = len(left_br) == len(right_br) \
-                           and all([_sibling_xpath(l, r, max_diff=0) for l, r in zip(left_br, right_br)])
-            if not sibling_branch:
+        left_crops.append(branch_crop(left_br, left_xpaths_map, img1_dimen))
+    for right_br in right_unique:
+        right_crops.append(branch_crop(right_br, right_xpaths_map, img2_dimen))
+    
+    new_left_unique, new_right_unique = [], []
+    for i in range(len(left_unique)):
+        matched_crop = False
+        for j in range(len(right_unique)):
+            left_crpo, right_crop = left_crops[i], right_crops[j]
+            if not crop_intersect(left_crpo, right_crop):
                 continue
-            crop_area = [float('inf'), float('-inf'), float('inf'), float('-inf')]
-            for xpath in left_br:
-                crop_area = update_crop(crop_area, left_xpaths_map[xpath])
-            for xpath in right_br:
-                crop_area = update_crop(crop_area, right_xpaths_map[xpath])
-            crop_area = [int(c) for c in crop_area]
-            if crop_area[1] > img1_dimen[0] or crop_area[3] > img1_dimen[1] \
-                or crop_area[1] > img2_dimen[0] or crop_area[3] > img2_dimen[1]:
-                continue
-            left_crop = img1[crop_area[0]:crop_area[1], crop_area[2]:crop_area[3], :]
-            right_crop = img2[crop_area[0]:crop_area[1], crop_area[2]:crop_area[3], :]
+            merged_crop = [min(left_crpo[0], right_crop[0]), min(img_dimen[0], max(left_crpo[1], right_crop[1])),
+                            min(left_crpo[2], right_crop[2]), min(img_dimen[1], max(left_crpo[3], right_crop[3]))]
+            merged_crop = [int(c) for c in merged_crop]
+            left_crop = img1[merged_crop[0]:merged_crop[1], merged_crop[2]:merged_crop[3], :]
+            right_crop = img2[merged_crop[0]:merged_crop[1], merged_crop[2]:merged_crop[3], :]
             diff = left_crop - right_crop
             if np.count_nonzero(diff == 0) == diff.shape[0]*diff.shape[1]*diff.shape[2]:
-                match_other_unique = True
+                matched_crop = True
                 right_unique = right_unique[:j] + right_unique[j+1:]
                 break
-        if not match_other_unique:
-            new_left_unique.append(left_br)
+        if not matched_crop:
+            new_left_unique.append(left_unique[i])
     new_right_unique = right_unique
     return new_left_unique, new_right_unique
