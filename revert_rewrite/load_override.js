@@ -43,8 +43,8 @@ async function startChrome(chromeData=null){
         ignoreDefaultArgs: ["--disable-extensions"],
         defaultViewport: {width: 1920, height: 1080},
         // defaultViewport: null,
-        // headless: 'new',
-        headless: false,
+        headless: 'new',
+        // headless: false,
         downloadPath: './downloads/'
     }
     const browser = await puppeteer.launch(launchOptions);

@@ -96,6 +96,7 @@ class PageRecorder {
     }
 
     async record(dirname, filename, {responses={}}={}) {
+        await sleep(1000)
         let recordResponses = {};
         for (const [url, response] of Object.entries(responses))
             recordResponses[url] = response.status

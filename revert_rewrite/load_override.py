@@ -5,16 +5,28 @@ Read metadata that including archive URLs, and run load_wayback.js accordingly
 import json
 import subprocess
 import os, socket
-import time
+import time, random
+from collections import defaultdict
 from threading import Thread
 from urllib.parse import urlsplit, urlunsplit
+import sys
+sys.path.append('..')
+from fidelity_check import fidelity_detect
 
 HOME = os.path.expanduser("~")
 MACHINE = socket.gethostname()
 HOSTNAME = f'{MACHINE}.eecs.umich.edu'
-input_file = 'm1m_sampled.json'
-write_dir = 'writes_m1m'
+KEYWORD = 'eot_2020'
+input_file = f'{KEYWORD}_sampled.json'
+write_dir = f'writes_{KEYWORD}_check_test'
 data = json.load(open(f'inputs/{input_file}', 'r'))
+
+def cap_hostname_url(data):
+    hostname_data = defaultdict(list)
+    for datum in data:
+        hostname = datum['hostname'].split('_')[0]
+        hostname_data[hostname].append(datum)
+    return [random.choice(v) for v in hostname_data.values()]
 
 def run_load_override(decider=False, interact=False):
     start = time.time()
@@ -112,6 +124,7 @@ def run_load_override_multiproc(num_workers=8, decider=False, interact=False, lo
             continue
         torun_data.append(datum)
     
+    torun_data = cap_hostname_url(torun_data)
     waybacks = []
     for i in range(num_workers):
         waybacks.append(Thread(target=start_worker, args=(i,)))
@@ -128,7 +141,7 @@ def run_load_override_multiproc(num_workers=8, decider=False, interact=False, lo
     print("Finished all")
     
 
-def count_results(strict=True):
+def count_results(strict=True, screenshot_diff=False):
     count = {}
     total = 0
     def decide(initial_elements, initial_writes, final_writes, final_elements):
@@ -148,7 +161,7 @@ def count_results(strict=True):
             return -1
         else:
             return int(stage[1])
-    for datum in data:
+    for i, datum in enumerate(data):
         hostname = datum['hostname']
         if os.path.exists(f'{write_dir}/{hostname}/results.json'):
             results = json.load(open(f'{write_dir}/{hostname}/results.json', 'r'))
@@ -169,18 +182,22 @@ def count_results(strict=True):
                     initial_elements = json.load(open(f'{write_dir}/{hostname}/{stage}_initial_elements.json', 'r'))
                     final_writes = json.load(open(f'{write_dir}/{hostname}/{stage}_exception_{idx}_writes.json', 'r'))
                     final_elements = json.load(open(f'{write_dir}/{hostname}/{stage}_exception_{idx}_elements.json', 'r'))
-                    if decide(initial_elements, initial_writes, final_writes, final_elements):
-                        count[hostname] = f"{stage}_{result['fixedIdx']}"
-                    else:
+                    if not decide(initial_elements, initial_writes, final_writes, final_elements):
                         continue
-                print(hostname, stage, result['fixedIdx'])
+                    if screenshot_diff:
+                        diff, similarity = fidelity_detect.fidelity_issue_screenshot(f'{write_dir}/{hostname}', f'{stage}_initial', f'{stage}_exception_{idx}')
+                        if diff:
+                            count[hostname] = [f'{stage}_{result["fixedIdx"]}', similarity]
+                    else:
+                        count[hostname] = f"{stage}_{result['fixedIdx']}"
+                print(i, hostname, stage, result['fixedIdx'])
                 break
             if not any_fixed:
-                print(hostname, '-1')
+                print(i, hostname, '-1')
         else:
-            print(hostname, 'No result log')
+            print(i, hostname, 'No result log')
     print(total, len(count))
-    json.dump(count, open('fixed_count.json', 'w+'), indent=2)
+    json.dump(count, open(f'fixed_count_{KEYWORD}.json', 'w+'), indent=2)
 
 def correlate_labels():
     labels = json.load(open('../datacollect/ground-truth/gt_diff.json'))
@@ -219,7 +236,7 @@ def correlate_labels():
 # run_load_override(decider=False, interact=True)
 # run_load_override_multiproc(decider=False, interact=True, num_workers=16)
 
-count_results(strict=True)
+count_results(strict=True, screenshot_diff=True)
 # correlate_labels()
 
 
