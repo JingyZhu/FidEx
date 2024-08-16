@@ -56,6 +56,7 @@ async function startChrome(chromeData=null){
         .option('-f --file <filename>', 'Filename prefix', 'dimension')
         .option('-s, --screenshot', "Collect screenshot and other measurements")
         .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
+        .option('-m, --manual', "Wait for manual input to continue")
  
     program
         .argument("<url>")

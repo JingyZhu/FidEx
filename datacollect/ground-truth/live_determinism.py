@@ -54,6 +54,7 @@ def check_live_determinism(url, dirr, chrome_data=None) -> (bool, dict):
     return True, pair_comp
     
 def live_determinism(urls, worker_id=0) -> dict | None:
+    """Entry func for a single worker"""
     start = time.time()
     results = []
     for i, url in enumerate(urls):
@@ -78,7 +79,10 @@ def live_determinism(urls, worker_id=0) -> dict | None:
     json.dump(results, open(f'determinism_results/determinism_results_{worker_id}.json', 'w+'), indent=2)
 
 def live_determinism_multiproc(urls, num_browsers=8):
-    """Make sure to set the headless to new for js"""
+    """
+    Entry func
+    Make sure to set the headless to new for js
+    """
     processes = []
     for i in range(num_browsers):
         urls_part = urls[i::num_browsers]
@@ -87,10 +91,15 @@ def live_determinism_multiproc(urls, num_browsers=8):
         p.start()
     for p in processes:
         p.join()
+    # Combine all results
+    results = []
+    for i in range(num_browsers):
+        results += json.load(open(f'determinism_results/determinism_results_{i}.json', 'r'))
+    json.dump(results, open('determinism_results/determinism_results.json', 'w+'), indent=2)
 
 
 if __name__ == "__main__":
-    data = json.load(open('ground_truth_urls.json', 'r'))
+    data = json.load(open('../data/tranco_urls.json', 'r'))
     seen = set()
     if os.path.exists('determinism_results/determinism_results.json'):
         seen = set([d['url'] for d in json.load(open('determinism_results/determinism_results.json', 'r'))])
