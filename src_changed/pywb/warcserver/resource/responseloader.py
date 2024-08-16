@@ -222,7 +222,7 @@ class WARCPathLoader(DefaultResolverMixin, BaseLoader):
 
         if payload.rec_type in ('response', 'revisit'):
             status = cdx.get('status')
-            
+
             try:
                 orig_size = payload.raw_stream.tell()
             except:
@@ -258,7 +258,7 @@ class WARCPathLoader(DefaultResolverMixin, BaseLoader):
                     payload.rec_headers.replace_header('Content-Length', str(new_cl))
 
         warc_headers = payload.rec_headers
-        
+
         if headers != payload:
             warc_headers.replace_header('WARC-Refers-To-Target-URI',
                      payload.rec_headers.get_header('WARC-Target-URI'))
