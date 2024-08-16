@@ -2,17 +2,14 @@
     Wrapper for node_write_override.js and node_write_collect.js.
     In replay phase, Start the browser and load certain page
 */
-const puppeteer = require("puppeteer");
 const fs = require('fs');
 const os = require('os');
-const { program } = require('commander');
 
 const eventSync = require('../../utils/event_sync');
 const measure = require('../../utils/measure');
-const execution = require('../../utils/execution');
-const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../../utils/load');
+const { startChrome, loadToChromeCTX, loadToChromeCTXWithUtils } = require('../../utils/load');
+const {recordReplayArgs} = require('../../utils/argsparse');
 
-const HOME = os.homedir();
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -20,34 +17,6 @@ function sleep(ms) {
 
 function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
-}
-
-async function startChrome(chromeData=null){
-    chromeData = chromeData || `${HOME}/chrome_data/${os.hostname()}`;
-    const launchOptions = {
-        // other options (headless, args, etc)
-        // executablePath: '/usr/bin/chromium-browser',
-        args: [
-            '--disk-cache-size=1', 
-            // '-disable-features=IsolateOrigins,site-per-process',
-            // '--disable-site-isolation-trials',
-            '--window-size=1920,1080',
-            // '--disable-web-security',
-            // '--disable-features=PreloadMediaEngagementData,MediaEngagementBypassAutoplayPolicies',
-            // '--autoplay-policy=no-user-gesture-required',
-            // `--user-data-dir=/tmp/chrome/${Date.now()}`
-            `--user-data-dir=${chromeData}`,
-            '--enable-automation'
-        ],
-        ignoreDefaultArgs: ["--disable-extensions"],
-        defaultViewport: {width: 1920, height: 1080},
-        // defaultViewport: null,
-        // headless: 'new',
-        headless: false,
-        downloadPath: './downloads/'
-    }
-    const browser = await puppeteer.launch(launchOptions);
-    return browser;
 }
 
 async function preventNavigation(page) {
@@ -126,16 +95,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
 
 (async function(){
     // * Step 0: Prepare for running
-    program
-        .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
-        .option('-f --file <filename>', 'Filename prefix', 'dimension')
-        .option('-m, --manual', "Manual control for finishing loading the page")
-        .option('-i, --interaction', "Interact with the page")
-        .option('-w, --write', "Collect writes to the DOM")
-        .option('-s, --screenshot', "Collect screenshot and other measurements")
-        .option('--scroll', "Scroll to the bottom.")
-        .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
-
+    program = recordReplayArgs();
     program
         .argument("<url>")
         .action(url => urlStr=url);
@@ -145,8 +105,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     let filename = options.file;
     let scroll = options.scroll == true;
     
-    const chromeData = options.chrome_data ? options.chrome_data : null;
-    const browser = await startChrome(chromeData);
+    const headless = options.headless ? "new": false;
+    const { browser } = await startChrome(options.chrome_data, headless);
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))

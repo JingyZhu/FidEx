@@ -2,6 +2,43 @@
  * Loading files from ../chrome_ctx to Chrome's execution context.
  */
 const fs = require('fs');
+const os = require('os');
+const puppeteer = require("puppeteer");
+
+async function startChrome(chromeData=null, headless=false) {
+    const HOME = os.homedir();
+    chromeData = chromeData || `${HOME}/chrome_data/${os.hostname()}`;
+    browserSuffix = chromeData.endsWith('/') ? chromeData.slice(0, -1) : chromeData;
+    browserSuffix = browserSuffix.split('/').pop();
+    const launchOptions = {
+        // other options (headless, args, etc)
+        // executablePath: '/usr/bin/chromium-browser',
+        args: [
+            '--disk-cache-size=1', 
+            // '-disable-features=IsolateOrigins,site-per-process',
+            // '--disable-site-isolation-trials',
+            '--window-size=1920,1080',
+            // '--disable-web-security',
+            // '--disable-features=PreloadMediaEngagementData,MediaEngagementBypassAutoplayPolicies',
+            // '--autoplay-policy=no-user-gesture-required',
+            // `--user-data-dir=/tmp/chrome/${Date.now()}`
+            `--user-data-dir=${chromeData}`,
+            '--enable-automation'
+        ],
+        ignoreDefaultArgs: ["--disable-extensions"],
+        defaultViewport: {width: 1920, height: 1080},
+        // defaultViewport: null,
+        // headless: 'new',
+        headless: headless,
+        downloadPath: `./downloads_${browserSuffix}/`
+    }
+    const browser = await puppeteer.launch(launchOptions);
+    return { 
+        browser: browser, 
+        browserSuffix: browserSuffix
+    }
+}
+
 
 async function loadToChromeCTX(page, file) {
     await page.evaluate(() => {loadUtils = false});
@@ -45,8 +82,11 @@ class BrowserFetcher {
 let browserFetcher = new BrowserFetcher();
 
 module.exports = {
+    startChrome,
+
     loadToChromeCTX,
     loadToChromeCTXWithUtils,
+    
     BrowserFetcher,
     browserFetcher
 }

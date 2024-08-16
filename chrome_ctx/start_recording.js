@@ -16,7 +16,7 @@ async function startRecord(archive, url) {
             break;
         }
     }
-    let button = targetArchive.querySelector('button[title*="Start Recording"]');
+    let button = targetArchive.querySelector('button[title*="Start Archiving"]');
     button.click();
     await sleep(200);
 

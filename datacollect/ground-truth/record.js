@@ -6,14 +6,12 @@
     has already been created on the target browser extension
 
 */
-const puppeteer = require("puppeteer");
 const fs = require('fs');
-const os = require('os');
-const { program } = require('commander');
 
 const eventSync = require('../../utils/event_sync');
-const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../../utils/load');
+const { startChrome, loadToChromeCTX, loadToChromeCTXWithUtils} = require('../../utils/load');
 const measure = require('../../utils/measure');
+const { recordReplayArgs } = require('../../utils/argsparse');
 
 const http = require('http');
 // Dummy server for enable page's network and runtime before loading actual page
@@ -32,7 +30,6 @@ let Archive = null;
 let ArchiveFile = null;
 let downloadSuffix = null;
 const TIMEOUT = 60*1000;
-const HOME = os.homedir();
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -42,35 +39,6 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-async function startChrome(chromeData=null){
-    chromeData = chromeData || `${HOME}/chrome_data/${os.hostname()}`;
-    downloadSuffix = chromeData.endsWith('/') ? chromeData.slice(0, -1) : chromeData;
-    downloadSuffix = downloadSuffix.split('/').pop();
-    const launchOptions = {
-        // other options (headless, args, etc)
-        // executablePath: '/usr/bin/chromium-browser',
-        args: [
-            '--disk-cache-size=1', 
-            // '-disable-features=IsolateOrigins,site-per-process',
-            // '--disable-site-isolation-trials',
-            '--window-size=1920,1080',
-            // '--disable-web-security',
-            // '--disable-features=PreloadMediaEngagementData,MediaEngagementBypassAutoplayPolicies',
-            // '--autoplay-policy=no-user-gesture-required',
-            // `--user-data-dir=/tmp/chrome/${Date.now()}`
-            `--user-data-dir=${chromeData}`,
-            '--enable-automation'
-        ],
-        ignoreDefaultArgs: ["--disable-extensions"],
-        defaultViewport: {width: 1920, height: 1080},
-        // defaultViewport: null,
-        // headless: 'new',
-        headless: false,
-        downloadPath: `./downloads_${downloadSuffix}/`
-    }
-    const browser = await puppeteer.launch(launchOptions);
-    return browser;
-}
 
 async function clickDownload(page) {
     await loadToChromeCTX(page, `${__dirname}/../../chrome_ctx/click_download.js`)
@@ -180,9 +148,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
-            console.log("Record: Collected render tree");    
             await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
-            console.log("Record: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_${i}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
         }
     }
@@ -194,18 +160,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
 */
 (async function(){
     // * Step 0: Prepare for running
-    program
-        .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
-        .option('-f --file <filename>', 'Filename prefix', 'dimension')
-        .option('-a --archive <Archive>', 'Archive list to record the page', 'test')
-        .option('-m, --manual', "Manual control for finishing loading the page")
-        .option('-i, --interaction', "Interact with the page")
-        .option('-w, --write', "Collect writes to the DOM")
-        .option('-s, --screenshot', "Collect screenshot and other measurements")
-        .option('-r, --remove', "Remove recordings after finishing loading the page")
-        .option('--scroll', "Scroll to the bottom.")
-        .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
-
+    program = recordReplayArgs();
     program
         .argument("<url>")
         .action(url => urlStr=url);
@@ -218,10 +173,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     Archive = options.archive;
     ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
     
-    const chromeData = options.chrome_data ? options.chrome_data : `${HOME}/chrome_data/${os.hostname()}`;
-    let suffix = chromeData.endsWith('/') ? chromeData.slice(0, -1) : chromeData;
-    suffix = suffix.split('/').pop();
-    const browser = await startChrome(chromeData);
+    const headless = options.headless ? "new": false;
+    const { browser, browserSuffix } = await startChrome(options.chrome_data, headless);
+    downloadSuffix = browserSuffix;
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))
@@ -244,7 +198,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         
         // * Step 1-2: Input dummy URL to get the active page being recorded
         await page.goto(
-            "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
+            "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/index.html",
             {waitUntil: 'load'}
         )
         await sleep(1000);
@@ -344,7 +298,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         
         // * Step 9: Download recorded archive
         await page.goto(
-            "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/replay/index.html",
+            "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/index.html",
             {waitUntil: 'load'}
         )
         await sleep(500);

@@ -27,10 +27,10 @@ REMOTE = True
 HOME = os.path.expanduser("~")
 MACHINE = socket.gethostname()
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
-default_pw_archive = 'gt_imp_intat_v0'
+# Make sure that pw archive is created on the pywb server
+default_pw_archive = 'gt_tranco'
 default_wr_archive = 'test'
-metadata_prefix = 'gt_imp_intat_v0_metadata'
-# arguments = ['-s', '-i']
+metadata_prefix = 'gt_tranco_metadata'
 arguments = ['-w', '-s', '-i', '--scroll']
 
 def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
@@ -169,13 +169,6 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         t.join()
 
 if __name__ == '__main__':
-    # data = json.load(open('determinism_results/determinism_results.json', 'r'))
-    # urls = [d['url'] for d in data if d['deterministic']]
-    # print("Total URLs:", len(urls))
-    # record_replay_all_urls_multi(urls, 16)
-    
-    # record_replay('http://collinlab.blogspot.com/', 'collinlab.blogspot.com_0')
-
     data = json.load(open('determinism_results/determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
     print("Total URLs:", len(urls))
