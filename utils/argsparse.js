@@ -13,6 +13,7 @@ function recordReplayArgs() {
         .option('--scroll', "Scroll to the bottom.")
         .option('-c, --chrome_data <chrome_data>', "Directory of Chrome data")
         .option('--headless', "If run in headless mode")
+        .option('-p --proxy <proxy>', "Proxy server to use. Note that is chrome is installed with extensions that controls proxy, this could not work.")
     return program
 }
 

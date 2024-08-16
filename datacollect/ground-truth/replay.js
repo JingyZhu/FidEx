@@ -106,7 +106,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     let scroll = options.scroll == true;
     
     const headless = options.headless ? "new": false;
-    const { browser } = await startChrome(options.chrome_data, headless);
+    const { browser } = await startChrome(options.chrome_data, headless, options.proxy);
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))

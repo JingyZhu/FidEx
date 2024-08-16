@@ -27,6 +27,7 @@ REMOTE = True
 HOME = os.path.expanduser("~")
 MACHINE = socket.gethostname()
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
+PROXY = 'http://pistons.eecs.umich.edu:8079'
 # Make sure that pw archive is created on the pywb server
 default_pw_archive = 'gt_tranco'
 default_wr_archive = 'test'
@@ -90,6 +91,15 @@ def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}'
                 '-c', chrome_data,
                 *arguments,
                 archive_url])
+
+    # * Put proxy mode run here for now
+    call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
+                '-f', 'proxy',
+                '-c', chrome_data,
+                '--proxy', PROXY,
+                *arguments,
+                url])
+
     if remote_host:
         upload.upload_write(f'writes/{archive_name}', directory=pw_archive)
 
