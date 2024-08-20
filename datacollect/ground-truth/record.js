@@ -9,7 +9,11 @@
 const fs = require('fs');
 
 const eventSync = require('../../utils/event_sync');
-const { startChrome, loadToChromeCTX, loadToChromeCTXWithUtils} = require('../../utils/load');
+const { startChrome, 
+    loadToChromeCTX, 
+    loadToChromeCTXWithUtils, 
+    clearBrowserStorage 
+  } = require('../../utils/load');
 const measure = require('../../utils/measure');
 const { recordReplayArgs } = require('../../utils/argsparse');
 
@@ -191,9 +195,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         behavior: 'allow',
         downloadPath: `./downloads_${downloadSuffix}/`,
     });
-    await Promise.all([client_0.send('Network.clearBrowserCookies'), 
-                        client_0.send('Network.clearBrowserCache')]);
-    
+    await clearBrowserStorage(browser);
     try {
         
         // * Step 1-2: Input dummy URL to get the active page being recorded

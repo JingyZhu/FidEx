@@ -73,6 +73,10 @@ def test_no_issue_record_replay_gt():
         # 'https://www.jankossen.com/',
         # 'https://piers.wyo.gov/', # * Test for extraInteraction (should have no extraInteraction)
         'https://statehood.dc.gov/', # * Test for A tag interaction in archive (previously wrongly filtered out)
+
+        # Testcases from Tranco
+        "https://bookhodai.jp/", # * Issue with set attr on node_writes_collect
+        "https://www.dearfoams.com/", # * Issue caused by fail to clear storage (popup only on first visit)
     ]
     dir_issue = {}
     for i, url in enumerate(urls):

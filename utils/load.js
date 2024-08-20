@@ -1,9 +1,14 @@
 /**
  * Loading files from ../chrome_ctx to Chrome's execution context.
  */
+const { clear } = require('console');
 const fs = require('fs');
 const os = require('os');
 const puppeteer = require("puppeteer");
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function startChrome(chromeData=null, headless=false, proxy=null) {
     const HOME = os.homedir();
@@ -39,6 +44,23 @@ async function startChrome(chromeData=null, headless=false, proxy=null) {
         browser: browser, 
         browserSuffix: browserSuffix
     }
+}
+
+/**
+ * Found Network.clearBrowserCookies and Network.clearBrowserCache doesn't work, has to rely on chrome's UI
+ * Another alternative way is to create a new tmp user-data-dir everytime for replay   
+ * @param {puppeteer.Browser} browser
+ * @returns {String} "Success" if success, otherwise error message
+ */
+async function clearBrowserStorage(browser) {
+    const page = await browser.newPage();
+    await page.goto('chrome://settings/clearBrowserData?search=cache');
+    await sleep(100);
+    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/clear_storage.js`);
+    const result = await page.evaluate(() => deletaData());
+    console.log("Clearing browser storage: ", result);
+    page.close();
+    return result;
 }
 
 
@@ -85,6 +107,7 @@ let browserFetcher = new BrowserFetcher();
 
 module.exports = {
     startChrome,
+    clearBrowserStorage,
 
     loadToChromeCTX,
     loadToChromeCTXWithUtils,

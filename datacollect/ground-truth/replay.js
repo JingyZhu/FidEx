@@ -7,7 +7,11 @@ const os = require('os');
 
 const eventSync = require('../../utils/event_sync');
 const measure = require('../../utils/measure');
-const { startChrome, loadToChromeCTX, loadToChromeCTXWithUtils } = require('../../utils/load');
+const { startChrome, 
+        loadToChromeCTX, 
+        loadToChromeCTXWithUtils, 
+        clearBrowserStorage 
+      } = require('../../utils/load');
 const {recordReplayArgs} = require('../../utils/argsparse');
 
 
@@ -118,8 +122,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         behavior: 'allow',
         downloadPath: './downloads/',
     });
-    await Promise.all([client.send('Network.clearBrowserCookies'), 
-                        client.send('Network.clearBrowserCache')]);
+    await clearBrowserStorage(browser);
     // Avoid puppeteer from overriding dpr
     await client.send('Emulation.setDeviceMetricsOverride', {
         width: 1920,
