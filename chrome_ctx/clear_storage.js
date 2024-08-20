@@ -11,7 +11,7 @@ function deletaData() {
         // Find  settings-section that has section="privacy"
         const deleteButton = settingBasicPage.querySelector("settings-section[section='privacy'] > settings-privacy-page").shadowRoot
                                 .querySelector("settings-clear-browsing-data-dialog").shadowRoot
-                                .querySelector("#clearBrowsingDataConfirm");
+                                .querySelector("#clearButton");
         deleteButton.click();
         return "Success";
     } catch (e) {

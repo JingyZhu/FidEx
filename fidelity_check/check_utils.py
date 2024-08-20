@@ -126,7 +126,9 @@ class htmlElement:
                             'background-image', 
                             'opacity', 
                             'width', 
-                            'height', 
+                            'height',
+                            'left',
+                            'top', 
                             'display', 
                             'transform',
                             'transition'

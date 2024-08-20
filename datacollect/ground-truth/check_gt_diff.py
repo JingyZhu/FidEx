@@ -11,10 +11,11 @@ from fidelity_check import fidelity_detect
 HOME = os.path.expanduser("~")
 PREFIX = 'gt_tranco'
 TOCMP = 'proxy'
+EXCLUDE_DIRS = {'defendingtherepublic.org_23c113be7f'} # Used for avoiding long running directories
 
 writes_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
 metadata = json.load(open(f'metadata/{PREFIX}_metadata.json'))
-directory_map = {v['directory']: v.get(TOCMP, k) for k, v in metadata.items()}
+directory_map = {v['directory']: v.get(TOCMP, k) for k, v in metadata.items() if v['directory'] not in EXCLUDE_DIRS}
 
 def diff_worker(dirr, url, onload=False):
     print(dirr)
@@ -57,7 +58,7 @@ def diff_worker(dirr, url, onload=False):
     start = time.time()
     live_files = glob.glob(f'{full_dir}/live_*_elements.json')
     archive_files = glob.glob(f'{full_dir}/{TOCMP}_*_elements.json')
-    if len(live_files) != len(archive_files):
+    if len(live_files) > len(archive_files):
         return {
             'hostname': dirr,
             'url': url,
@@ -162,5 +163,5 @@ if __name__ == '__main__':
     with multiprocessing.Pool(num_worker) as p:
         results = p.starmap(diff_worker, [(d, directory_map[d]) for d in dirs if d in directory_map])
         results = [r for r in results if r is not None]
-    json.dump(results, open(f'{PREFIX}_diff.json', 'w+'), indent=2)
-    get_confusion_table(f'{PREFIX}_diff.json')
+    json.dump(results, open(f'{PREFIX}_{TOCMP}_diff.json', 'w+'), indent=2)
+    get_confusion_table(f'{PREFIX}_{TOCMP}_diff.json')
