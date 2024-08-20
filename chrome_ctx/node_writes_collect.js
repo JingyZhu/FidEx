@@ -50,11 +50,11 @@ function collect_writes(){
         for (let arg of raw_args) {
             let arg_info = {
                 html: null
-            }    
+            }
             if (args == null || arg == undefined)
                 continue
             if (arg instanceof Element) {
-                try { arg = _normalSRC(arg); } catch {}
+                // try { arg = _normalSRC(arg); } catch {}
                 arg_info.html = arg.outerHTML;
                 arg_info.xpath = getDomXPath(arg);
             } else if (arg instanceof Node) {
