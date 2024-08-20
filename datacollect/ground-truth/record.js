@@ -151,9 +151,12 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
+            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
             fs.writeFileSync(`${dirname}/${filename}_${i}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_${i}_elements_all.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
     }
     return allEvents;
@@ -280,12 +283,15 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         if (options.screenshot){
             const rootFrame = recordPage.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
+            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
             console.log("Record: Collected render tree");
             await measure.collectNaiveInfo(recordPage, dirname, filename);
             console.log("Record: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_elements_all.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         const onloadURL = recordPage.url();
 

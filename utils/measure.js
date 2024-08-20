@@ -128,14 +128,14 @@ function _origURL(url){
  * @param {boolean} replay Whether the render tree is collected on replay
  * @returns {object} renderTree {renderTree: [], renderHTML: string}
  */
-async function collectRenderTree(iframe, parentInfo){
+async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
     // Wait until document.body is ready
     // await iframe.evaluate(async () => {
     //     while (document.body === null)
     //         await new Promise(resolve => setTimeout(resolve, 200));
     // });
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
-    let renderTree = await iframe.evaluate(async () => {
+    let renderTree = await iframe.evaluate(async (visibleOnly) => {
         let waitCounter = 0;
         while (document.body === null) {
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -143,10 +143,10 @@ async function collectRenderTree(iframe, parentInfo){
             if (waitCounter > 1)
                 return [];
         }
-        _render_tree = _dfsVisible(document.body);
-        _serializeRenderTree();
-        return _render_tree_info;
-    });
+        const render_tree = visibleOnly? dfsVisible(document.body) : dfsAll(document.body);
+        const render_tree_info = serializeRenderTree(render_tree);
+        return render_tree_info;
+    }, visibleOnly);
     // * Update attributes by considering relative dimension to parent frame
     for (const i in renderTree){
         let element = renderTree[i]

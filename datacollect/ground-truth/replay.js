@@ -87,11 +87,14 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0});
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
+            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // console.log("Replay: Collected render tree");    
             await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
             // console.log("Replay: Collected screenshot");    
             fs.writeFileSync(`${dirname}/${filename}_${i}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_${i}_elements_all.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
     }
     return allEvents;
@@ -180,11 +183,14 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             const rootFrame = page.mainFrame();
             const renderInfo = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
+            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
             // console.log("Replay: Collected render tree");
             await measure.collectNaiveInfo(page, dirname, filename);
             // console.log("Replay: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_elements.json`, JSON.stringify(renderInfo.renderTree, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_elements_all.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
 
         // * Step 7: Interact with the webpage

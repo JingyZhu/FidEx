@@ -3,8 +3,6 @@
     Using JS to collect simulated render tree by check each node's dimension
 */
 
-_render_tree = {};
-
 function _outOfViewport(dimension) {
     invisible = dimension.width === 0 || dimension.height === 0;
     // * Filter elements that only take a single pixel (essentially not visible)
@@ -22,7 +20,7 @@ function _outOfViewport(dimension) {
  * @param {Node.ELEMENT_NODE} node 
  * @returns {Array} Array of node info
  */
-function _dfsVisible(node) {
+function dfsVisible(node) {
     let children = [];
     let nodeInfo = null;
     let dimension = null;
@@ -41,9 +39,50 @@ function _dfsVisible(node) {
     if (node.childNodes.length > 0 && node.tagName != 'IFRAME') {
         for (let child of node.childNodes) {
             if (child.nodeType === Node.ELEMENT_NODE) {
-                childInfo = _dfsVisible(child);
+                childInfo = dfsVisible(child);
                 children = children.concat(childInfo);
             } else if (child.nodeType === Node.TEXT_NODE && !ovp && child.textContent.trim() !== "") {
+                children.push({
+                    name: child.nodeName,
+                    node: child,
+                    dimension: null,
+                    children: []
+                });
+            }
+        }
+    }
+    if (nodeInfo != null){
+        nodeInfo.children = children;
+        return [nodeInfo];
+    }
+    else
+        return children;
+}
+
+/**
+ * dfs through the DOM tree, similar to dfsVisible but without viewport check
+ * @param {Node.ELEMENT_NODE} node 
+ * @returns {Array} Array of node info
+ */
+function dfsAll(node) {
+    let children = [];
+    let nodeInfo = null;
+    let dimension = null;
+    // * Some node like iframe document does not have getBoundingClientRect
+    dimension = node.getBoundingClientRect();
+    dimension = {left: dimension.left, top: dimension.top, width: dimension.width, height: dimension.height}
+    nodeInfo = {
+        name: node.nodeName,
+        node: node,
+        dimension: dimension,
+    };
+
+    if (node.childNodes.length > 0 && node.tagName != 'IFRAME') {
+        for (let child of node.childNodes) {
+            if (child.nodeType === Node.ELEMENT_NODE) {
+                childInfo = dfsAll(child);
+                children = children.concat(childInfo);
+            } else if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() !== "") {
                 children.push({
                     name: child.nodeName,
                     node: child,
@@ -84,8 +123,7 @@ function _normalSRC(node){
     return node;
 }
 
-// Convert _render_tree's nodes to their tag texts within <>
-_render_tree_info = []
+
 function getNodeText(node) {
     if (node.nodeType === Node.ELEMENT_NODE){
         node = _normalSRC(node);
@@ -122,13 +160,15 @@ function getNodeExtraAttr(node){
 
 /**
  * Serialize dfs'ed render tree to text version that can be saved
+ * @param {Array} render_tree render_tree returned by dfsVisible or dfsAll
  */
-function _serializeRenderTree() {
+function serializeRenderTree(render_tree) {
     let counter = 0;
+    let render_tree_info = [] 
     let _dfsHelper = function(node, depth=0) {
         const nodeText = getNodeText(node.node);
         if (nodeText != null){
-            _render_tree_info.push({
+            render_tree_info.push({
                 text: nodeText,
                 xpath: getDomXPath(node.node),
                 dimension: node.dimension,
@@ -141,10 +181,11 @@ function _serializeRenderTree() {
             _dfsHelper(child, depth+1);
         }
     }
-    for (let node of _render_tree) {
+    for (let node of render_tree) {
         _dfsHelper(node, 0);
     }
+    return render_tree_info;
 }
 
-// _render_tree = _dfsVisible(document.body);
-// _serializeRenderTree();
+// render_tree = dfsVisible(document.body);
+// render_tree_info = serializeRenderTree(render_tree);
