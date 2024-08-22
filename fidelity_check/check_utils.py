@@ -4,7 +4,7 @@ Check if the archive preserves all the fidelity from liveweb page
 import difflib
 import json
 import re, os
-from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning, Tag
 from collections import defaultdict
 import cv2
 import numpy as np
@@ -64,6 +64,8 @@ class htmlElement:
     def __init__(self, element: dict):
         self.xpath = element['xpath']
         self.text = element['text']
+        self.tag = self._get_tag()
+        self.transform = self._is_transform()
         self.features = self.features()
         self.dimension = _collect_dimension(element)
     
@@ -97,6 +99,24 @@ class htmlElement:
             src = unquote(src)
             i += 1
         return src
+    
+    def _get_tag(self):
+        """Extract tag name from the text"""
+        tag = BeautifulSoup(self.text, 'html.parser').find()
+        if tag is None:
+            tagname = self.xpath.split('/')[-1].split('[')[0]
+            return tagname
+        return tag
+    
+    def _is_transform(self):
+        """Decide if the element has transform attribute"""
+        if not isinstance(self.tag, Tag) or 'style' not in self.tag.attrs:
+            return False
+        style = self.tag.attrs['style']
+        for s in style.split(';'):
+            if 'transform' in s:
+                return True
+        return False
 
     def features(self):
         """Collect tag name and other important attributes that matters to the rendering"""
@@ -107,10 +127,9 @@ class htmlElement:
                 # lambda a: a.attrs.get('class'), 
                 lambda a: self._norm_href(a.attrs.get('href'))],
         }
-        tag = BeautifulSoup(self.text, 'html.parser').find()
-        if tag is None:
-            tagname = self.xpath.split('/')[-1].split('[')[0]
-            return (tagname)
+        if isinstance(self.tag, str):
+            return tuple([self.tag])
+        tag = self.tag
         tagname = tag.name
         features = [tagname]
         rules = tag_rules.get(tagname, []) + all_rules
@@ -156,20 +175,34 @@ class htmlElement:
             hdiff = abs(d1h - d2h) / max(d1h, d2h)
             return wdiff <= 0.05 and hdiff <= 0.05
 
-        def features_eq(t1, t2):
-            if t1.features[0].lower() == 'a' and t2.features[0].lower() == 'a':
+        def features_eq(e1, e2):
+            if e1.features[0].lower() == 'a' and e2.features[0].lower() == 'a':
                 identical = True
-                if len(t1.features) != len(t2.features):
+                if len(e1.features) != len(e2.features):
                     return False
-                for f1, f2 in zip(t1.features, t2.features):
+                for f1, f2 in zip(e1.features, e2.features):
                     if type(f1) != str or type(f2) != str:
                         identical = identical and f1 == f2
                         continue
                     identical = identical and (f1.endswith(f2) or f2.endswith(f1))
                 return identical
+            elif e1.features[0].lower() == '#text' and e2.features[0].lower() == '#text':
+                return e1.text == e2.text
             else:
-                return t1.features == t2.features
+                return e1.features == e2.features
 
+        def transform_eq(e1, e2):
+            if not e1.transform or not e2.transform:
+                return False
+            if e1.xpath == e2.xpath:
+                return True
+            # remove style in text
+            e1_text = re.sub(r'style=".*?"', '', e1.text)
+            e2_text = re.sub(r'style=".*?"', '', e2.text)
+            if e1_text == e2_text:
+                return True
+            return False
+            
         # # Version 1
         # if self.text == other.text:
         #     # return True
@@ -179,7 +212,9 @@ class htmlElement:
         #     return True
         # return False
         # Version 2
-        return features_eq(self, other) and dimension_eq(self.dimension, other.dimension)
+        return features_eq(self, other) \
+                    and (transform_eq(self, other) \
+                    or dimension_eq(self.dimension, other.dimension))
 
     def __hash__(self) -> int:
         return hash((self.xpath, self.text, self.dimension.get('width', 0), self.dimension.get('height', 0)))

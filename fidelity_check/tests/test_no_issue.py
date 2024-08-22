@@ -77,6 +77,8 @@ def test_no_issue_record_replay_gt():
         # Testcases from Tranco
         "https://bookhodai.jp/", # * Issue with set attr on node_writes_collect
         "https://www.dearfoams.com/", # * Issue caused by fail to clear storage (popup only on first visit)
+        "https://crpt.ru/", # * Image carousel
+        "https://mojohost.com/", # * Recaptcha
     ]
     dir_issue = {}
     for i, url in enumerate(urls):

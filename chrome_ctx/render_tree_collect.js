@@ -7,12 +7,13 @@ function _outOfViewport(dimension) {
     invisible = dimension.width === 0 || dimension.height === 0;
     // * Filter elements that only take a single pixel (essentially not visible)
     invisible = invisible || (dimension.width <=1 && dimension.height <= 1)
-    leftOut = dimension.right <= 0;
+    // leftOut = dimension.right <= 0;
     // rightOut = dimension.left >= window.innerWidth;
-    topOut = dimension.bottom <= 0;
+    // topOut = dimension.bottom <= 0;
     // bottomOut = dimension.top >= window.innerHeight;
     // return invisible || leftOut || rightOut || topOut || bottomOut;
-    return invisible || leftOut || topOut;
+    // return invisible || leftOut || topOut;
+    return invisible;
 }
 
 /**
