@@ -65,7 +65,8 @@ class htmlElement:
         self.xpath = element['xpath']
         self.text = element['text']
         self.tag = self._get_tag()
-        self.transform = self._is_transform()
+        self.dynamic = self._is_dynamic()
+        self.in_carousel = self._in_carousel()
         self.features = self.features()
         self.dimension = _collect_dimension(element)
     
@@ -108,15 +109,30 @@ class htmlElement:
             return tagname
         return tag
     
-    def _is_transform(self):
-        """Decide if the element has transform attribute"""
-        if not isinstance(self.tag, Tag) or 'style' not in self.tag.attrs:
+    def _is_dynamic(self):
+        assert(hasattr(self, 'tag'))
+        if not isinstance(self.tag, Tag):
             return False
-        style = self.tag.attrs['style']
+        style = self.tag.attrs.get('style', '')
         for s in style.split(';'):
             if 'transform' in s:
                 return True
+        spin_keywords = ['spin']
+        for k in spin_keywords:
+            if k in self.text.lower():
+                return True
         return False
+    
+    def _in_carousel(self):
+        """Heuristic to decide if the element is part of the carousel"""
+        assert(hasattr(self, 'tag'))
+        if self.tag == '#text':
+            return False
+        class_keywords = ['carousel', 'slider', 'slideshow', 'gallery', 'slick', 'swiper']
+        for c in class_keywords:
+            if c in self.text.lower():
+                return True
+        
 
     def features(self):
         """Collect tag name and other important attributes that matters to the rendering"""
@@ -191,8 +207,8 @@ class htmlElement:
             else:
                 return e1.features == e2.features
 
-        def transform_eq(e1, e2):
-            if not e1.transform or not e2.transform:
+        def dynamic_eq(e1, e2):
+            if not e1.dynamic or not e2.dynamic:
                 return False
             if e1.xpath == e2.xpath:
                 return True
@@ -202,19 +218,23 @@ class htmlElement:
             if e1_text == e2_text:
                 return True
             return False
-            
-        # # Version 1
-        # if self.text == other.text:
-        #     # return True
-        #     return self.dimension == other.dimension?
-        #     return dimension_eq(self.dimension, other.dimension)
-        # if features_eq(self, other) and self.dimension == other.dimension:
-        #     return True
-        # return False
-        # Version 2
-        return features_eq(self, other) \
-                    and (transform_eq(self, other) \
-                    or dimension_eq(self.dimension, other.dimension))
+        
+        def carousel_eq(e1, e2):
+            if not e1.in_carousel or not e2.in_carousel:
+                return False
+            if e1.xpath == e2.xpath:
+                return True
+            # Dimension has the same top, width and height
+            if e1.dimension.get('top', 1) == e2.dimension.get('top', 2) and dimension_eq(e1.dimension, e2.dimension):
+                return True
+            return False
+        
+        if carousel_eq(self, other):
+            return True
+        elif dynamic_eq(self, other):
+            return True
+        else:
+            return features_eq(self, other) and dimension_eq(self.dimension, other.dimension)
 
     def __hash__(self) -> int:
         return hash((self.xpath, self.text, self.dimension.get('width', 0), self.dimension.get('height', 0)))
@@ -540,6 +560,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
     Currently, filtration involves:
         - All recaptcha like elements
         - All youtube video elements (class includes "ytp")
+        - All vimeo video elements (iframe src includes "player.vimeo.com")
+        - Any wrapping element that all the children is matched
 
     Returns:
         (List, List): updated left_unique and right_unique
@@ -607,6 +629,35 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if iframe_element is not None:
             if 'player.vimeo.com' in iframe_element['text'].lower():
                 return True
+    
+    def _remove_wrapping_elements(branch, xpaths_map):
+        removed = 1 # dummy first
+        cur_branch = branch
+        while removed > 0:
+            removed = 0
+            new_branch = []
+            for br in cur_branch:
+                has_child = False
+                has_xpathmap_child = False
+                for b in cur_branch:
+                    if b != br and b.startswith(br):
+                        has_child = True
+                        break
+                if has_child:
+                    new_branch.append(br)
+                    continue
+                # Check if xpaths_map has any br's children
+                # If so, this mean the br is just a wrapping element, where all the children are matched or ignored
+                for b in xpaths_map:
+                    if b != br and b.startswith(br):
+                        has_xpathmap_child = True
+                        removed += 1
+                        break
+                if not has_xpathmap_child:
+                    new_branch.append(br)
+            cur_branch = new_branch
+        return cur_branch
+
 
     new_left_unique = []
     for branch in left_unique:
@@ -620,7 +671,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if _from_vimeo(branch, left_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
-            new_left_unique.append(branch)
+            branch = _remove_wrapping_elements(branch, left_xpaths_map)
+            new_left_unique.append(branch) if len(branch) > 0 else None
     
     new_right_unique = []
     for branch in right_unique:
@@ -634,7 +686,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique):
         if _from_vimeo(branch, right_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
-            new_right_unique.append(branch)
+            branch = _remove_wrapping_elements(branch, right_xpaths_map)
+            new_right_unique.append(branch) if len(branch) > 0 else None
 
     return new_left_unique, new_right_unique
 

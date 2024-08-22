@@ -3,10 +3,8 @@
  * Measurement mainly contains collecting screenshots info, 
  * and exceptions and failed fetches during loading the page. 
  */
-const { fail } = require('assert');
 const fs = require('fs');
 const { loadToChromeCTX, loadToChromeCTXWithUtils} = require('./load');
-const { execSync } = require("child_process");
 const { Puppeteer } = require('puppeteer');
 const { parse: HTMLParse } = require('node-html-parser');
 
@@ -33,6 +31,30 @@ function identicalURL(liveURL, archiveURL){
     if (archiveURLObj.search !== liveURLObj.search)
         return false;
     return true;
+}
+
+class IframeIDs {
+    // Initialize iframeIDs from htmliframe
+    fromHTMLIframe(tag) {
+        this.url = tag.getAttribute('src');
+        this.id = tag.getAttribute('id') || tag.getAttribute('name');
+        this.title = tag.getAttribute('title');
+        return this;
+    }
+
+    // Initialize iframeIDs from CDPFrame
+    async fromCDPFrame(frame) {
+        this.url = frame.url();
+        this.id = frame.name();
+        this.title = await frame.title();
+        return this;
+    }
+
+    match(other) {
+        return identicalURL(this.url, other.url) 
+                || this.id === other.id 
+                || this.title === other.title;
+    }
 }
 
 async function getDimensions(page) {
@@ -163,7 +185,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
         renderTree[i] = Object.assign(renderTree[i], updateAttr);
     }
     // * Collect child frames
-    let htmlIframes = {};
+    let htmlIframes = [];
     for (let idx = 0; idx < renderTree.length; idx++){
         const element = renderTree[idx];
         const line = element['text'];
@@ -172,43 +194,38 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
         // const tag = HTMLParse(line.split(/:([\s\S]+)/)[1].trim()).childNodes[0];
         const tag = HTMLParse(line.trim()).childNodes[0];
         if (tag.rawTagName === 'iframe'){
-            htmlIframes[tag.getAttribute('src')] = {
+            const iframeIDs = new IframeIDs().fromHTMLIframe(tag);
+            htmlIframes.push([iframeIDs, {
                 html: line,
                 idx: idx,
                 info: element
-            }
+            }])
         }
     }
     const childFrames = await iframe.childFrames();
     let childRenderTrees = [], childidx = [];
     for (const childFrame of childFrames){
-        const childURL = childFrame.url();
-        let htmlIframeURL = null;
-        for (const url in htmlIframes){
+        let childFrameIDs = new IframeIDs()
+        await childFrameIDs.fromCDPFrame(childFrame);
+        let htmlIframeIdx = -1;
+        for (let i = 0; i < htmlIframes.length; i++){
             // url is suffix of childURL
-            if (identicalURL(url, childURL)){
-                htmlIframeURL = url;
+            if (htmlIframes[i][0].match(childFrameIDs)){
+                htmlIframeIdx = i;
                 break;
             }
         }
-        if (!htmlIframeURL)
+        if (htmlIframeIdx == -1)
             continue;
-        let prefix = htmlIframes[htmlIframeURL].html.match(/^\s+/)
+        const htmlIframe = htmlIframes[htmlIframeIdx][1];
+        let prefix = htmlIframe.html.match(/^\s+/)
         prefix = prefix ? prefix[0] : '';
-        let currentInfo = htmlIframes[htmlIframeURL].info;
-        currentInfo = {
-            xpath: parentInfo.xpath + currentInfo.xpath,
-            dimension: {
-                left: parentInfo.dimension.left + currentInfo.dimension.left,
-                top: parentInfo.dimension.top + currentInfo.dimension.top,
-            },
-            prefix: parentInfo.prefix + '  ' + prefix,
-            depth: parentInfo.depth + currentInfo.depth + 1,
-        }
+        let currentInfo = htmlIframe.info;
+        currentInfo.prefix = parentInfo.prefix + '  ' + prefix;
         try {
             const childInfo = await collectRenderTree(childFrame, currentInfo);
-            childRenderTrees.push(childInfo.renderTree)
-            childidx.push(htmlIframes[htmlIframeURL].idx);
+            childRenderTrees.push(childInfo.renderTree);
+            childidx.push(htmlIframe.idx);
         } catch {}
     }
     childidx.push(renderTree.length-1)

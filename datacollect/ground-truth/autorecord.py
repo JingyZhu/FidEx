@@ -32,7 +32,7 @@ PROXY = 'http://pistons.eecs.umich.edu:8079'
 default_pw_archive = 'gt_tranco'
 default_wr_archive = 'test'
 metadata_prefix = 'gt_tranco_metadata'
-arguments = ['-w', '-s', '-i', '--scroll']
+arguments = ['-w', '-s', '-i', '--scroll', '--headless']
 
 def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
                   wr_archive=default_wr_archive, 
@@ -177,10 +177,19 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         t.start()
     for t in threads:
         t.join()
+    # Merge metadata files
+    if os.path.exists(f'metadata/{metadata_prefix}.json'):
+        metadata = json.load(open(f'metadata/{metadata_prefix}.json', 'r'))
+    else:
+        metadata = {}
+    for i in range(num_workers):
+        metadata_worker = json.load(open(f'metadata/{metadata_prefix}_{i}.json', 'r'))
+        metadata.update(metadata_worker)
+    json.dump(metadata, open(f'metadata/{metadata_prefix}.json', 'w+'), indent=2)
 
 if __name__ == '__main__':
     data = json.load(open('determinism_results/determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
     print("Total URLs:", len(urls))
     urls = urls[:min(200, len(urls))]
-    record_replay_all_urls_multi(urls, 1)
+    record_replay_all_urls_multi(urls, 16)
