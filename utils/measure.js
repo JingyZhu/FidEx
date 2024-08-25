@@ -193,7 +193,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
         // console.log(line, line.split(/:([\s\S]+)/))
         // const tag = HTMLParse(line.split(/:([\s\S]+)/)[1].trim()).childNodes[0];
         const tag = HTMLParse(line.trim()).childNodes[0];
-        if (tag.rawTagName === 'iframe'){
+        if (tag && tag.rawTagName === 'iframe'){
             const iframeIDs = new IframeIDs().fromHTMLIframe(tag);
             htmlIframes.push([iframeIDs, {
                 html: line,

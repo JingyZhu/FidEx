@@ -24,7 +24,7 @@
     - Manually: Controlled by the user. Specified with ```--manual, -m``` flag.
 6. (Optional) Trigger interaction
     - Not fully tested. Run with ````--interaction, -i``` flag.
-7. (Optional) Collect the writes to the DOM
+7. (Optional) Collect the writes to the DOM. Collect execution and request info.
 8. (Optional) Collect the screenshots and all other measurement for checking fidelity
     - Currently, the measurement will collect the self-built layout tree, and the failed network fetches and exceptions (```exceptionFF```)
 9. Download the recorded warc file
@@ -38,7 +38,7 @@
 3. (Optional) If replaying on Wayback, need to remove the banner for fidelity consistency
 4. Wait for the page to be loaded.
 5. (Optional) Trigger interaction
-6. (Optional) Collect the writes to the DOM
+6. (Optional) Collect the writes to the DOM. Collect execution and request info.
 7. (Optional) Collect the screenshots and all other measurement for checking fidelity
 
 ## Notebooks
