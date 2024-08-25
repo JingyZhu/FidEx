@@ -1,11 +1,11 @@
 """
     Auto run record.js and replay.js
     If run on remote host with large scale, need to make sure that:
-        - Crawls (warc) are uploaded and "wb-manager added" to the group server
-        - Screenshots are uploaded to the group server
-        - Writes are uploaded to the group server
+        - Crawls (warc) are uploaded and "wb-manager added" to the remote server
+        - Screenshots are uploaded to the remote server
+        - Writes are uploaded to the remote server
     If run with local host, need to make sure that:
-        - The file is run with pywb venv on.
+        - This script is run with pywb venv on.
 """
 from subprocess import PIPE, check_call, Popen
 import os
@@ -22,8 +22,8 @@ from utils import upload, url_utils
 
 REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
-default_archive = 'eot-writes'
-metadata_file = 'carta_moma_test_metadata.json'
+default_archive = 'archive'
+metadata_file = 'archive_metadata.json'
 arguments = ['-w', '-s', '--scroll']
 
 def record_replay(url, archive_name, 
@@ -117,8 +117,7 @@ def record_replay_all_urls(data, wr_archive=default_archive,
 
 def replay_all_wayback():
     metadata = json.load(open(metadata_file, 'r'))
-    urls = [u for u in metadata] # * For eot
-    # urls = random.sample(urls, 100)
+    urls = [u for u in metadata]
 
     for i, url in list(enumerate(urls)):
         print(i, url)
@@ -135,23 +134,20 @@ def replay_all_wayback():
         hostname = us.netloc.split(':')[0]
         url_hash = hashlib.md5(url.encode()).hexdigest()[:10]
         archive_name = f"{hostname}_{url_hash}"
-        check_call(['node', 'log_writes_replay.js', '-d', f'writes/{archive_name}', 
+        check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'wayback', '-w',
                 wayback_url])
         metadata[url]['wayback'] = wayback_url
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
-# record_replay_all_urls('../datacollect/data/eot_good_all.json')
-# record_replay_all_urls('../datacollect/data/carta_moma_200.json',
-                    #    wr_archive='test_moma', pw_archive='fidelity_check')
-
-# * Test single URL
-test_url = "https://swcmembers.si.edu/"
-test_req_url = requests.get(test_url).url # * In case of redirection
-test_archive = url_utils.calc_hostname(test_req_url)
-print(test_req_url, test_archive)
-wr_archive = 'test'
-pw_archive = 'test'
-ts, test_url = record_replay(test_url, test_archive, 
-                             wr_archive=wr_archive, pw_archive=pw_archive)
-print(f'{HOST}/{pw_archive}/{ts}/{test_url}')
+def test_single_url():
+    # * Test single URL
+    test_url = "https://www.google.com"
+    test_req_url = requests.get(test_url).url # * In case of redirection
+    test_archive = url_utils.calc_hostname(test_req_url)
+    print(test_req_url, test_archive)
+    wr_archive = 'test'
+    pw_archive = 'test'
+    ts, test_url = record_replay(test_url, test_archive, 
+                                wr_archive=wr_archive, pw_archive=pw_archive)
+    print(f'{HOST}/{pw_archive}/{ts}/{test_url}')

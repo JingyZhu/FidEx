@@ -32,7 +32,7 @@ PROXY = 'http://pistons.eecs.umich.edu:8079'
 default_pw_archive = 'gt_tranco'
 default_wr_archive = 'test'
 metadata_prefix = 'gt_tranco_metadata'
-arguments = ['-w', '-s', '-i', '--scroll', '--headless']
+arguments = ['-w', '-s', '--scroll', '-i']
 
 def record_replay(url, archive_name, chrome_data=f'{HOME}/chrome_data/{MACHINE}',
                   wr_archive=default_wr_archive, 
@@ -190,6 +190,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
 if __name__ == '__main__':
     data = json.load(open('determinism_results/determinism_results.json', 'r'))
     urls = [d['url'] for d in data if d['deterministic']]
-    print("Total URLs:", len(urls))
     urls = urls[:min(200, len(urls))]
-    record_replay_all_urls_multi(urls, 16)
+    print("Total URLs:", len(urls))
+    urls = ["https://www.camara.leg.br/"]
+    record_replay_all_urls_multi(urls, 1)
