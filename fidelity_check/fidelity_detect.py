@@ -1,10 +1,11 @@
 import json
+import check_utils
 # Other imports are down below
 
-def dedeup_elements(elements):
+def dedeup_elements(layout):
     seen_xpath = set()
     new_elements = []
-    for element in elements:
+    for element in layout:
         if element['xpath'] not in seen_xpath:
             seen_xpath.add(element['xpath'])
             new_elements.append(element)
@@ -26,8 +27,8 @@ def find_diff_elements(dirr, left_file, right_file) -> (list, list):
 
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=False) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
-    left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
-    right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
+    left_element = json.load(open(f"{dirr}/{left_prefix}_layout.json"))
+    right_element = json.load(open(f"{dirr}/{right_prefix}_layout.json"))
     left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
     left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
     # * Same visual part
@@ -79,7 +80,7 @@ def collect_diff_writes(dirr, left_prefix='live', right_prefix='archive'):
     return unique
 
 def locate_key_writes(dirr, left_prefix='live', right_prefix='archive'):
-    left_unique_elements, right_unique_elements = find_diff_elements(dirr, f'{left_prefix}_elements', f'{right_prefix}_elements')
+    left_unique_elements, right_unique_elements = find_diff_elements(dirr, f'{left_prefix}_layout', f'{right_prefix}_layout')
     unique_writes = collect_diff_writes(dirr, left_prefix, right_prefix)
     results = {left_prefix: [], right_prefix: []}
     for unique_elements in left_unique_elements:
@@ -107,21 +108,3 @@ def locate_key_writes(dirr, left_prefix='live', right_prefix='archive'):
             'key_related_writes': element_key_writes
         })
     return results
-
-
-if __name__ == "__main__":
-    import check_utils
-    dirr = '../record_replay/writes/nimhd.nih.gov_1'
-    key_writes = locate_key_writes(dirr)
-    live_additional = [len(w['key_related_writes']) for w in key_writes['live']]
-    archive_additional = [len(w['key_related_writes']) for w in key_writes['archive']]
-    print('live:', live_additional)
-    print('archive:', archive_additional)
-    json.dump(key_writes, open(f'{dirr}/key_writes.json', 'w+'), indent=2)
-else:
-    import sys, os
-    # * To make it available to be imported from another directory
-    script_path = os.path.abspath(__file__)
-    dir_path = os.path.dirname(script_path)
-    sys.path.append(dir_path)
-    import check_utils

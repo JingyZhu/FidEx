@@ -3,6 +3,7 @@ const { program } = require('commander');
 function recordReplayArgs() {
     program
         .option('-d --dir <directory>', 'Directory to save page info', 'pageinfo/test')
+        .option('--download <downloadPath>', 'Directory to save downloads', 'downloads')
         .option('-f --file <filename>', 'Filename prefix', 'dimension')
         .option('-a --archive <Archive>', 'Archive list to record the page', 'test')
         .option('-m, --manual', "Manual control for finishing loading the page")

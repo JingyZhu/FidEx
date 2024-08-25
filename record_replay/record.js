@@ -32,7 +32,7 @@ try{
 
 let Archive = null;
 let ArchiveFile = null;
-let downloadSuffix = null;
+let downloadPath = null;
 const TIMEOUT = 60*1000;
 
 function sleep(ms) {
@@ -50,7 +50,7 @@ async function clickDownload(page) {
     await sleep(500);
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     let pageTs = await page.evaluate(() => secondPageDownload());
-    await eventSync.waitFile(`./downloads_${downloadSuffix}/${ArchiveFile}.warc`);
+    await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
     return pageTs;
 }
 // This function assumes that the archive collection is already opened
@@ -183,22 +183,22 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
     
     const headless = options.headless ? "new": false;
-    const { browser, browserSuffix } = await startChrome(options.chrome_data, headless);
-    downloadSuffix = browserSuffix;
+    const { browser } = await startChrome(options.chrome_data, headless);
+    downloadPath = options.download;
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))
         fs.mkdirSync(dirname, { recursive: true });
-    if (!fs.existsSync(`./downloads_${downloadSuffix}`))
-        fs.mkdirSync(`./downloads_${downloadSuffix}`, { recursive: true });
-    if (fs.existsSync(`./downloads_${downloadSuffix}/${ArchiveFile}.warc`))
-        fs.unlinkSync(`./downloads_${downloadSuffix}/${ArchiveFile}.warc`)
+    if (!fs.existsSync(downloadPath))
+        fs.mkdirSync(downloadPath, { recursive: true });
+    if (fs.existsSync(`${downloadPath}/${ArchiveFile}.warc`))
+        fs.unlinkSync(`${downloadPath}/${ArchiveFile}.warc`)
     
     let page = await browser.newPage();
     const client_0 = await page.target().createCDPSession();
     await  client_0.send('Page.setDownloadBehavior', {
         behavior: 'allow',
-        downloadPath: `./downloads_${downloadSuffix}/`,
+        downloadPath: downloadPath,
     });
     await clearBrowserStorage(browser);
     try {
