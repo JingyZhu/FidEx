@@ -27,6 +27,7 @@ from utils import upload, url_utils
 
 REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
+PROXYHOST = 'http://pistons.eecs.umich.edu:8079' if REMOTE else 'http://localhost:8079'
 HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
@@ -67,9 +68,11 @@ def record(url, archive_name,
 def replay(url, archive_name,
            chrome_data=DEFAULT_CHROMEDATA,
            write_path=f'{_CURDIR}/writes',
+           proxy=False,
            arguments=None):
+    filename = 'proxy' if proxy else 'archive'
     check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
-                '-f', 'archive',
+                '-f', filename,
                 '-c', chrome_data,
                 *arguments,
                 url], cwd=_FILEDIR)
@@ -83,6 +86,7 @@ def record_replay(url, archive_name,
                   wr_archive=default_archive, 
                   pw_archive=default_archive,
                   remote_host=REMOTE,
+                  proxy=False,
                   arguments=None):
     """
     Args:
@@ -94,6 +98,7 @@ def record_replay(url, archive_name,
         wr_archive: Name of the archive to save & export on webrecorder
         pw_archive: Name of the archive to import for warc on pywb
         remote_host: True if run on remote host, False if run on local host
+        proxy: If proxy mode will be replayed on
     """
     if arguments is None:
         arguments = DEFAULTARGS
@@ -122,6 +127,14 @@ def record_replay(url, archive_name,
             chrome_data=chrome_data,
             write_path=write_path, 
             arguments=arguments)
+    
+    if proxy:
+        proxy_arguments = arguments + ['--proxy', PROXYHOST]
+        replay(url, archive_name, 
+                chrome_data=chrome_data,
+                write_path=write_path, 
+                proxy=True,
+                arguments=proxy_arguments)
     if remote_host:
         upload.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
 
@@ -138,6 +151,7 @@ def record_replay_all_urls(urls,
                            wr_archive=default_archive,
                            pw_archive=default_archive, 
                            remote_host=REMOTE,
+                           proxy=False,
                            arguments=None):
     if arguments is None:
         arguments = DEFAULTARGS
@@ -171,6 +185,7 @@ def record_replay_all_urls(urls,
                                 wr_archive=wr_archive, 
                                 pw_archive=pw_archive, 
                                 remote_host=remote_host, 
+                                proxy=proxy,
                                 arguments=arguments)
         if ts == '':
             continue
@@ -190,6 +205,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                  wr_archive=default_archive,
                                  pw_archive=default_archive,
                                  remote_host=REMOTE,
+                                 proxy=False,
                                  arguments=None):
     """
     The  multi-threaded version of record_replay_all_urls
@@ -214,6 +230,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                             'wr_archive': wr_archive, 
                             'pw_archive': pw_archive, 
                             'remote_host': remote_host, 
+                            'proxy': proxy,
                             'arguments': arguments})
         threads.append(t)
         t.start()

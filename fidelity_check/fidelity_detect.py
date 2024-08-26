@@ -1,6 +1,7 @@
 import json
-import check_utils
-# Other imports are down below
+from . import check_utils, check_meaningful
+import time
+import os
 
 def dedeup_elements(layout):
     seen_xpath = set()
@@ -10,6 +11,7 @@ def dedeup_elements(layout):
             seen_xpath.add(element['xpath'])
             new_elements.append(element)
     return new_elements
+
 
 def find_diff_elements(dirr, left_file, right_file) -> (list, list):
     """Find the unique elements between live and archive
@@ -25,7 +27,8 @@ def find_diff_elements(dirr, left_file, right_file) -> (list, list):
     left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
     return left_unique, right_unique
 
-def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=False) -> (bool, (list, list)):
+
+def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
     left_element = json.load(open(f"{dirr}/{left_prefix}_layout.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_layout.json"))
@@ -48,8 +51,9 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
         else:
             print("Warning: diff layout tree but no writes found")
     if meaningful:
-        left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
+        left_unique, right_unique = check_meaningful.meaningful_diff(left_element, left_unique, right_element, right_unique)
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
+
 
 def fidelity_issue_screenshot(dirr, left_file='live', right_file='archive') -> (bool, float):
     """Screenshot-based method to check fidelity issue
@@ -61,6 +65,96 @@ def fidelity_issue_screenshot(dirr, left_file='live', right_file='archive') -> (
     right_screenshot = f"{dirr}/{right_file}.png"
     simi = check_utils.compare_screenshot(left_screenshot, right_screenshot)
     return simi < 1, simi
+
+
+def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screenshot=False, meaningful=True) -> dict:
+    """
+    Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
+    """
+    start = time.time()
+    # * Overall diff for layout and screenshot
+    diff, s_diff = False, False
+    # * If any stage is different, which one
+    diff_stage, s_diff_stage, s_simi = None, None, None
+    # * Checking onload
+    ol_diff, _ = fidelity_issue(dirr, left_prefix, right_prefix, meaningful=meaningful)
+    ol_s_diff = None
+    if screenshot:
+        ol_s_diff, s_simi = fidelity_issue_screenshot(dirr, left_prefix, right_prefix)
+    if ol_diff:
+        diff = True
+        diff_stage = 'onload'
+    if ol_s_diff:
+        s_diff = True
+        s_diff_stage = 'onload'
+    if diff_stage and (not screenshot or s_diff_stage):
+        return {
+            'hostname': dirr,
+            'diff': diff,
+            'screenshot_diff': s_diff,
+            'diff_stage': diff_stage,
+            'sreenshot_diff_stage': s_diff_stage,
+            'similarity': s_simi
+        }
+    
+    # * Check for number of interaction
+    left_events = json.load(open(f"{dirr}/{left_prefix}_events.json"))
+    left_elements = json.load(open(f"{dirr}/{left_prefix}_layout.json"))
+    right_events = json.load(open(f"{dirr}/{right_prefix}_events.json"))
+    right_elements = json.load(open(f"{dirr}/{right_prefix}_layout.json"))
+    
+    print(dirr, 'onload elasped:', time.time()-start)
+    left_idx, right_idx = [], []
+    for event in left_events:
+        xpath = event['path']
+        if check_meaningful.meaningful_branch([xpath], left_elements) and os.path.exists(f'{dirr}/{left_prefix}_{event["idx"]}_layout.json'):
+            left_idx.append(event['idx'])
+    for event in right_events:
+        xpath = event['path']
+        if check_meaningful.meaningful_branch([xpath], right_elements) and os.path.exists(f'{dirr}/{right_prefix}_{event["idx"]}_layout.json'):
+            right_idx.append(event['idx'])
+    if len(left_idx) > len(right_idx):
+        return {
+            'hostname': dirr,
+            'diff': True,
+            'screenshot_diff': True,
+            'diff_stage': 'extraInteraction',
+            'sreenshot_diff_stage': 'extraInteraction'
+        }
+    
+    # * Check for each interaction
+    for k in range(len(left_idx)):
+        i, j = left_idx[k], right_idx[k]
+        i_diff, _ = fidelity_issue(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}', meaningful=True)
+        i_s_diff, i_s_simi = None, None
+        if screenshot:
+            i_s_diff, i_s_simi = fidelity_issue_screenshot(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}')
+        if i_diff and not diff:
+            diff = True
+            diff_stage = f'interaction_{i}'
+        if i_s_diff and not s_diff:
+            s_diff = True
+            s_diff_stage = f'interaction_{i}'
+            s_simi = i_s_simi
+        print(dirr, f'{k+1}/{len(left_idx)}', 'elasped:', time.time()-start)
+        if diff_stage and s_diff_stage:
+            return {
+                'hostname': dirr,
+                'diff': diff,
+                'screenshot_diff': s_diff,
+                'diff_stage': diff_stage,
+                'sreenshot_diff_stage': s_diff_stage,
+                'similarity': s_simi
+            }
+    return {
+        'hostname': dirr,
+        'diff': diff,
+        'screenshot_diff': s_diff,
+        'diff_stage': diff_stage,
+        'sreenshot_diff_stage': s_diff_stage,
+        'similarity': s_simi
+    }
+
 
 def collect_diff_writes(dirr, left_prefix='live', right_prefix='archive'):
     left_writes = json.load(open(f'{dirr}/{left_prefix}_writes.json', 'r'))
@@ -78,6 +172,7 @@ def collect_diff_writes(dirr, left_prefix='live', right_prefix='archive'):
         right_prefix: sorted(right_unique_list, key=lambda x: int(x['wid'].split(':')[0]))
     }
     return unique
+
 
 def locate_key_writes(dirr, left_prefix='live', right_prefix='archive'):
     left_unique_elements, right_unique_elements = find_diff_elements(dirr, f'{left_prefix}_layout', f'{right_prefix}_layout')
