@@ -46,7 +46,7 @@ def upload_warc(warc_path, col_name, directory='default'):
         command_init = f"{command_prefix} && wb-manager init {col_name}"
         ssh_exec(command_init, check=False)
 
-        command_add = f"{command_prefix} && wb-manager add {col_name} {PYWBENV}/warcs/{directory}/{warc_name}"
+        command_add = f"{command_prefix} && wb-manager add {col_name} {ARCHIVEDIR}/warcs/{directory}/{warc_name}"
         ssh_exec(command_add)
         call(f"rm -rf {warc_path}", shell=True)
     except Exception as e:

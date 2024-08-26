@@ -7,40 +7,50 @@
     If run with local host, need to make sure that:
         - This script is run with pywb venv on.
 """
-from subprocess import PIPE, check_call, Popen
+from subprocess import PIPE, check_call, Popen, call
+import random
 import os
 import json
 from urllib.parse import urlsplit
 import requests
 import sys
 import re
+import socket
 import hashlib
+from threading import Thread
 
-_cur_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(_cur_dir))
+_FILEDIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(_FILEDIR))
+_CURDIR = os.getcwd()
 from utils import upload, url_utils
 
 
 REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
-default_archive = 'archive'
-metadata_file = 'archive_metadata.json'
+HOME = os.path.expanduser("~")
+default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
+
+def _get_hostname():
+    return socket.gethostname()
+DEFAULT_CHROMEDATA = f'{HOME}/chrome_data/{_get_hostname()}'
 
 
 def record(url, archive_name,
-           write_path='writes',
-           download_path='downloads',
+           chrome_data=DEFAULT_CHROMEDATA,
+           write_path=f'{_CURDIR}/writes',
+           download_path=None,
            archive_path='./',
            wr_archive=default_archive, 
-           pw_archive=default_archive,
            arguments=None):
+    if download_path is not None:
+        arguments = arguments + ['--download', download_path]
     p = Popen(['node', 'record.js', '-d', f'{write_path}/{archive_name}',
                 '-f', 'live',
-                '-a', wr_archive, 
-                '--download', download_path,
+                '-a', wr_archive,
+                '-c', chrome_data,
                 *arguments,
-                url], stdout=PIPE, cwd=_cur_dir)
+                url], stdout=PIPE, cwd=_FILEDIR)
     ts = None
     while True:
         line = p.stdout.readline()
@@ -54,9 +64,21 @@ def record(url, archive_name,
             break
     return ts
 
+def replay(url, archive_name,
+           chrome_data=DEFAULT_CHROMEDATA,
+           write_path=f'{_CURDIR}/writes',
+           arguments=None):
+    check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
+                '-f', 'archive',
+                '-c', chrome_data,
+                *arguments,
+                url], cwd=_FILEDIR)
+    
+
 def record_replay(url, archive_name,
-                  write_path='writes',
-                  download_path='downloads',
+                  chrome_data=DEFAULT_CHROMEDATA,
+                  write_path=f'{_CURDIR}/writes',
+                  download_path=None,
                   archive_path='./',
                   wr_archive=default_archive, 
                   pw_archive=default_archive,
@@ -75,11 +97,19 @@ def record_replay(url, archive_name,
     """
     if arguments is None:
         arguments = DEFAULTARGS
-    ts = record(url, archive_name, write_path, download_path, archive_path, wr_archive, arguments)
+    ts = record(url, archive_name, 
+                chrome_data=chrome_data, 
+                write_path=write_path, 
+                download_path=download_path, 
+                archive_path=archive_path, 
+                wr_archive=wr_archive, 
+                arguments=arguments)
     if ts is None:
         return '', url
     
-    check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_cur_dir)
+    if download_path is None:
+        download_path = f'{chrome_data}/Downloads'
+    check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_FILEDIR)
     if remote_host:
         upload.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
     else:
@@ -88,31 +118,36 @@ def record_replay(url, archive_name,
 
     ts = ts.strip()
     archive_url = f"{HOST}/{pw_archive}/{ts}/{url}"
-    check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
-                '-f', 'archive',
-                *arguments,
-                archive_url], cwd=_cur_dir)
+    replay(archive_url, archive_name, 
+            chrome_data=chrome_data,
+            write_path=write_path, 
+            arguments=arguments)
     if remote_host:
         upload.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
 
     return ts, url
 
 
-def record_replay_all_urls(data,
-                           write_path='writes',
-                           download_path='downloads',
+def record_replay_all_urls(urls,
+                           metadata_file,
+                           chrome_data=DEFAULT_CHROMEDATA,
+                           worker_id=None,
+                           write_path=f'{_CURDIR}/writes',
+                           download_path=None,
                            archive_path='./',
                            wr_archive=default_archive,
-                           pw_archive=default_archive, remote_host=REMOTE):
+                           pw_archive=default_archive, 
+                           remote_host=REMOTE,
+                           arguments=None):
+    if arguments is None:
+        arguments = DEFAULTARGS
     if not os.path.exists(metadata_file):
         json.dump({}, open(metadata_file, 'w+'), indent=2)
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
-    urls = json.load(open(data, 'r'))
-    urls = [u['live_url'] for u in urls]
 
     for i, url in list(enumerate(urls)):
-        print(i, url)
+        print(i, url) if worker_id is None else print(worker_id, i, url)
         if url in metadata or url.replace('http://', 'https://') in metadata:
             continue
         sys.stdout.flush()
@@ -128,8 +163,15 @@ def record_replay_all_urls(data,
         if f"{hostname}_{url_hash}" in seen_dir:
             continue
         archive_name = f"{hostname}_{url_hash}"
-        ts, url = record_replay(url, archive_name, write_path, download_path, archive_path,
-                                wr_archive, pw_archive, remote_host=remote_host)
+        ts, url = record_replay(url, archive_name, 
+                                chrome_data=chrome_data,
+                                write_path=write_path, 
+                                download_path=download_path, 
+                                archive_path=archive_path,
+                                wr_archive=wr_archive, 
+                                pw_archive=pw_archive, 
+                                remote_host=remote_host, 
+                                arguments=arguments)
         if ts == '':
             continue
         seen_dir.add(archive_name)
@@ -140,35 +182,56 @@ def record_replay_all_urls(data,
         }
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
-def record_replay_all_urls_multi(urls, num_workers=8, 
-                                 write_path='writes',
-                                 download_path='downloads',
-                                 wr_archive=default_wr_archive,
-                                 pw_archive=default_pw_archive, remote_host=REMOTE):
+def record_replay_all_urls_multi(urls, num_workers=8,
+                                 chrome_data_dir=DEFAULT_CHROMEDATA,
+                                 metadata_prefix='metadata/metadata',
+                                 write_path=f'{_CURDIR}/writes',
+                                 download_path=None,
+                                 wr_archive=default_archive,
+                                 pw_archive=default_archive,
+                                 remote_host=REMOTE,
+                                 arguments=None):
+    """
+    The  multi-threaded version of record_replay_all_urls
+    Need to make sure that the chrome_data_dir is set up with base, since the workers will copy from base
+    Base need to have the webrecorder extension installed. Adblock is optional but recommended.
+    """
+    if arguments is None:
+        arguments = DEFAULTARGS
     for i in range(num_workers):
-        call(['rm', '-rf', f'{HOME}/chrome_data/record_replay_{i}'])
-        call(['cp', '-r', f'{HOME}/chrome_data/base', f'{HOME}/chrome_data/record_replay_{i}'])
+        call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{i}'])
+        call(['cp', '-r', f'{chrome_data_dir}/base', f'{chrome_data_dir}/record_replay_{i}'])
     threads = []
     random.shuffle(urls)
     for i in range(num_workers):
         urls_worker = urls[i::num_workers]
-        chrome_data = f'{HOME}/chrome_data/record_replay_{i}'
-        t = Thread(target=record_replay_all_urls, args=(urls_worker, i, chrome_data, wr_archive, pw_archive, remote_host))
+        chrome_data = f'{chrome_data_dir}/record_replay_{i}'
+        t = Thread(target=record_replay_all_urls, args=(urls_worker, f'{metadata_prefix}_{i}.json'),
+                    kwargs={'worker_id': i, 
+                            'chrome_data': chrome_data,
+                            'write_path': write_path,
+                            'download_path': download_path, 
+                            'wr_archive': wr_archive, 
+                            'pw_archive': pw_archive, 
+                            'remote_host': remote_host, 
+                            'arguments': arguments})
         threads.append(t)
         t.start()
     for t in threads:
         t.join()
     # Merge metadata files
-    if os.path.exists(f'metadata/{metadata_prefix}.json'):
-        metadata = json.load(open(f'metadata/{metadata_prefix}.json', 'r'))
+    if os.path.exists(f'{metadata_prefix}.json'):
+        metadata = json.load(open(f'{metadata_prefix}.json', 'r'))
     else:
         metadata = {}
     for i in range(num_workers):
-        metadata_worker = json.load(open(f'metadata/{metadata_prefix}_{i}.json', 'r'))
+        metadata_worker = json.load(open(f'{metadata_prefix}_{i}.json', 'r'))
         metadata.update(metadata_worker)
-    json.dump(metadata, open(f'metadata/{metadata_prefix}.json', 'w+'), indent=2)
+    json.dump(metadata, open(f'{metadata_prefix}.json', 'w+'), indent=2)
 
 
+
+# ! Below deprecated for now
 def replay_all_wayback():
     metadata = json.load(open(metadata_file, 'r'))
     urls = [u for u in metadata]
@@ -190,7 +253,7 @@ def replay_all_wayback():
         archive_name = f"{hostname}_{url_hash}"
         check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'wayback', '-w',
-                wayback_url], cwd=_cur_dir)
+                wayback_url], cwd=_FILEDIR)
         metadata[url]['wayback'] = wayback_url
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 

@@ -41,7 +41,7 @@ async function startChrome(chromeData=null, headless=false, proxy=null) {
     const browser = await puppeteer.launch(launchOptions);
     return { 
         browser: browser, 
-        browserSuffix: browserSuffix
+        chromeData: chromeData,
     }
 }
 

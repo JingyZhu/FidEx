@@ -122,11 +122,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         fs.mkdirSync(dirname, { recursive: true });
     
     let page = await browser.newPage();
-    const client = await page.target().createCDPSession();
-    await  client.send('Page.setDownloadBehavior', {
-        behavior: 'allow',
-        downloadPath: './downloads/',
-    });
+    const client = await page.createCDPSession();
     await clearBrowserStorage(browser);
     // Avoid puppeteer from overriding dpr
     await client.send('Emulation.setDeviceMetricsOverride', {

@@ -183,8 +183,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
     
     const headless = options.headless ? "new": false;
-    const { browser } = await startChrome(options.chrome_data, headless);
-    downloadPath = options.download;
+    const { browser, chromeData } = await startChrome(options.chrome_data, headless);
+    downloadPath = options.download ? options.download : `${chromeData}/Downloads`;
     const url = new URL(urlStr);
     
     if (!fs.existsSync(dirname))
@@ -222,7 +222,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         await waitTimeout(networkIdle, 2*1000) 
 
         // * Step 3: Prepare and Inject overriding script
-        const client = await recordPage.target().createCDPSession();
+        const client = await recordPage.createCDPSession();
         // let executableResources = new execution.ExecutableResources();
         await client.send('Network.enable');
         await client.send('Runtime.enable');
