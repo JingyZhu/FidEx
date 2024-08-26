@@ -1,1 +1,3 @@
-tranco
+beautifulsoup4
+opencv-python
+publicsuffixlist

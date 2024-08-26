@@ -7,10 +7,10 @@ const os = require('os');
 const { program } = require('commander');
 const { spawn } = require('child_process');
 
-const eventSync = require('../../utils/event_sync');
-const measure = require('../../utils/measure');
-const execution = require('../../utils/execution');
-const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../../utils/load');
+const eventSync = require('../utils/event_sync');
+const measure = require('../utils/measure');
+const execution = require('../utils/execution');
+const { loadToChromeCTX, loadToChromeCTXWithUtils } = require('../utils/load');
 
 const HOME = os.homedir();
 const RELOADS = 3;
