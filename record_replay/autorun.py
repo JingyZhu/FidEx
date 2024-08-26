@@ -25,23 +25,16 @@ REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
 default_archive = 'archive'
 metadata_file = 'archive_metadata.json'
-arguments = ['-w', '-s', '--scroll']
+DEFAULTARGS = ['-w', '-s', '--scroll']
 
-def record_replay(url, archive_name,
-                  write_path='writes',
-                  download_path='downloads',
-                  archive_path='./',
-                  wr_archive=default_archive, 
-                  pw_archive=default_archive,
-                  remote_host=REMOTE):
-    """
-    Args:
-        url: URL to record and replay
-        archive_name: Name of the archive to be saved
-        wr_archive: Name of the archive to save & export on webrecorder
-        pw_archive: Name of the archive to import for warc on pywb
-        remote_host: True if run on remote host, False if run on local host
-    """
+
+def record(url, archive_name,
+           write_path='writes',
+           download_path='downloads',
+           archive_path='./',
+           wr_archive=default_archive, 
+           pw_archive=default_archive,
+           arguments=None):
     p = Popen(['node', 'record.js', '-d', f'{write_path}/{archive_name}',
                 '-f', 'live',
                 '-a', wr_archive, 
@@ -59,6 +52,30 @@ def record_replay(url, archive_name,
             info = json.loads(info)
             ts, url = info['ts'], info['url']
             break
+    return ts
+
+def record_replay(url, archive_name,
+                  write_path='writes',
+                  download_path='downloads',
+                  archive_path='./',
+                  wr_archive=default_archive, 
+                  pw_archive=default_archive,
+                  remote_host=REMOTE,
+                  arguments=None):
+    """
+    Args:
+        url: URL to record and replay
+        archive_name: Name of the archive to be saved
+        write_path: Path to save the writes (-w for record.js and replay.js)
+        download_path: Path to save the downloads (-d for record.js and replay.js)
+        archive_path: Path where the archive will be saved (where wb-manager and wayback is run)
+        wr_archive: Name of the archive to save & export on webrecorder
+        pw_archive: Name of the archive to import for warc on pywb
+        remote_host: True if run on remote host, False if run on local host
+    """
+    if arguments is None:
+        arguments = DEFAULTARGS
+    ts = record(url, archive_name, write_path, download_path, archive_path, wr_archive, arguments)
     if ts is None:
         return '', url
     
@@ -122,6 +139,34 @@ def record_replay_all_urls(data,
             'directory': archive_name,
         }
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
+
+def record_replay_all_urls_multi(urls, num_workers=8, 
+                                 write_path='writes',
+                                 download_path='downloads',
+                                 wr_archive=default_wr_archive,
+                                 pw_archive=default_pw_archive, remote_host=REMOTE):
+    for i in range(num_workers):
+        call(['rm', '-rf', f'{HOME}/chrome_data/record_replay_{i}'])
+        call(['cp', '-r', f'{HOME}/chrome_data/base', f'{HOME}/chrome_data/record_replay_{i}'])
+    threads = []
+    random.shuffle(urls)
+    for i in range(num_workers):
+        urls_worker = urls[i::num_workers]
+        chrome_data = f'{HOME}/chrome_data/record_replay_{i}'
+        t = Thread(target=record_replay_all_urls, args=(urls_worker, i, chrome_data, wr_archive, pw_archive, remote_host))
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+    # Merge metadata files
+    if os.path.exists(f'metadata/{metadata_prefix}.json'):
+        metadata = json.load(open(f'metadata/{metadata_prefix}.json', 'r'))
+    else:
+        metadata = {}
+    for i in range(num_workers):
+        metadata_worker = json.load(open(f'metadata/{metadata_prefix}_{i}.json', 'r'))
+        metadata.update(metadata_worker)
+    json.dump(metadata, open(f'metadata/{metadata_prefix}.json', 'w+'), indent=2)
 
 
 def replay_all_wayback():
