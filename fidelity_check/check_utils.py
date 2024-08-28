@@ -17,22 +17,26 @@ from utils import url_utils
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-def _sibling_xpath(path1, path2, max_diff=1):
+def _sibling_xpath(path1, path2, max_diff=1, only_last=False):
     """Check if path1 and path2 are siblings (same length, differ by one element)
     
     Arguments:
         max_diff (int): Max number of different elements for path to be considered as "sibling" (default 1)
+        only_last (bool): Only compare the last element of the path (default False)
     """
+    max_diff = 1 if only_last else max_diff
     path1 = path1.split('/')
     path2 = path2.split('/')
     if len(path1) != len(path2):
         return False
     diff = 0
-    for p1, p2 in zip(path1, path2):
+    for i, (p1, p2) in enumerate(zip(path1, path2)):
         e1 = p1.split('[')[0]
         e2 = p2.split('[')[0]
         if e1 != e2:
             return False
+        if only_last and i < len(path1) - 1:
+            continue
         if p1 != p2:
             diff += 1
     return diff <= max_diff
@@ -59,7 +63,6 @@ def _collect_dimension(element):
         'width': element['dimension']['width'],
         'height': element['dimension']['height']
     }
-
 
 class htmlElement:
     def __init__(self, element: dict):
@@ -88,18 +91,31 @@ class htmlElement:
             href = href[:-1]
         return href
 
+    def _norm_rgb(color) -> str:
+        if color[0] == '#':
+            color = color.lstrip('#')
+
+            # Convert hex to RGB
+            rgb = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
+            return f'rgb({rgb})'
+        if color.startswith('rgb'):
+            rgb = re.findall(r'\d+', color)
+            return f'rgb({rgb[:3]})'
+        return color
+
     def _get_src(self, img):
-        src = img.attrs.get('src')
+        src_terms = [re.compile('^src$'), re.compile('.*lazy.+src')]
+        src = None
+        for attr in img.attrs:
+            for term in src_terms:
+                if term.match(attr):
+                    src = img.attrs[attr]
+                    break
+            if src is not None:
+                break
         if src is None:
             return None
-        us = urlsplit(src)
-        if us.query or us.fragment:
-            us = us._replace(query='', fragment='')
-            src = urlunsplit(us)
-        i = 0
-        while i < 3 and '%' in src:
-            src = unquote(src)
-            i += 1
+        src = url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True)
         return src
     
     def _get_tag(self):
@@ -156,27 +172,36 @@ class htmlElement:
                 features.append(tag_r)
         # * Add style and throw away certain attr
         def _filter_style(style):
+            # Strip the ending ;
+            style = re.sub(r';\s+', ';', style.strip(';'))
             new_style = []
             filter_keys = [
                             'background',
-                            'background-image', 
+                            'background-image',
+                            'background-color',
                             'opacity', 
+                            'inset',
                             'width', 
                             'height',
                             'left',
-                            'top', 
+                            'top',
+                            'bottom',
+                            'right',
                             'display', 
                             'transform',
                             'transition'
                         ]
             for s in style.split(';'):
+                # Replace all :\s+ with :
+                s = re.sub(r':\s+', ':', s)
                 to_filter = False
+                s_split = s.split(':')
                 for k in filter_keys:
-                    if k in s.split(':')[0]:
+                    if k in s_split[0]:
                         to_filter = True
                         break
                 if not to_filter:
-                    new_style.append(s)
+                    new_style.append(': '.join(s_split))
             return ';'.join(new_style)
         if 'style' in tag.attrs and tag.attrs['style'] != '':
             style = _filter_style(tag.attrs['style'])
@@ -237,6 +262,20 @@ class htmlElement:
         else:
             return features_eq(self, other) and dimension_eq(self.dimension, other.dimension)
 
+    def parent(self, elements: "list[htmlElement]") -> "Optional[htmlElement]":
+        parent_xpath = '/'.join(self.xpath.split('/')[:-1])
+        for e in elements:
+            if e.xpath == parent_xpath:
+                return e
+        return None
+
+    def siblings(self, elements: "list[htmlElement]") -> "list[htmlElement]":
+        siblings = []
+        for e in elements:
+            if _sibling_xpath(self.xpath, e.xpath, only_last=True):
+                siblings.append(e)
+        return siblings
+
     def __hash__(self) -> int:
         return hash((self.xpath, self.text, self.dimension.get('width', 0), self.dimension.get('height', 0)))
 
@@ -259,6 +298,18 @@ def _html_2_xpath(html, element):
         xpaths.append(xpath)
     return xpaths
 
+def _reconcile_layout(elements: "list[htmlElement]"):
+    """
+    Changing layout tree by what type of component each element is
+    For example:
+        - For carousel, only maintain the top elements since any children could be changing dynamically
+    """
+    elements_map = {e.xpath: e for e in elements}
+    new_elements = []
+    carousel_path = set()
+
+
+
 def _diff_html(left_html: "List[element]", right_html: "List[element]"):
     """
     Compute the diff between left_html and right_html by computing the longest common subsequence
@@ -267,7 +318,9 @@ def _diff_html(left_html: "List[element]", right_html: "List[element]"):
         (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
     """
     left_html = [htmlElement(e) for e in left_html]
+    # left_html = _reconcile_layout(left_html)
     right_html = [htmlElement(e) for e in right_html]
+    # right_html = _reconcile_layout(right_html)
     # Apply longest common subsequence to get the diff of live and archive htmls
     lcs_lengths = [[0 for _ in range(len(right_html) + 1)] for _ in range(len(left_html) + 1)]
     for i, left_elem in enumerate(left_html, 1):

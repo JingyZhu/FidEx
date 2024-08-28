@@ -4,11 +4,8 @@
 from subprocess import PIPE, check_call, Popen
 import os
 import json
-from urllib.parse import urlsplit
 import requests
-import re
 import time
-import hashlib
 import glob
 import socket
 from itertools import combinations
@@ -18,6 +15,7 @@ from multiprocessing import Process
 import sys
 sys.path.append('../../')
 from fidelity_check import fidelity_detect
+from utils import url_utils
 
 machine_idx = ['pistons', 'wolverines'].index(socket.gethostname())
 
@@ -63,9 +61,7 @@ def live_determinism(urls, worker_id=0) -> dict | None:
         except:
             continue
         print(worker_id, i, url)
-        url_hash= hashlib.md5(url.encode()).hexdigest()[:10]
-        hostname = urlsplit(url).hostname
-        dirr = f'{hostname}_{url_hash}'
+        dirr = url_utils.calc_hostname(url)
         deterministic, pair_comp = check_live_determinism(url, dirr, chrome_data=f'{HOME}/chrome_data/determinism_{worker_id}')
         results.append({
             'url': url,

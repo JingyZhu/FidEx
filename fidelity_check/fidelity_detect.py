@@ -100,18 +100,24 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
     # * Check for number of interaction
     left_events = json.load(open(f"{dirr}/{left_prefix}_events.json"))
     left_elements = json.load(open(f"{dirr}/{left_prefix}_layout.json"))
+    left_elements_map = {e['xpath']: e for e in left_elements}
     right_events = json.load(open(f"{dirr}/{right_prefix}_events.json"))
     right_elements = json.load(open(f"{dirr}/{right_prefix}_layout.json"))
+    right_elements_map = {e['xpath']: e for e in right_elements}
     
     print(dirr, 'onload elasped:', time.time()-start)
     left_idx, right_idx = [], []
     for event in left_events:
         xpath = event['path']
-        if check_meaningful.meaningful_branch([xpath], left_elements) and os.path.exists(f'{dirr}/{left_prefix}_{event["idx"]}_layout.json'):
+        if xpath not in left_elements_map:
+            continue
+        if check_meaningful.meaningful_branch([xpath], elements_map=left_elements_map) and os.path.exists(f'{dirr}/{left_prefix}_{event["idx"]}_layout.json'):
             left_idx.append(event['idx'])
     for event in right_events:
         xpath = event['path']
-        if check_meaningful.meaningful_branch([xpath], right_elements) and os.path.exists(f'{dirr}/{right_prefix}_{event["idx"]}_layout.json'):
+        if xpath not in right_elements_map:
+            continue
+        if check_meaningful.meaningful_branch([xpath], elements_map=right_elements_map) and os.path.exists(f'{dirr}/{right_prefix}_{event["idx"]}_layout.json'):
             right_idx.append(event['idx'])
     if len(left_idx) > len(right_idx):
         return {
