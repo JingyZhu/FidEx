@@ -31,7 +31,7 @@ def _from_recaptcha(branch, xpaths_map):
         # * Check background
         if len(branch) == 1:
             element = xpaths_map[xpath]
-            recaptcha_background = re.compile('<div style="width: 100%; height: 100%; position: fixed; top: 0px; left: 0px; z-index: \d+; background-color: rgb\\(255, 255, 255\\);\\ opacity:\\ 0\\.05;">')
+            recaptcha_background = re.compile('<div style="width: 100%; height: 100%; position: fixed; top: 0px; left: 0px; z-index: \d+; background-color: rgb\\(255, 255, 255\\);\\ opacity:\\ 0\\.\d+;">')
             if recaptcha_background.search(element['text'].lower()):
                 return True
         return False
@@ -92,8 +92,9 @@ def _remove_wrapping_elements(branch, xpaths_map):
     return cur_branch
 
 
-def meaningful_branch(branch, elements) -> bool:
-    xpath_map = {e['xpath']: e for e in elements}
+def meaningful_branch(branch, elements: list=None, elements_map: dict=None) -> bool:
+    assert elements is not None or elements_map is not None, 'Either elements or elements_map should be provided'
+    xpath_map = elements_map if elements_map is not None else {e['xpath']: e for e in elements}
     branch_meaningful = True
     if _ignore_tag(branch):
         branch_meaningful = False

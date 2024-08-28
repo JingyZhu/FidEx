@@ -11,12 +11,10 @@ from subprocess import PIPE, check_call, Popen, call
 import random
 import os
 import json
-from urllib.parse import urlsplit
 import requests
 import sys
 import re
 import socket
-import hashlib
 from threading import Thread
 
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
@@ -171,12 +169,9 @@ def record_replay_all_urls(urls,
             continue
         if req_url in metadata:
             continue
-        us = urlsplit(req_url)
-        hostname = us.netloc.split(':')[0]
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:10]
-        if f"{hostname}_{url_hash}" in seen_dir:
+        archive_name = url_utils.calc_hostname(req_url)
+        if archive_name in seen_dir:
             continue
-        archive_name = f"{hostname}_{url_hash}"
         ts, url = record_replay(url, archive_name, 
                                 chrome_data=chrome_data,
                                 write_path=write_path, 
@@ -264,10 +259,7 @@ def replay_all_wayback():
         except Exception as e:
             print(str(e))
             continue
-        us = urlsplit(url)
-        hostname = us.netloc.split(':')[0]
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:10]
-        archive_name = f"{hostname}_{url_hash}"
+        archive_name = url_utils.calc_hostname(url)
         check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
                 '-f', 'wayback', '-w',
                 wayback_url], cwd=_FILEDIR)
