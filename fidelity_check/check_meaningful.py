@@ -92,15 +92,29 @@ def _remove_wrapping_elements(branch, xpaths_map):
     return cur_branch
 
 
-def meaningful_branch(branch, elements: list=None, elements_map: dict=None) -> bool:
-    assert elements is not None or elements_map is not None, 'Either elements or elements_map should be provided'
-    xpath_map = elements_map if elements_map is not None else {e['xpath']: e for e in elements}
+def meaningful_branch(branch, elements_map: dict=None) -> bool:
     branch_meaningful = True
     if _ignore_tag(branch):
         branch_meaningful = False
-    if _from_recaptcha(branch, xpath_map):
+    if _from_recaptcha(branch, elements_map):
         branch_meaningful = False
     return branch_meaningful
+
+
+def meaningful_interaction(event, elements: list=None, elements_map: dict=None) -> bool:
+    assert elements is not None or elements_map is not None, 'Either elements or elements_map should be provided'
+    xpath_map = elements_map if elements_map is not None else {e['xpath']: e for e in elements}
+    non_meaningful = set([('a', 'click')])
+    xpath = event['path']
+    tag = xpath.split('/')[-1].split('[')[0]
+    event_types = [t for t in event['events']]
+    # All event types and tag combination is in non_meaningful
+    event_types_not_meaningful = [(tag, t) in non_meaningful for t in event_types]
+    if all(event_types_not_meaningful):
+        return False
+    if xpath not in xpath_map:
+        return False
+    return meaningful_branch([xpath], elements_map=xpath_map)
 
 
 def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (list, list):
