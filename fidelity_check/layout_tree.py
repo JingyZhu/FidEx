@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import unquote
 import re
+import random
+import functools
 
 from fidex.utils import url_utils
 
@@ -32,18 +34,127 @@ def _collect_dimension(element):
     if 'dimension' not in element or element['dimension'] is None:
         return {}
     return {
-        'width': element['dimension']['width'],
-        'height': element['dimension']['height']
+        'width': int(element['dimension']['width']),
+        'height': int(element['dimension']['height']),
+        'top': int(element['dimension']['top']),
+        'left': int(element['dimension']['left']),
     }
 
+def associate_writes(element_xpath: str, writes: list) -> list:
+    """
+    Associate JS writes with the input element
+    Add:    1. Parent node append self
+    Update: 1. Same node set attribute
+            2. Parent node set HTML
+    Remove: 1. Same node remove child
+
+    Args:
+        element (str): element's xpath
+        writes (list): list of writes
+    
+    Returns:
+        list: list of writes that are associated with the element
+    """
+    # TODO: Potential next step
+    # In node_writes_override.js, collect info for beforeIsConnected and afterIsConnected for args
+    # When collect info, also collect all args' children and there corresponding xpath
+    # When matching, even if the target element is the child of arg, we can find it out, and whether is has any visible effect.                                                
+
+    # Or we can diff the writes between live and archive first (how? may be using target and stackTrace first?)
+    # Then only associate writes within the diff parts.
+
+    # Operations that affect element if element is the target
+    target_operation = {
+        'replaceChild': None,
+        'removeChild': None,
+        'set:nodeValue': None,
+        'set:textContent': None,
+        'set:src': None,
+        'set:style': None,
+        'removeAttribute': None,
+        'removeAttributeNode': None,
+        'removeAttributeNS': None,
+        'replaceChildren': None,
+        'replaceWith': None,
+        'setAttribute': None,
+        'setAttributeNode': None,
+        'setAttributeNodeNS': None,
+        'setAttributeNS': None,
+        'setHTML': None,
+        'set:className': None,
+        'set:id': None,
+        'set:innerHTML': None
+    }
+    # {operation name: [related arguments idx]}
+    # If empty list, all arguments are related
+    args_operation = {
+        'appendChild': [0],
+        'insertBefore': [0],
+        'replaceChild': [0],
+        'removeChild': [0],
+        'after': [],
+        'append': [],
+        'before': [],
+        'remove': [],
+        'replaceChildren': [],
+        'replaceWith': [],
+    }
+    # Set HTML operation. Since there is no xpath, need to check separately
+    set_html_operation = {
+        'setHTML': None,
+        'set:innerHTML': None
+    }
+    
+    def target_operation_check(write):
+        return write['xpath'] == element_xpath
+    
+    def args_operation_check(write, idxs):
+        args = []
+        if len(idxs) == 0:
+            args = write['arg']
+        else:
+            for idx in idxs:
+                args.append(write['arg'][idx])
+        for arg in args:
+            arg = [arg] if not isinstance(arg, list) else arg
+            for a in arg:
+                if a['html'] in ['#comment']:
+                    continue
+                if 'xpath' in a and element_xpath.startswith(a['xpath']):
+                    return True
+        return False
+
+    # TODO: Implement check for set_html_operation
+    
+    related_writes, related_seen = [], set()
+    for write in writes:
+        method = write['method']
+        if method in target_operation and target_operation_check(write):
+            if write['wid'] not in related_seen:
+                related_writes.append(write)
+                related_seen.add(write['wid'])
+    for write in writes:
+        method = write['method']
+        if method in args_operation and args_operation_check(write, args_operation[method]):
+            if write['wid'] not in related_seen:
+                related_writes.append(write)
+                related_seen.add(write['wid'])
+    return related_writes
+
+
+
 class LayoutElement:
-    def __init__(self, element: dict):
+    def __init__(self, element: dict, writes: list, stale=False):
+        """
+        stale: If the layout element could be stale. This is used for dynamic comparison
+        """
+        self.stale = stale
+        self.depth = element['depth']
         self.xpath = element['xpath']
         self.text = element['text']
+        self.writes = associate_writes(self.xpath, writes)
         self.tag = self._get_tag()
         self.dynamic = self._is_dynamic()
-        self.in_carousel = self._in_carousel()
-        self.features = self.features()
         self.dimension = _collect_dimension(element)
 
         self.children = []
@@ -115,18 +226,47 @@ class LayoutElement:
                 return True
         return False
     
-    def _in_carousel(self):
-        """Heuristic to decide if the element is part of the carousel"""
+    @functools.cached_property
+    def in_carousel(self) -> bool:
+        """Heuristic to decide if the element is part of the carousel
+        2 candidate methods:
+        a. Check if all chilren has the same structure (and if has dimension, same dimension and same top/left)
+        b. If singleton in the children, check if the singleton has keywords
+        """
         assert(hasattr(self, 'tag'))
         if self.tag == '#text':
             return False
+        # * Method a
+        if len(self.children) <= 1:
+            return False
+        tops, lefts = set(), set()
+        children_types, dimensions = set(), set()
+        for c in self.children:
+            if c.tag == '#text':
+                return False
+            children_types.add(c.tag.name)
+            dimension = (c.dimension.get('width', 0), c.dimension.get('height', 0))
+            if dimension[0] + dimension[1] > 0:
+                dimensions.add(dimension)
+                tops.add(c.dimension.get('top', random.randint(0, 100)))
+                lefts.add(c.dimension.get('left', random.randint(0, 100)))
+            if len(tops) > 1 and len(lefts) > 1:
+                return False
+            if len(children_types) > 1:
+                return False
+        if len(dimensions) != 1:
+            return False
+        child_writes = sum([len(c.writes) for c in self.children])
+        return child_writes > 0
+
+        # * Method b
         class_keywords = ['carousel', 'slider', 'slideshow', 'gallery', 'slick', 'swiper']
         for c in class_keywords:
             if c in self.text.lower():
                 return True
-        
 
-    def features(self):
+    @functools.cached_property
+    def features(self) -> tuple:
         """Collect tag name and other important attributes that matters to the rendering"""
         all_rules = [] # List of lambda func to get the attribute
         tag_rules = {
@@ -221,19 +361,23 @@ class LayoutElement:
             return False
         
         def carousel_eq(e1, e2):
-            if not e1.in_carousel or not e2.in_carousel:
+            if not (e1.stale or e1.in_carousel) or not (e2.stale or e2.in_carousel):
                 return False
             if e1.xpath == e2.xpath:
+                e1.in_carousel = e2.in_carousel = True
                 return True
-            # Dimension has the same top, width and height
-            if e1.dimension.get('top', 1) == e2.dimension.get('top', 2) and dimension_eq(e1.dimension, e2.dimension):
+            # Dimension has the same top/left width and height
+            e1_text = re.sub(r'style=".*?"', '', e1.text)
+            e2_text = re.sub(r'style=".*?"', '', e2.text)
+            if dimension_eq(e1.dimension, e2.dimension) and e1_text == e2_text:
+                e1.in_carousel = e2.in_carousel = True
                 return True
             return False
         
         if carousel_eq(self, other):
             return True
-        elif dynamic_eq(self, other):
-            return True
+        # elif dynamic_eq(self, other):
+        #     return True
         else:
             return features_eq(self, other) and dimension_eq(self.dimension, other.dimension)
 
@@ -241,10 +385,26 @@ class LayoutElement:
         self.children.append(child)
         child.parent = self
     
-    def list_tree(self) -> "list(LayoutElement)":
-        tree_list = [self]
+    def list_tree(self, layout=True) -> "list(LayoutElement)":
+        """List all elements in the tree
+        Args:
+            layout (bool): If True, return the layout tree. If False, return the DOM tree
+        """
+        def has_dimension(element):
+            return element.dimension.get('width', 0) > 0 and element.dimension.get('height', 0) > 0
+        tree_list = []
+        if layout:
+            if has_dimension(self):
+                tree_list.append(self)
+            elif self.tag == '#text' and has_dimension(self.parent):
+                tree_list.append(self)
+        else:
+            tree_list.append(self)
+        if self.in_carousel and len(tree_list) > 0 and tree_list[-1] == self:
+            # print(f"Carousel: {self.xpath}")
+            return tree_list
         for child in self.children:
-            tree_list += child.list_tree()
+            tree_list += child.list_tree(layout=layout)
         return tree_list
 
     def __hash__(self) -> int:
@@ -254,11 +414,11 @@ class LayoutElement:
         return f"{self.xpath} {self.text} {self.dimension}"
 
 
-def build_layout_tree(elements: "list[elements]") -> "Optional[LayoutElement]":
+def build_layout_tree(elements: "list[element]", writes: list, stale=False) -> "Optional[LayoutElement]":
     if len(elements) == 0:
         return
     root_e = elements[0]
-    nodes = {root_e['xpath']: LayoutElement(root_e)} # {xpath: LayoutElement}
+    nodes = {root_e['xpath']: LayoutElement(root_e, writes, stale)} # {xpath: LayoutElement}
 
     def get_parent_xpath(xpath, elements):
         for e in reversed(elements):
@@ -269,10 +429,70 @@ def build_layout_tree(elements: "list[elements]") -> "Optional[LayoutElement]":
     for i in range(1, len(elements)):
         element = elements[i]
         xpath = element['xpath']
-        layout_element = LayoutElement(element)
+        layout_element = LayoutElement(element, writes, stale)
         nodes[xpath] = layout_element
         parent_xpath = get_parent_xpath(xpath, elements[:i])
         parent_node = nodes[parent_xpath]
         parent_node.add_child(layout_element)
     return nodes[root_e['xpath']]
-        
+
+def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement") -> "tuple[list[str], list[str]]":
+    """
+    Compute the diff between left_tree and right_tree by computing the longest common subsequence
+    
+    Returns:
+        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
+    """
+    # print("left")
+    left_layout_list = left_layout.list_tree()
+    # print("right")
+    right_layout_list = right_layout.list_tree()
+    # print("length", len(left_layout_list), len(right_layout_list))
+    # Apply longest common subsequence to get the diff of live and archive htmls
+    lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
+    for i, left_elem in enumerate(left_layout_list, 1):
+        for j, right_elem in enumerate(right_layout_list, 1):
+            if left_elem == right_elem:
+                lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
+            else:
+                lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
+    # Backtrack to get the lcs sequence
+    lcs_live, lcs_archive = [], []
+    i, j = len(left_layout_list), len(right_layout_list)
+    while i > 0 and j > 0:
+        if left_layout_list[i-1] == right_layout_list[j-1]:
+            lcs_live.append(left_layout_list[i-1].xpath)
+            lcs_archive.append(right_layout_list[j-1].xpath)
+            i -= 1
+            j -= 1
+        # This means left_layout_list[i] is not in the lcs
+        # e.g. aaab and aaba
+        # last four lcs 2 3
+        #               2 3
+        elif lcs_lengths[i-1][j] > lcs_lengths[i][j-1]:
+            i -= 1
+        # right_layout_list[j] is not in the lcs
+        elif lcs_lengths[i-1][j] < lcs_lengths[i][j-1]:
+            j -= 1
+        # This case can be either both left_layout_list[i] and right_layout_list[j] are not in the lcs (e.g. abcx and abcy) 
+        # or both can be in (e.g. abca and abac)
+        else:
+            j -= 1
+    lcs_live.reverse()
+    lcs_archive.reverse()
+    left_diff = [e.xpath for e in left_layout_list if e.xpath not in set(lcs_live)]
+    right_diff = [e.xpath for e in right_layout_list if e.xpath not in set(lcs_archive)]
+    return left_diff, right_diff
+
+
+def post_process_diff(unique: list, layout: "LayoutElement") -> "list[str]":
+    """
+    Post process the diff result to filter out the elements that are wrongly added.
+    """
+    new_unique = []
+    layout_map = {e.xpath: e for e in layout.list_tree()}
+    for u in unique:
+        if u in layout_map:
+            new_unique.append(u)
+    return new_unique
+    

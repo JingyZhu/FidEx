@@ -44,64 +44,6 @@ def _html_2_xpath(html, element):
         xpaths.append(xpath)
     return xpaths
 
-def _reconcile_layout(elements: "list[layout_tree.LayoutElement]"):
-    """
-    Changing layout tree by what type of component each element is
-    For example:
-        - For carousel, only maintain the top elements since any children could be changing dynamically
-    """
-    elements_map = {e.xpath: e for e in elements}
-    new_elements = []
-    carousel_path = set()
-
-
-
-def _diff_html(left_html: "List[element]", right_html: "List[element]"):
-    """
-    Compute the diff between left_html and right_html by computing the longest common subsequence
-    
-    Returns:
-        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
-    """
-    left_layout_tree = layout_tree.build_layout_tree(left_html)
-    left_layout_list = left_layout_tree.list_tree()
-    # left_html = _reconcile_layout(left_html)
-    right_layout_tree = layout_tree.build_layout_tree(right_html)
-    right_layout_list = right_layout_tree.list_tree()
-    # right_html = _reconcile_layout(right_html)
-    # Apply longest common subsequence to get the diff of live and archive htmls
-    lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
-    for i, left_elem in enumerate(left_layout_list, 1):
-        for j, right_elem in enumerate(right_layout_list, 1):
-            if left_elem == right_elem:
-                lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
-            else:
-                lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
-    # Backtrack to get the diff
-    lcs_live, lcs_archive = [], []
-    i, j = len(left_layout_list), len(right_layout_list)
-    while i > 0 and j > 0:
-        if left_layout_list[i-1] == right_layout_list[j-1]:
-            lcs_live.append(left_layout_list[i-1].xpath)
-            lcs_archive.append(right_layout_list[j-1].xpath)
-            i -= 1
-            j -= 1
-        # This means left_layout_list[i] is not in the lcs
-        elif lcs_lengths[i-1][j] > lcs_lengths[i][j-1]:
-            i -= 1
-        # Archive_html[j] is not in the lcs
-        elif lcs_lengths[i-1][j] < lcs_lengths[i][j-1]:
-            j -= 1
-        # This case can be either both left_layout_list[i] and right_layout_list[j] are not in the lcs (e.g. abcx and abcy) 
-        # or both can be in (e.g. abca and abac)
-        else:
-            j -= 1
-    lcs_live.reverse()
-    lcs_archive.reverse()
-    left_diff = [e.xpath for e in left_layout_list if e.xpath not in set(lcs_live)]
-    right_diff = [e.xpath for e in right_layout_list if e.xpath not in set(lcs_archive)]
-    return left_diff, right_diff
-
 
 def verify(left_element: dict, right_element: dict) -> bool:
     """
@@ -159,11 +101,15 @@ def xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(left_element, right_element, returnHTML=False) -> (list, list):
-    left_xpaths_map = {e['xpath']: e for e in left_element}
-    right_xpaths_map = {e['xpath']: e for e in right_element}
-    left_unique, right_unique = _diff_html(left_element, right_element)
+def diff(left_elements, left_writes, right_elements, right_writes, returnHTML=False) -> (list, list):
+    # Currently we assue left element is always the live page and right element is the archive/proxy page 
+    left_layout = layout_tree.build_layout_tree(left_elements, left_writes, True)
+    right_layout = layout_tree.build_layout_tree(right_elements, right_writes, False)
+    left_unique, right_unique = layout_tree.diff_layout_tree(left_layout, right_layout)
+    left_unique = layout_tree.post_process_diff(left_unique, left_layout)
     
+    left_xpaths_map = {e['xpath']: e for e in left_elements}
+    right_xpaths_map = {e['xpath']: e for e in right_elements}
     left_unique = _merge_xpaths(left_unique)
     # print("left_unique number", [len(xpaths) for xpaths in left_unique])
     if returnHTML:

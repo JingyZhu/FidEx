@@ -24,6 +24,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
         'https://www.healio.com/',
         'https://rtvbn.tv/',
         'https://yapolitic.ru/',
+        'https://ediig.com/',
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     

@@ -30,10 +30,13 @@ def find_diff_elements(dirr, left_file, right_file) -> (list, list):
 
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
-    left_element = json.load(open(f"{dirr}/{left_prefix}_layout.json"))
-    right_element = json.load(open(f"{dirr}/{right_prefix}_layout.json"))
+    left_element = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
+    left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))['writes']
+    right_element = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
+    right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))['writes']
+
     left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
-    left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
+    left_unique, right_unique = check_utils.diff(left_element, left_writes, right_element, right_writes, returnHTML=False)
     # * Same visual part
     if len(left_unique) + len(right_unique) > 0:
         if os.path.exists(f"{dirr}/{left_prefix}.png") and os.path.exists(f"{dirr}/{right_prefix}.png"):
@@ -43,13 +46,14 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
         else:
             print("Warning: diff layout tree but no screenshots found")
     # * Dynamic components filtration
-    if len(left_unique) + len(right_unique) > 0:
-        if os.path.exists(f"{dirr}/{left_prefix}_writes.json") and os.path.exists(f"{dirr}/{right_prefix}_writes.json"):
-            left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))
-            right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))
-            left_unique, right_unique = check_utils.filter_dynamism(left_unique, left_writes, right_unique, right_writes)
-        else:
-            print("Warning: diff layout tree but no writes found")
+    # ? Comment out writes filtration for now
+    # if len(left_unique) + len(right_unique) > 0:
+    #     if os.path.exists(f"{dirr}/{left_prefix}_writes.json") and os.path.exists(f"{dirr}/{right_prefix}_writes.json"):
+    #         left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))
+    #         right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))
+    #         left_unique, right_unique = check_utils.filter_dynamism(left_unique, left_writes, right_unique, right_writes)
+    #     else:
+    #         print("Warning: diff layout tree but no writes found")
     if meaningful:
         left_unique, right_unique = check_meaningful.meaningful_diff(left_element, left_unique, right_element, right_unique)
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
@@ -99,19 +103,19 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
     
     # * Check for number of interaction
     left_events = json.load(open(f"{dirr}/{left_prefix}_events.json"))
-    left_elements = json.load(open(f"{dirr}/{left_prefix}_layout.json"))
+    left_elements = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
     left_elements_map = {e['xpath']: e for e in left_elements}
     right_events = json.load(open(f"{dirr}/{right_prefix}_events.json"))
-    right_elements = json.load(open(f"{dirr}/{right_prefix}_layout.json"))
+    right_elements = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
     right_elements_map = {e['xpath']: e for e in right_elements}
     
     print(dirr, 'onload elasped:', time.time()-start)
     left_idx, right_idx = [], []
     for event in left_events:
-        if check_meaningful.meaningful_interaction(event, elements_map=left_elements_map) and os.path.exists(f'{dirr}/{left_prefix}_{event["idx"]}_layout.json'):
+        if check_meaningful.meaningful_interaction(event, elements_map=left_elements_map) and os.path.exists(f'{dirr}/{left_prefix}_{event["idx"]}_dom.json'):
             left_idx.append(event['idx'])
     for event in right_events:
-        if check_meaningful.meaningful_interaction(event, elements_map=right_elements_map) and os.path.exists(f'{dirr}/{right_prefix}_{event["idx"]}_layout.json'):
+        if check_meaningful.meaningful_interaction(event, elements_map=right_elements_map) and os.path.exists(f'{dirr}/{right_prefix}_{event["idx"]}_dom.json'):
             right_idx.append(event['idx'])
     if len(left_idx) > len(right_idx):
         return {
