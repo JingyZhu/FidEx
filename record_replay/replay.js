@@ -10,7 +10,9 @@ const execution = require('../utils/execution');
 const { startChrome, 
         loadToChromeCTX, 
         loadToChromeCTXWithUtils, 
-        clearBrowserStorage 
+        clearBrowserStorage,
+        preventNavigation,
+        preventWindowPopup, 
       } = require('../utils/load');
 const {recordReplayArgs} = require('../utils/argsparse');
 
@@ -23,18 +25,6 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-async function preventNavigation(page) {
-    page.on('dialog', async dialog => {
-        console.log(dialog.message());
-        await dialog.dismiss(); // or dialog.accept() to accept
-    });
-    await page.evaluateOnNewDocument(() => {
-        window.addEventListener('beforeunload', (event) => {
-            event.preventDefault();
-            event.returnValue = '';
-        });
-    });
-}
 
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
@@ -156,6 +146,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         const timeout = 30*1000;
         
         await preventNavigation(page);
+        await preventWindowPopup(page);
         await page.evaluateOnNewDocument(script);
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");

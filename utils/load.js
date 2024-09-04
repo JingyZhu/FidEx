@@ -62,6 +62,31 @@ async function clearBrowserStorage(browser) {
     return result;
 }
 
+/**
+ * Prevent Navigation and Popup (the next function)
+ * @param {puppeteer.Page} page 
+ */
+async function preventNavigation(page) {
+    page.on('dialog', async dialog => {
+        console.log(dialog.message());
+        await dialog.dismiss(); // or dialog.accept() to accept
+    });
+    await page.evaluateOnNewDocument(() => {
+        window.addEventListener('beforeunload', (event) => {
+            event.preventDefault();
+            event.returnValue = '';
+        });
+    });
+}
+
+async function preventWindowPopup(page) {
+    await page.evaluateOnNewDocument(() => {
+        const originalOpen = window.open;
+        window.open = function(url, windowName, windowFeatures) {
+            return null; // Or you could open a new tab instead
+        };
+    });
+}
 
 async function loadToChromeCTX(page, file) {
     await page.evaluate(() => {loadUtils = false});
@@ -107,6 +132,8 @@ let browserFetcher = new BrowserFetcher();
 module.exports = {
     startChrome,
     clearBrowserStorage,
+    preventNavigation,
+    preventWindowPopup,
 
     loadToChromeCTX,
     loadToChromeCTXWithUtils,
