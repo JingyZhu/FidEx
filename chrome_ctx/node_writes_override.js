@@ -147,7 +147,10 @@ function newWriteMethod(originalFn, method) {
         for (const arg of args) {
             // ? Seen document fragment being empty after insertion (probably destroyed by jQuery)
             // ? Need to unwrap it before apply originalFn
-            if (arg instanceof DocumentFragment) {
+            // * Seen errors on "right hand side of 'instanceof' is not an object" when arg is a DocumentFragment. So try first
+            let instanceofDF = false;
+            try {instanceofDF = arg instanceof DocumentFragment;} catch(e) {}
+            if (instanceofDF) {
                 let children = arg.childNodes;
                 viable_args.push([])
                 for (const child of children) {

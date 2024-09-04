@@ -61,7 +61,7 @@ def record(url, archive_name,
             info = json.loads(info)
             ts, url = info['ts'], info['url']
             break
-    return ts
+    return ts, url
 
 def replay(url, archive_name,
            chrome_data=DEFAULT_CHROMEDATA,
@@ -100,7 +100,7 @@ def record_replay(url, archive_name,
     """
     if arguments is None:
         arguments = DEFAULTARGS
-    ts = record(url, archive_name, 
+    ts, record_url = record(url, archive_name, 
                 chrome_data=chrome_data, 
                 write_path=write_path, 
                 download_path=download_path, 
@@ -108,7 +108,7 @@ def record_replay(url, archive_name,
                 wr_archive=wr_archive, 
                 arguments=arguments)
     if ts is None:
-        return '', url
+        return '', record_url
     
     if download_path is None:
         download_path = f'{chrome_data}/Downloads'
@@ -120,7 +120,7 @@ def record_replay(url, archive_name,
                     f'{download_path}/{archive_name}.warc'], cwd=archive_path)
 
     ts = ts.strip()
-    archive_url = f"{HOST}/{pw_archive}/{ts}/{url}"
+    archive_url = f"{HOST}/{pw_archive}/{ts}/{record_url}"
     replay(archive_url, archive_name, 
             chrome_data=chrome_data,
             write_path=write_path, 
@@ -128,7 +128,7 @@ def record_replay(url, archive_name,
     
     if proxy:
         proxy_arguments = arguments + ['--proxy', PROXYHOST]
-        replay(url, archive_name, 
+        replay(record_url, archive_name, 
                 chrome_data=chrome_data,
                 write_path=write_path, 
                 proxy=True,
@@ -136,7 +136,7 @@ def record_replay(url, archive_name,
     if remote_host:
         upload.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
 
-    return ts, url
+    return ts, record_url
 
 
 def record_replay_all_urls(urls,
@@ -172,7 +172,7 @@ def record_replay_all_urls(urls,
         archive_name = url_utils.calc_hostname(req_url)
         if archive_name in seen_dir:
             continue
-        ts, url = record_replay(url, archive_name, 
+        ts, record_url = record_replay(url, archive_name, 
                                 chrome_data=chrome_data,
                                 write_path=write_path, 
                                 download_path=download_path, 
@@ -187,6 +187,7 @@ def record_replay_all_urls(urls,
         seen_dir.add(archive_name)
         metadata[url] = {
             'ts': ts,
+            'url': record_url,
             'archive': f'{HOST}/{pw_archive}/{ts}/{url}',
             'directory': archive_name,
         }
