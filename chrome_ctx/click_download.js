@@ -35,7 +35,7 @@ function firstPageClick(archive) {
     target.click()
 }
 
-async function secondPageDownload() {
+async function secondPageDownload(url=null) {
     // * Second Page Download
     let wholePage = document.querySelector("archive-web-page-app").shadowRoot
                         .querySelector("wr-rec-coll").shadowRoot
@@ -47,11 +47,28 @@ async function secondPageDownload() {
         await sleep(100)
     }
     let pageLists = wholePage.querySelectorAll('wr-page-entry')
-    let topPage = pageLists[0].shadowRoot
-    let pageLink = new URL(topPage.querySelector('a').href)
+    let targetPage = null
+    // Select page that matches url if url is given
+    if (url) {
+        for (const page of pageLists) {
+            let pageLink = new URL(page.shadowRoot.querySelector('a').href);
+            let pageQuery = new URL(pageLink).hash.replace('#', '?')
+            let pageURL = _getparamValue(pageQuery, 'url')
+            // Percent decode pageURL
+            pageURL = decodeURIComponent(pageURL)
+            if (pageURL == url) {
+                targetPage = page.shadowRoot
+                break;
+            }
+        }
+    }
+    if (!targetPage) {
+        targetPage = pageLists[0].shadowRoot
+    }
+    let pageLink = new URL(targetPage.querySelector('a').href);
     let pageQuery = new URL(pageLink).hash.replace('#', '?')
     let pageTs = _getparamValue(pageQuery, 'ts')
-    topPage.querySelector('input').click()
+    targetPage.querySelector('input').click()
     await sleep(200);
     
     let download = wholePage.querySelector('button')

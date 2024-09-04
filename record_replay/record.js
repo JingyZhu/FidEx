@@ -46,12 +46,12 @@ function waitTimeout(event, ms) {
 }
 
 
-async function clickDownload(page) {
+async function clickDownload(page, url=null) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     await page.evaluate(archive => firstPageClick(archive), Archive)
     await sleep(500);
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    let pageTs = await page.evaluate(() => secondPageDownload());
+    let pageTs = await page.evaluate((url) => secondPageDownload(url), url);
     await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
     return pageTs;
 }
@@ -328,7 +328,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             {waitUntil: 'load'}
         )
         await sleep(500);
-        let ts = await clickDownload(page);
+        let ts = await clickDownload(page, finalURL);
         
         // * Step 11: Remove recordings
         if (options.remove)

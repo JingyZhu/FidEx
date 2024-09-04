@@ -266,8 +266,9 @@ function getCandidateElements(listeners) {
         // * el: element, handler: {event: [handlers]}
         if (IGNORE_ELEMENTS.filter((e) => el.nodeName == e).length == 0) {
             // * If element is not taking any area, ignore it
-            if (isHidden(el))
-                return;
+            // ! Currently ignore this check because depend on the timing, we could get different result
+            // if (isHidden(el))
+            //     return;
 
             // * Filtration of tag pointing to other URLs
             if (el && el.href && el.href != ""){
