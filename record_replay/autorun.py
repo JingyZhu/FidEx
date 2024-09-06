@@ -112,6 +112,8 @@ def record_replay(url, archive_name,
     
     if download_path is None:
         download_path = f'{chrome_data}/Downloads'
+    if not os.path.exists(f'{download_path}/{wr_archive}.warc'):
+        return '', record_url
     check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_FILEDIR)
     if remote_host:
         upload.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
@@ -172,17 +174,21 @@ def record_replay_all_urls(urls,
         archive_name = url_utils.calc_hostname(req_url)
         if archive_name in seen_dir:
             continue
-        ts, record_url = record_replay(url, archive_name, 
-                                chrome_data=chrome_data,
-                                write_path=write_path, 
-                                download_path=download_path, 
-                                archive_path=archive_path,
-                                wr_archive=wr_archive, 
-                                pw_archive=pw_archive, 
-                                remote_host=remote_host, 
-                                proxy=proxy,
-                                arguments=arguments)
-        if ts == '':
+        try:
+            ts, record_url = record_replay(url, archive_name, 
+                                    chrome_data=chrome_data,
+                                    write_path=write_path, 
+                                    download_path=download_path, 
+                                    archive_path=archive_path,
+                                    wr_archive=wr_archive, 
+                                    pw_archive=pw_archive, 
+                                    remote_host=remote_host, 
+                                    proxy=proxy,
+                                    arguments=arguments)
+            if ts == '':
+                continue
+        except Exception as e:
+            print(str(e))
             continue
         seen_dir.add(archive_name)
         metadata[url] = {
