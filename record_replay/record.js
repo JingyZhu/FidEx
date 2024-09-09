@@ -51,9 +51,9 @@ async function clickDownload(page, url=null) {
     await page.evaluate(archive => firstPageClick(archive), Archive)
     await sleep(500);
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    let pageTs = await page.evaluate((url) => secondPageDownload(url), url);
+    let {recordURL, pageTs} = await page.evaluate((url) => secondPageDownload(url), url);
     await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
-    return pageTs;
+    return {ts: pageTs, recordURL: recordURL};
 }
 // This function assumes that the archive collection is already opened
 // i.e. click_download.js:firstPageClick should already be executed
@@ -328,14 +328,14 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             {waitUntil: 'load'}
         )
         await sleep(500);
-        let ts = await clickDownload(page, finalURL);
+        let {recordURL, ts} = await clickDownload(page, finalURL);
         
         // * Step 11: Remove recordings
         if (options.remove)
             await removeRecordings(page, 0)
 
         // ! Signal of the end of the program
-        console.log("recorded page:", JSON.stringify({ts: ts, url: onloadURL}));
+        console.log("recorded page:", JSON.stringify({ts: ts, url: recordURL}));
     } catch (err) {
         console.error(err);
     } finally {

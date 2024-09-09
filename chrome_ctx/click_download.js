@@ -47,8 +47,9 @@ async function secondPageDownload(url=null) {
         await sleep(100)
     }
     let pageLists = wholePage.querySelectorAll('wr-page-entry')
-    let targetPage = null
+    let targetPage = null, targetHostPage = null, targetDomainPage = null;
     // Select page that matches url if url is given
+    // If no URL is given, try matching the first same host
     if (url) {
         for (const page of pageLists) {
             let pageLink = new URL(page.shadowRoot.querySelector('a').href);
@@ -56,18 +57,23 @@ async function secondPageDownload(url=null) {
             let pageURL = _getparamValue(pageQuery, 'url')
             // Percent decode pageURL
             pageURL = decodeURIComponent(pageURL)
+            let pageHost = new URL(pageURL).hostname
             if (pageURL == url) {
                 targetPage = page.shadowRoot
                 break;
+            } else if (!targetHostPage && pageHost == new URL(url).hostname) {
+                targetHostPage = page.shadowRoot
             }
         }
     }
     if (!targetPage) {
-        targetPage = pageLists[0].shadowRoot
+        targetPage = targetHostPage ? targetHostPage : pageLists[0].shadowRoot
     }
     let pageLink = new URL(targetPage.querySelector('a').href);
     let pageQuery = new URL(pageLink).hash.replace('#', '?')
     let pageTs = _getparamValue(pageQuery, 'ts')
+    let pageURL = _getparamValue(pageQuery, 'url')
+    pageURL = decodeURIComponent(pageURL)
     targetPage.querySelector('input').click()
     await sleep(200);
     
@@ -77,5 +83,5 @@ async function secondPageDownload(url=null) {
     let subDownloads = wholePage.querySelectorAll('a')
     let targetDownload = Array.from(subDownloads).find(s => s.text.includes("1.1"))
     targetDownload.click()
-    return pageTs;
+    return {recordURL: pageURL, pageTs: pageTs};
 }
