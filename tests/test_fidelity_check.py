@@ -28,6 +28,9 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
         'https://www.nike.com/',
         'https://www.healio.com/',
         'https://mrjack.bet/',
+
+        'https://www.smartrecruiters.com/',
+        
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     
@@ -53,7 +56,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
     print(test_results)
 
 
-def test_fidelity_detect_autorun(runtimes=1, tocmp='proxy'):
+def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
     urls = [
         'https://crpt.ru/',
         'https://7zap.com/en/',
