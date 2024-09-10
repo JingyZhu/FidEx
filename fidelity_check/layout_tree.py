@@ -3,6 +3,7 @@ from urllib.parse import unquote
 import re
 import random
 import functools
+import json
 
 from fidex.utils import url_utils
 
@@ -34,10 +35,10 @@ def _collect_dimension(element):
     if 'dimension' not in element or element['dimension'] is None:
         return {}
     return {
-        'width': int(element['dimension']['width']),
-        'height': int(element['dimension']['height']),
-        'top': int(element['dimension']['top']),
-        'left': int(element['dimension']['left']),
+        'width': round(element['dimension']['width'], 1),
+        'height': round(element['dimension']['height'], 1),
+        'top': round(element['dimension']['top'], 1),
+        'left': round(element['dimension']['left'], 1)
     }
 
 def associate_writes(element_xpath: str, writes: list) -> list:
@@ -154,6 +155,8 @@ class LayoutElement:
         self.text = element['text']
         self.writes = associate_writes(self.xpath, writes)
         self.tag = self._get_tag()
+        self.tagname = self.tag.name if isinstance(self.tag, Tag) else self.tag
+        self.id = self._get_id()
         self.dynamic = self._is_dynamic()
         self.dimension = _collect_dimension(element)
 
@@ -211,6 +214,12 @@ class LayoutElement:
             tagname = self.xpath.split('/')[-1].split('[')[0]
             return tagname
         return tag
+
+    def _get_id(self):
+        """Extract id from the tag"""
+        if isinstance(self.tag, Tag):
+            return self.tag.attrs.get('id', None)
+        return
     
     def _is_dynamic(self):
         assert(hasattr(self, 'tag'))
@@ -245,7 +254,8 @@ class LayoutElement:
             if c.tag == '#text':
                 return False
             children_types.add(c.tag.name)
-            dimension = (c.dimension.get('width', 0), c.dimension.get('height', 0))
+            # More flex dimension detection
+            dimension = (round(c.dimension.get('width', 0), -1), round(c.dimension.get('height', 0), -1))
             if dimension[0] + dimension[1] > 0:
                 dimensions.add(dimension)
                 tops.add(c.dimension.get('top', random.randint(0, 100)))
@@ -291,6 +301,7 @@ class LayoutElement:
             style = re.sub(r';\s+', ';', style.strip(';'))
             new_style = []
             filter_keys = [
+                            'animation',
                             'background',
                             'background-image',
                             'background-color',
@@ -325,6 +336,9 @@ class LayoutElement:
         return tuple(features)
     
     def __eq__(self, other):
+        if self.tagname != other.tagname:
+            return False
+
         def dimension_eq(d1, d2):
             d1w, d1h = d1.get('width', 1), d1.get('height', 1)
             d2w, d2h = d2.get('width', 1), d2.get('height', 1)
@@ -376,8 +390,8 @@ class LayoutElement:
         
         if carousel_eq(self, other):
             return True
-        # elif dynamic_eq(self, other):
-        #     return True
+        elif dynamic_eq(self, other):
+            return True
         else:
             return features_eq(self, other) and dimension_eq(self.dimension, other.dimension)
 
@@ -385,25 +399,28 @@ class LayoutElement:
         self.children.append(child)
         child.parent = self
     
-    def list_tree(self, layout=True) -> "list(LayoutElement)":
+    def list_tree(self, layout=True, layout_order=False) -> "list(LayoutElement)":
         """List all elements in the tree
         Args:
             layout (bool): If True, return the layout tree. If False, return the DOM tree
+            layout_order (bool): If True, return the three in layout order (top to bottom, left to right)
         """
-        def has_dimension(element):
-            return element.dimension.get('width', 0) > 0 and element.dimension.get('height', 0) > 0
+        def _visible(element):
+            has_dimension = element.dimension.get('width', 0) > 1 and element.dimension.get('height', 0) > 1
+            in_viewport = element.dimension.get('left', 0) + element.dimension.get('width', 0) > 0 and element.dimension.get('top', 0) + element.dimension.get('height', 0) > 0
+            return has_dimension and in_viewport
         tree_list = []
         if layout:
-            if has_dimension(self):
+            if _visible(self):
                 tree_list.append(self)
-            elif self.tag == '#text' and has_dimension(self.parent):
+            elif self.tag == '#text' and _visible(self.parent):
                 tree_list.append(self)
         else:
             tree_list.append(self)
         if self.in_carousel and len(tree_list) > 0 and tree_list[-1] == self:
-            # print(f"Carousel: {self.xpath}")
             return tree_list
-        for child in self.children:
+        children = sorted(self.children, key=lambda x: (x.dimension.get('top', 0)+x.dimension.get('height', 0), x.dimension.get('left', 0)+x.dimension.get('width', 0))) if layout_order else self.children
+        for child in children:
             tree_list += child.list_tree(layout=layout)
         return tree_list
 
@@ -415,6 +432,10 @@ class LayoutElement:
 
 
 def build_layout_tree(elements: "list[element]", writes: list, stale=False) -> "Optional[LayoutElement]":
+    """
+    Args:
+        stale: If the tree being built is stale than the other. Used for counting writes.
+    """
     if len(elements) == 0:
         return
     root_e = elements[0]
@@ -443,52 +464,65 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     Returns:
         (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
     """
-    # print("left")
-    left_layout_list = left_layout.list_tree()
-    # print("right")
-    right_layout_list = right_layout.list_tree()
-    # print("length", len(left_layout_list), len(right_layout_list))
-    # Apply longest common subsequence to get the diff of live and archive htmls
-    lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
-    for i, left_elem in enumerate(left_layout_list, 1):
-        for j, right_elem in enumerate(right_layout_list, 1):
-            if left_elem == right_elem:
-                lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
+    def _diff(layout_order):
+        left_layout_list = left_layout.list_tree(layout_order=layout_order)
+        right_layout_list = right_layout.list_tree(layout_order=layout_order)
+        # import json
+        # print(json.dumps([e.xpath for e in left_layout_list], indent=2))
+        # print(json.dumps([e.xpath for e in right_layout_list], indent=2))
+
+        # Apply longest common subsequence to get the diff of live and archive htmls
+        lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
+        for i, left_elem in enumerate(left_layout_list, 1):
+            for j, right_elem in enumerate(right_layout_list, 1):
+                if left_elem == right_elem:
+                    lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
+                else:
+                    lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
+        # Backtrack to get the lcs sequence
+        lcs_live, lcs_archive = [], []
+        i, j = len(left_layout_list), len(right_layout_list)
+        while i > 0 and j > 0:
+            if left_layout_list[i-1] == right_layout_list[j-1]:
+                lcs_live.append(left_layout_list[i-1].xpath)
+                lcs_archive.append(right_layout_list[j-1].xpath)
+                i -= 1
+                j -= 1
+            # This means left_layout_list[i] is not in the lcs
+            # e.g. aaab and aaba
+            # last four lcs 2 3
+            #               2 3
+            elif lcs_lengths[i-1][j] > lcs_lengths[i][j-1]:
+                i -= 1
+            # right_layout_list[j] is not in the lcs
+            elif lcs_lengths[i-1][j] < lcs_lengths[i][j-1]:
+                j -= 1
+            # This case can be either both left_layout_list[i] and right_layout_list[j] are not in the lcs (e.g. abcx and abcy) 
+            # or both can be in (e.g. abca and abac)
             else:
-                lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
-    # Backtrack to get the lcs sequence
-    lcs_live, lcs_archive = [], []
-    i, j = len(left_layout_list), len(right_layout_list)
-    while i > 0 and j > 0:
-        if left_layout_list[i-1] == right_layout_list[j-1]:
-            lcs_live.append(left_layout_list[i-1].xpath)
-            lcs_archive.append(right_layout_list[j-1].xpath)
-            i -= 1
-            j -= 1
-        # This means left_layout_list[i] is not in the lcs
-        # e.g. aaab and aaba
-        # last four lcs 2 3
-        #               2 3
-        elif lcs_lengths[i-1][j] > lcs_lengths[i][j-1]:
-            i -= 1
-        # right_layout_list[j] is not in the lcs
-        elif lcs_lengths[i-1][j] < lcs_lengths[i][j-1]:
-            j -= 1
-        # This case can be either both left_layout_list[i] and right_layout_list[j] are not in the lcs (e.g. abcx and abcy) 
-        # or both can be in (e.g. abca and abac)
-        else:
-            j -= 1
-    lcs_live.reverse()
-    lcs_archive.reverse()
-    left_diff = [e.xpath for e in left_layout_list if e.xpath not in set(lcs_live)]
-    right_diff = [e.xpath for e in right_layout_list if e.xpath not in set(lcs_archive)]
-    return left_diff, right_diff
+                j -= 1
+        lcs_live.reverse()
+        # print(json.dumps(lcs_live, indent=2))
+        lcs_archive.reverse()
+        # print(json.dumps(lcs_archive, indent=2))
+        left_diff = [e.xpath for e in left_layout_list if e.xpath not in set(lcs_live)]
+        right_diff = [e.xpath for e in right_layout_list if e.xpath not in set(lcs_archive)]
+        return left_diff, right_diff
+
+    left_diff, right_diff = _diff(layout_order=False)
+    if len(left_diff) == 0 or len(right_diff) == 0:
+        return left_diff, right_diff
+    left_diff_order, right_diff_order = _diff(layout_order=True)
+    return (left_diff, right_diff) if len(left_diff) + len(right_diff) < len(left_diff_order) + len(right_diff_order) else (left_diff_order, right_diff_order)
+    
 
 
 def post_process_diff(unique: list, layout: "LayoutElement") -> "list[str]":
     """
     Post process the diff result to filter out the elements that are wrongly added.
     """
+    if len(unique) == 0:
+        return []
     new_unique = []
     layout_map = {e.xpath: e for e in layout.list_tree()}
     for u in unique:
