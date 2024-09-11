@@ -116,13 +116,11 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         console.log("Record: Triggering interaction", i);
         try {
             await page.waitForFunction(async (idx) => {
-                await eli.triggerNth(idx);
-                return true;
-            }, {timeout: 10000}, i);
-        } catch(e) { // Print top line of the error
-            console.error(e.toString().split('\n')[0]);
-            continue
-        }
+                    await eli.triggerNth(idx);
+                    return true;
+                }, {timeout: 3000}, i)
+        } catch(e) {}
+        await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);
         // if (options.scroll)

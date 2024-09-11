@@ -471,7 +471,7 @@ class eventListenersIterator {
                 _triggerEvent(elem, h);
                 await delay(300);
             };
-            await delay(1000);
+            // await delay(1000);
             return {
                 element: getElemId(elem),
                 path: orig_path,

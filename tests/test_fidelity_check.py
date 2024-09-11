@@ -1,15 +1,23 @@
 import multiprocessing
 import pandas as pd
+from subprocess import call
 
+import test_utils
 from fidex.fidelity_check import fidelity_detect
 from fidex.utils import url_utils
+from fidex.record_replay import autorun
+
 
 import os
 HOME = os.path.expanduser("~")
-PREFIX = 'gt_tranco'
-writes_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
+
+PROXY = 'http://pistons.eecs.umich.edu:8078'
+autorun.PROXYHOST = PROXY
+chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
 def test_fidelity_detect_no_issue(tocmp='proxy'):
+    PREFIX = 'gt_tranco'
+    writes_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
     urls = [
         'https://sherlockcomms.com/',
         'https://www.stackcommerce.com/',
@@ -57,11 +65,26 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
 
 
 def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
+    test_utils.init_test()
+    arguments = ['-w', '-s', '--scroll', '-i']
+    call(f'rm -rf {chrome_data_dir}/test', shell=True)
+    call(f'cp -r {chrome_data_dir}/base {chrome_data_dir}/test', shell=True)
     urls = [
         'https://crpt.ru/',
-        'https://7zap.com/en/',
+        # 'https://7zap.com/en/',
         
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
+    test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if not correct)'])
+    for host, url in host_url.items():
+        autorun.record_replay(url, host,
+                       chrome_data=f'{chrome_data_dir}/test',
+                       wr_archive='test',
+                       pw_archive='test',
+                       proxy=True,
+                       arguments=arguments)
+        fidelity_detect.fidelity_issue_all(f'{HOME}/fidelity-files/writes/test/{host}', 'live', tocmp, True, True)
+    print(test_results)
 
-test_fidelity_detect_no_issue()
+# test_fidelity_detect_no_issue()
+test_fidelity_detect_no_issue_e2e()

@@ -270,8 +270,9 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                 if worker_id is not None:
                     break
                 else:
-                    sleep_time = min(sleep_time * 2, 60)
+                    sleep_time = min(sleep_time * 2, 30)
                     time.sleep(sleep_time)
+            assert worker_id is not None, "Worker ID is None"
             if url:
                 # Submit the worker thread to the pool
                 task = executor.submit(record_replay_worker, 
@@ -287,6 +288,9 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                         proxy=proxy,
                                         arguments=arguments)
                 tasks.append(task)
+            else:
+                # Exit the loop if no more urls
+                break
             # Check for any completed threads
             for task in tasks:
                 if task.done():
