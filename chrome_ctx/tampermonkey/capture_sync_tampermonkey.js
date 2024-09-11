@@ -1,0 +1,200 @@
+// ==UserScript==
+// @name         Auto Run Script on Every Page Load
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Runs a script on every new document load
+// @author       Your Name
+// @match        *://*/*
+// @run-at       document-start
+// ==/UserScript==
+
+
+(function() {
+    'use strict';
+
+    /**
+     * Overridee functions that add tasks to microtask and macrotask queues
+     * When these functions are called, add a record to a log, and track when the function get executed
+    */
+
+    unsafeWindow.__tasks = new class {
+        constructor() {
+            this.tasks = new Map();
+            this.timeoutMap = new Map();
+            this.timeIntervalMap = new Map();
+            this.inRecord = false;
+            this.seen = new Map();
+            this.finished = 0;
+        }
+    
+        addTask(task) {
+            const currentTs = Date.now();
+            if (this.seen.has(task))
+                return;
+            this.seen.set(task, true);
+            if (!this.tasks.has(task))
+                this.tasks.set(task, {ts: currentTs, count: 0});
+            this.tasks.set(task, {count: this.tasks.get(task).count + 1, ts: currentTs});
+        }
+    
+        removeTask(task) {
+            const currentTs = Date.now();
+            if (!this.tasks.has(task)) {
+                console.log("didn't find task", task);
+                return;
+            }
+            this.tasks.set(task, {count: this.tasks.get(task).count - 1, ts: currentTs});
+            if (this.tasks.get(task).count === 0)
+                this.tasks.delete(task);
+            if (this.inRecord)
+                this.finished++;
+        }
+    
+        length() {
+            // Return the sum of all tasks values
+            return Array.from(this.tasks.values()).reduce((a, b) => a + b.count, 0);
+        }
+    
+        clear() {
+            this.tasks.clear();
+        }
+    
+        start() {
+            this.clear();
+            this.inRecord = true;
+            this.finished = 0;
+        }
+    
+        stop() {
+            this.inRecord = false;
+        }
+    
+        stable() {
+            return this.finished > 0 && this.length() === 0;
+        }
+    
+        removeTimeouts(delta=1000) {
+            const currentTs = Date.now();
+            for (let [task, {ts}] of this.timeoutMap) {
+                if (currentTs - ts > delta) {
+                    this.removeTask(task);
+                    this.timeoutMap.delete(task);
+                }
+            }
+        }
+    }
+
+    const originalSetTimeout = unsafeWindow.setTimeout;
+    unsafeWindow.setTimeout = function(callback, delay, ...args) {
+        let trackedCallBack = function(...cargs) {
+            unsafeWindow.__tasks.removeTask(callback);
+            callback(...cargs);
+        }
+        unsafeWindow.__tasks.addTask(callback);
+        const ticket = originalSetTimeout(trackedCallBack, delay, ...args);
+        unsafeWindow.__tasks.timeoutMap.set(ticket, callback);
+        return ticket;
+    };
+
+    const originalClearTimeout = unsafeWindow.clearTimeout;
+    unsafeWindow.window.clearTimeout = function(ticket) {
+        unsafeWindow.__tasks.removeTask(unsafeWindow.__tasks.timeoutMap.get(ticket));
+        unsafeWindow.__tasks.timeoutMap.delete(ticket);
+        return originalClearTimeout(ticket);
+    }
+
+    const originalSetInterval = unsafeWindow.setInterval;
+    // unsafeWindow.window.setInterval = function(callback, delay) {
+    //     let counter = 0; // To keep track of the number of times the callback is called
+    //     let maxCalls = 500; // Maximum number of times the callback can be called
+
+    //     let limitedCallback = function(...args) {
+    //         if (counter < maxCalls) {
+    //             counter++;
+    //             callback(...args); // Call the original callback
+    //             originalSetTimeout(limitedCallback, delay); // Schedule the next call
+    //         }
+    //         // unsafeWindow.__tasks.removeTask(callback);
+    //     }
+
+    //     unsafeWindow.__tasks.addTask(callback);
+    //     // Start the first call
+    //     const ticket = originalSetTimeout(limitedCallback, delay);
+    //     return ticket;
+    // };
+
+    // const originalClearInterval = window.clearInterval;
+    // window.clearInterval = function(ticket) {
+    //     unsafeWindow.__tasks.removeTask(unsafeWindow.__tasks.timeIntervalMap.get(ticket));
+    //     unsafeWindow.__tasks.timeIntervalMap.delete(ticket);
+    //     // return originalClearInterval(ticket);
+    // };
+
+    const originalRequestAnimationFrame = unsafeWindow.requestAnimationFrame;
+    unsafeWindow.requestAnimationFrame = function(callback) {
+        let trackedCallBack = function(...args) {
+            callback(...args);
+            unsafeWindow.__tasks.removeTask(callback);
+        }
+        unsafeWindow.__tasks.addTask(callback);
+        return originalRequestAnimationFrame(trackedCallBack);
+    };
+
+
+    /**
+     * The reason we're only overriding then but not catch and finally is because the latter two are syntactic sugar for then
+     * Basically, catch will call then(undefined, onRejected) and finally will call then(onFinally, onFinally)
+    */
+    const originalPromiseThen = Promise.prototype.then;
+    Promise.prototype.then = function(onFulfilled, onRejected) {
+        const fulFillIsFunction = typeof onFulfilled === 'function';
+        const rejectIsFunction = typeof onRejected === 'function';
+        let promiseInstance = this;
+        this.stack = new Error().stack;
+        let trackedOnFulfilled = function(...value) {
+            let retval = value[0]
+            if (fulFillIsFunction) {
+                retval = onFulfilled.apply(promiseInstance, value);
+            }
+            unsafeWindow.__tasks.removeTask(promiseInstance);
+            return retval;
+        }
+        let trackedOnRejected = function(...reason) {
+            let retval = reason[0];
+            unsafeWindow.__tasks.removeTask(promiseInstance);
+            if (rejectIsFunction) {
+                retval = onRejected.apply(promiseInstance, reason);
+                return retval;
+            }
+            throw retval;
+        }
+        unsafeWindow.__tasks.addTask(this);
+        return originalPromiseThen.call(this, trackedOnFulfilled, trackedOnRejected);
+    };
+
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+      this.requestMethod = method;
+      this.requestUrl = url;
+      originalOpen.apply(this, arguments);
+    };
+
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(...args) {
+        this.addEventListener('readystatechange', function() {
+            if (this.readyState === 4 || this.readyState == 0) {
+                unsafeWindow.__tasks.removeTask(this);
+            }
+        });
+        unsafeWindow.__tasks.addTask(this);
+        return originalXHRSend.apply(this, args);
+    };
+
+    if (window === window.top) {
+        originalSetInterval(() => {
+            console.log("Remaining tasks", unsafeWindow.__tasks.length(), unsafeWindow.__tasks.tasks);
+        }, 1000);
+    }
+    
+})();
