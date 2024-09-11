@@ -13,20 +13,25 @@ __tasks = new class {
         this.finished = 0;
     }
 
-    addTask(task) {
+    addTask(task, value=null) {
         const currentTs = Date.now();
         if (this.seen.has(task))
             return;
         this.seen.set(task, true);
+        if (!value) value = {}
         if (!this.tasks.has(task))
-            this.tasks.set(task, {ts: currentTs, count: 0});
-        this.tasks.set(task, {count: this.tasks.get(task).count + 1, ts: currentTs});
+            this.tasks.set(task, {...value, ...{ts: currentTs, count: 0}});
+        this.tasks.set(task, {...value, ...{count: this.tasks.get(task).count + 1, ts: currentTs}});
+    }
+
+    addCallback(cb) {
+        const cbText = cb ? cb.toString() : cb;
+        this.addTask(cbText, {callback: cb});
     }
 
     removeTask(task) {
         const currentTs = Date.now();
         if (!this.tasks.has(task)) {
-            console.log("didn't find task", task);
             return;
         }
         this.tasks.set(task, {count: this.tasks.get(task).count - 1, ts: currentTs});
@@ -34,6 +39,11 @@ __tasks = new class {
             this.tasks.delete(task);
         if (this.inRecord)
             this.finished++;
+    }
+
+    removeCallback(cb) {
+        const cbText = cb ? cb.toString() : cb;
+        this.removeTask(cbText);
     }
 
     length() {
@@ -73,10 +83,10 @@ __tasks = new class {
 const originalSetTimeout = window.setTimeout;
 window.setTimeout = function(callback, delay, ...args) {
     let trackedCallBack = function(...cargs) {
-        __tasks.removeTask(callback);
+        __tasks.removeCallback(callback);
         callback(...cargs);
     }
-    __tasks.addTask(callback);
+    __tasks.addCallback(callback);
     const ticket = originalSetTimeout(trackedCallBack, delay, ...args);
     __tasks.timeoutMap.set(ticket, callback);
     return ticket;
@@ -84,7 +94,7 @@ window.setTimeout = function(callback, delay, ...args) {
 
 const originalClearTimeout = window.clearTimeout;
 window.clearTimeout = function(ticket) {
-    __tasks.removeTask(__tasks.timeoutMap.get(ticket));
+    __tasks.removeCallback(__tasks.timeoutMap.get(ticket));
     __tasks.timeoutMap.delete(ticket);
     return originalClearTimeout(ticket);
 }
@@ -100,10 +110,10 @@ const originalSetInterval = window.setInterval;
 //             callback(...args); // Call the original callback
 //             originalSetTimeout(limitedCallback, delay); // Schedule the next call
 //         }
-//         // __tasks.removeTask(callback);
+//         // __tasks.removeCallback(callback);
 //     }
 
-//     __tasks.addTask(callback);
+//     __tasks.addCallback(callback);
 //     // Start the first call
 //     const ticket = originalSetTimeout(limitedCallback, delay);
 //     return ticket;
@@ -111,7 +121,7 @@ const originalSetInterval = window.setInterval;
 
 // const originalClearInterval = window.clearInterval;
 // window.clearInterval = function(ticket) {
-//     __tasks.removeTask(__tasks.timeIntervalMap.get(ticket));
+//     __tasks.removeCallback(__tasks.timeIntervalMap.get(ticket));
 //     __tasks.timeIntervalMap.delete(ticket);
 //     // return originalClearInterval(ticket);
 // };
@@ -120,9 +130,9 @@ const originalRequestAnimationFrame = window.requestAnimationFrame;
 window.requestAnimationFrame = function(callback) {
     let trackedCallBack = function(...args) {
         callback(...args);
-        __tasks.removeTask(callback);
+        __tasks.removeCallback(callback);
     }
-    __tasks.addTask(callback);
+    __tasks.addCallback(callback);
     return originalRequestAnimationFrame(trackedCallBack);
 };
 

@@ -120,7 +120,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
                     return true;
                 }, {timeout: 3000}, i)
         } catch(e) {}
-        await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
+        try {
+            await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
+        } catch(e) {}
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);
         // if (options.scroll)

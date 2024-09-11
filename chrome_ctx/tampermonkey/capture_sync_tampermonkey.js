@@ -27,20 +27,25 @@
             this.finished = 0;
         }
     
-        addTask(task) {
+        addTask(task, value=null) {
             const currentTs = Date.now();
             if (this.seen.has(task))
                 return;
             this.seen.set(task, true);
+            if (!value) value = {}
             if (!this.tasks.has(task))
-                this.tasks.set(task, {ts: currentTs, count: 0});
-            this.tasks.set(task, {count: this.tasks.get(task).count + 1, ts: currentTs});
+                this.tasks.set(task, {...value, ...{ts: currentTs, count: 0}});
+            this.tasks.set(task, {...value, ...{count: this.tasks.get(task).count + 1, ts: currentTs}});
+        }
+
+        addCallback(cb) {
+            const cbText = cb ? cb.toString() : cb;
+            this.addTask(cbText, {callback: cb});
         }
     
         removeTask(task) {
             const currentTs = Date.now();
             if (!this.tasks.has(task)) {
-                console.log("didn't find task", task);
                 return;
             }
             this.tasks.set(task, {count: this.tasks.get(task).count - 1, ts: currentTs});
@@ -48,6 +53,11 @@
                 this.tasks.delete(task);
             if (this.inRecord)
                 this.finished++;
+        }
+
+        removeCallback(cb) {
+            const cbText = cb ? cb.toString() : cb;
+            this.removeTask(cbText);
         }
     
         length() {
@@ -87,24 +97,24 @@
     const originalSetTimeout = unsafeWindow.setTimeout;
     unsafeWindow.setTimeout = function(callback, delay, ...args) {
         let trackedCallBack = function(...cargs) {
-            unsafeWindow.__tasks.removeTask(callback);
+            unsafeWindow.__tasks.removeCallback(callback);
             callback(...cargs);
         }
-        unsafeWindow.__tasks.addTask(callback);
+        unsafeWindow.__tasks.addCallback(callback);
         const ticket = originalSetTimeout(trackedCallBack, delay, ...args);
         unsafeWindow.__tasks.timeoutMap.set(ticket, callback);
         return ticket;
     };
 
     const originalClearTimeout = unsafeWindow.clearTimeout;
-    unsafeWindow.window.clearTimeout = function(ticket) {
-        unsafeWindow.__tasks.removeTask(unsafeWindow.__tasks.timeoutMap.get(ticket));
+    unsafeWindow.clearTimeout = function(ticket) {
+        unsafeWindow.__tasks.removeCallback(unsafeWindow.__tasks.timeoutMap.get(ticket));
         unsafeWindow.__tasks.timeoutMap.delete(ticket);
         return originalClearTimeout(ticket);
     }
 
     const originalSetInterval = unsafeWindow.setInterval;
-    // unsafeWindow.window.setInterval = function(callback, delay) {
+    // unsafeWindow.setInterval = function(callback, delay) {
     //     let counter = 0; // To keep track of the number of times the callback is called
     //     let maxCalls = 500; // Maximum number of times the callback can be called
 
@@ -114,10 +124,10 @@
     //             callback(...args); // Call the original callback
     //             originalSetTimeout(limitedCallback, delay); // Schedule the next call
     //         }
-    //         // unsafeWindow.__tasks.removeTask(callback);
+    //         // unsafeWindow.__tasks.removeCallback(callback);
     //     }
 
-    //     unsafeWindow.__tasks.addTask(callback);
+    //     unsafeWindow.__tasks.addCallback(callback);
     //     // Start the first call
     //     const ticket = originalSetTimeout(limitedCallback, delay);
     //     return ticket;
@@ -125,7 +135,7 @@
 
     // const originalClearInterval = window.clearInterval;
     // window.clearInterval = function(ticket) {
-    //     unsafeWindow.__tasks.removeTask(unsafeWindow.__tasks.timeIntervalMap.get(ticket));
+    //     unsafeWindow.__tasks.removeCallback(unsafeWindow.__tasks.timeIntervalMap.get(ticket));
     //     unsafeWindow.__tasks.timeIntervalMap.delete(ticket);
     //     // return originalClearInterval(ticket);
     // };
@@ -134,9 +144,9 @@
     unsafeWindow.requestAnimationFrame = function(callback) {
         let trackedCallBack = function(...args) {
             callback(...args);
-            unsafeWindow.__tasks.removeTask(callback);
+            unsafeWindow.__tasks.removeCallback(callback);
         }
-        unsafeWindow.__tasks.addTask(callback);
+        unsafeWindow.__tasks.addCallback(callback);
         return originalRequestAnimationFrame(trackedCallBack);
     };
 
