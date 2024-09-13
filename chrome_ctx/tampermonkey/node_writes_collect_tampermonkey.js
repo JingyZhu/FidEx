@@ -97,22 +97,6 @@ class DimensionSets {
         }
     }
 
-    // Check if the dimensions for both parent and this are visible
-    // TODO: This is fairly strict (return false if any args dimension is 0). The reason to set it this way is to only focusing on element addition in liveweb. So false positives for fidelity check are filtered out as much as possible, and we don't care about false negatives.
-    visible() {
-        if (this.dimension == null || this.parentDimension == null)
-            return false;
-        if (this.dimension.width === 0 || this.dimension.height === 0)
-            return false;
-        if (this.parentDimension.width === 0 || this.parentDimension.height === 0)
-            return false;
-        for (const arg of this.argsDimension) {
-            if (arg.width === 0 || arg.height === 0)
-                return false;
-        }
-        return true;
-    }
-
     /**
      * Check if the dimension match with another Dimension
      * @param {DimensionSets} other
@@ -134,6 +118,7 @@ class DimensionSets {
     }
 
     // Similar to isDimensionMatch, but only check if the dimension of the args match
+    // Not used at this point
     isArgsDimensionMatch(other) {
         if (this.argsDimension.length !== other.argsDimension.length) {
             return false;
@@ -200,22 +185,36 @@ unsafeWindow.collect_writes = function () {
     function process_args(raw_args) {
         let args = [];
         for (let arg of raw_args) {
+            let arg_info = {
+                html: null
+            }
             if (args == null || arg == undefined)
                 continue
             if (arg instanceof Element) {
-                arg = _normalSRC(arg);
-                args.push(arg.outerHTML);
+                // try { arg = _normalSRC(arg); } catch {}
+                arg_info.html = arg.outerHTML;
+                arg_info.xpath = getDomXPath(arg);
             } else if (arg instanceof Node) {
                 if (arg.nodeName !== undefined)
-                    args.push(arg.nodeName);
+                    arg_info.html = arg.nodeName;
                 else
-                    args.push(arg.nodeType);
-            } else { // Assme it is a string
-                args.push(arg);
+                    arg_info.html = arg.nodeType;
+                arg_info.xpath = getDomXPath(arg);
+            } else if (arg instanceof Array) {
+                arg_info = [];
+                for (const a of arg) {
+                    const processed_a = process_args([a])[0];
+                    arg_info.push(processed_a);
+                }
             }
+            else { // Assme it is a string
+                arg_info.html = arg;
+            }
+            args.push(arg_info);
         }
         return args;
     }
+
 
     function visible(record, DS){
         if (!DS.visible())

@@ -186,19 +186,29 @@ class CSSOverrider {
     }
 }
 
-function newWriteMethod(originalFn, method) {
+/**
+ * 
+ * @param {Function} originalFn 
+ * @param {String} method 
+ * @param {object} thisNode 
+ * @returns 
+ */
+function newWriteMethod(originalFn, method, thisNode) {
     return function (...args) {
         const wid = unsafeWindow.__write_id++;
         let beforeDS = new DimensionSets();
         let record = null;
-        const ableRecord = unsafeWindow.__recording_enabled && isNodeInDocument(this);
+        const ableRecord = unsafeWindow.__recording_enabled && isNodeInDocument(thisNode);
         // Deep copy arg in args if arg is a node
         let viable_args = [];
         let args_copy = []
         for (const arg of args) {
             // ? Seen document fragment being empty after insertion (probably destroyed by jQuery)
             // ? Need to unwrap it before apply originalFn
-            if (arg instanceof DocumentFragment) {
+            // * Seen errors on "right hand side of 'instanceof' is not an object" when arg is a DocumentFragment. So try first
+            let instanceofDF = false;
+            try {instanceofDF = arg instanceof DocumentFragment;} catch(e) {}
+            if (instanceofDF) {
                 let children = arg.childNodes;
                 viable_args.push([])
                 for (const child of children) {
@@ -212,9 +222,9 @@ function newWriteMethod(originalFn, method) {
                 args_copy.push(arg.cloneNode(true));
         }
         if (ableRecord) {
-            beforeDS.recordDimension(this, args);
+            beforeDS.recordDimension(thisNode, args);
             record = {
-                target: this,
+                target: thisNode,
                 method: method,
                 args: viable_args,
                 args_snapshot: args_copy,
@@ -231,13 +241,13 @@ function newWriteMethod(originalFn, method) {
         retVal = originalFn.apply(this, args);
         if (ableRecord) {
             let afterDS = new DimensionSets();
-            afterDS.recordDimension(this, args);
+            afterDS.recordDimension(thisNode, args);
             record.afterDS = afterDS;
             // * Record only if the dimension changes
             // ! One thing to note is that the dimension of the node might not immediately change after the write (e.g. if write an image to the DOM, the dimension of the image might not be available immediately)
             // ! Might need to wait till the end of the page load for comparing the dimension
             if (!beforeDS.isDimensionMatch(afterDS)) {
-                _debug_log("write", this, method, args);
+                _debug_log("write", thisNode, method, args);
                 unsafeWindow.__write_log.push(record);
             }
             unsafeWindow.__raw_write_log.push(record);
@@ -298,7 +308,7 @@ node_write_methods = [
 
 for (const method of node_write_methods) {
     const originalFn = Node.prototype[method];
-    Node.prototype[method] = newWriteMethod(originalFn, method);
+    Node.prototype[method] = newWriteMethod(originalFn, method, this);
 }
 
 // Override Node setter
@@ -339,7 +349,7 @@ element_write_methods = [
 
 for (const method of element_write_methods) {
     const originalFn = Element.prototype[method];
-    Element.prototype[method] = newWriteMethod(originalFn, method);
+    Element.prototype[method] = newWriteMethod(originalFn, method, this);
 }
 
 // Override Element setter
@@ -355,4 +365,26 @@ for (const property of element_properties) {
     Object.defineProperty(Element.prototype, property, {
         set: newSetMethod(originalFn, property)
     });
+}
+
+// Override classList methods
+classList_methods = [
+    'add',
+    'remove',
+    'toggle'
+]
+
+for (const method of classList_methods) {
+    const originalFn = DOMTokenList.prototype[method];
+    DOMTokenList.prototype[method] = function(...args) {
+        // Look for node in the document that has this classList
+        let node = null;
+        for (const element of document.querySelectorAll('*')) {
+            if (element.classList === this) {
+                node = element;
+                break;
+            }
+        }
+        return node ? newWriteMethod(originalFn, `classList.${method}`, node).apply(this, args) : originalFn.apply(this, args);
+    }
 }

@@ -24,6 +24,8 @@ def test_record():
     urls = [
         'https://mrjack.bet/',
         'https://realrobo.in/',
+        'https://telegraphyx.ru?utm_source=landing',
+        'https://ioam.de/',
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
 
