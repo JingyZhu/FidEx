@@ -17,6 +17,9 @@
    For files that require this file, set loadUtils=true before execution
 */
 
+
+Error.stackTraceLimit = Infinity;
+
 function getElemId(elem) {
     var id =
         elem.nodeName +
@@ -57,10 +60,9 @@ function getDomXPath(elm, fullTrace = false) {
 
 // * chrome_ctx version of the code starts from here
 // * Replace unsafeWindow. with empty string
-/*
-    Override (all) HTML Node's write methods to track the writes.
-*/
-Error.stackTraceLimit = Infinity;
+/**
+ * Override (all) HTML Node's write methods to track the writes.
+ */
 unsafeWindow.__debug = false;
 unsafeWindow.__recording_enabled = true;
 unsafeWindow.__trace_enabled = false;
@@ -68,14 +70,42 @@ unsafeWindow.__write_log = [];
 unsafeWindow.__raw_write_log = [];
 unsafeWindow.__write_id = 0;
 
+
 function _debug_log(...args) {
     if (unsafeWindow.__debug)
         console.log(...args);
 }
 
+function _get_wid() {
+    const frameName = window.name;
+    if (window.name === '')
+        return `${unsafeWindow.__write_id++}`;
+    else
+        return `${unsafeWindow.__write_id++}:${frameName}`;
+}
+
 // Check if the node is in the document
 function isNodeInDocument(node) {
     return node.isConnected;
+}
+
+// Copied from chrome_ctx/render_tree_collect.js
+function getNodeText(node) {
+    if (node.nodeType === Node.ELEMENT_NODE){
+        node = _normalSRC(node);
+        let tag = node.outerHTML;
+        const innerHTML = node.innerHTML;
+        if (innerHTML !== "") {
+            const end = tag.lastIndexOf(innerHTML);
+            tag = tag.slice(0, end)
+        } else {
+            tag = tag.replace(/<\/.*?>/g, "");
+        }
+        return tag.replace(/\n/g, "");
+    } else if (node.nodeType === Node.TEXT_NODE){
+        return node.textContent;
+    } else
+        return null;
 }
 
 /**
@@ -166,7 +196,7 @@ class CSSOverrider {
     }
 
     _overrideStyleProperties(element) {
-        for (const property of __CSSStyleProperties) {
+        for (const property of unsafeWindow.__CSSStyleProperties) {
             // TODO: Override all CSS properties.
         }
 
@@ -195,7 +225,7 @@ class CSSOverrider {
  */
 function newWriteMethod(originalFn, method, thisNode) {
     return function (...args) {
-        const wid = unsafeWindow.__write_id++;
+        const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
         const ableRecord = unsafeWindow.__recording_enabled && isNodeInDocument(thisNode);
@@ -258,7 +288,7 @@ function newWriteMethod(originalFn, method, thisNode) {
 
 function newSetMethod(originalFn, property) {
     return function (value) {
-        const wid = unsafeWindow.__write_id++;
+        const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
         const ableRecord = unsafeWindow.__recording_enabled && isNodeInDocument(this);
@@ -273,6 +303,7 @@ function newSetMethod(originalFn, property) {
                 method: 'set:' + property,
                 args: [value_copy],
                 beforeDS: beforeDS,
+                beforeText: getNodeText(this),
                 trace: Error().stack,
                 id: wid
             }
@@ -287,6 +318,7 @@ function newSetMethod(originalFn, property) {
             let afterDS = new DimensionSets();
             afterDS.recordDimension(this, [value]);
             record.afterDS = afterDS;
+            record.afterText = getNodeText(this);
             // * Record only if the dimension changes
             if (!beforeDS.isDimensionMatch(afterDS)) {
                 _debug_log("set", this, property, value);
@@ -352,19 +384,26 @@ for (const method of element_write_methods) {
     Element.prototype[method] = newWriteMethod(originalFn, method, this);
 }
 
-// Override Element setter
-element_properties = [
-    'className',
-    'id',
-    'innerHTML',
-    // aria attributes
-]
 
-for (const property of element_properties) {
-    const originalFn = Object.getOwnPropertyDescriptor(Element.prototype, property).set;
-    Object.defineProperty(Element.prototype, property, {
-        set: newSetMethod(originalFn, property)
-    });
+element_properties = {
+    Element: ['className', 'id', 'innerHTML'],
+    HTMLElement: ['hidden', 'style'],
+    HTMLImageElement: ['src', 'srcset'],
+    HTMLAnchorElement: ['href'],
+    HTMLScriptElement: ['src'],
+    HTMLIFrameElement: ['src'],
+}
+
+for (const [element, properties] of Object.entries(element_properties)) {
+    for (const property of properties) {
+        const originalDesc = Object.getOwnPropertyDescriptor(window[element].prototype, property);
+        // if (originalDesc == null || originalDesc.set == null)
+        //     continue;
+        const originalFn = originalDesc.set;
+        Object.defineProperty(window[element].prototype, property, {
+            set: newSetMethod(originalFn, property)
+        });
+    }
 }
 
 // Override classList methods
