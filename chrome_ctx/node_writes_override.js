@@ -27,6 +27,18 @@ function isNodeInDocument(node) {
     return node.isConnected;
 }
 
+// Light version of chrome_ctx/render_tree_collect.js
+function getNodeTextLight(node) {
+    if (node.nodeType === Node.ELEMENT_NODE){
+        let tag = node.outerHTML;
+        match = tag.match(/<[^>]+>/);
+        return match ? match[0] : tag;
+    } else if (node.nodeType === Node.TEXT_NODE){
+        return node.textContent;
+    } else
+        return null;
+}
+
 /**
  * Class for sets of recorded dimensions of different nodes.
  */
@@ -106,6 +118,15 @@ class DimensionSets {
         return true;
     }
 
+    getSelfDimension() {
+        return this.dimension ? {
+            left: this.dimension.left,
+            top: this.dimension.top,
+            width: this.dimension.width,
+            height: this.dimension.height,
+        } : null;
+    }
+
 }
 
 // Not used at this point.
@@ -135,12 +156,19 @@ class CSSOverrider {
     }
 }
 
-function newWriteMethod(originalFn, method) {
+/**
+ * 
+ * @param {Function} originalFn 
+ * @param {String} method 
+ * @param {object} thisNode 
+ * @returns 
+ */
+function newWriteMethod(originalFn, method, thisNode) {
     return function (...args) {
         const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
-        const ableRecord = __recording_enabled && isNodeInDocument(this);
+        const ableRecord = __recording_enabled && isNodeInDocument(thisNode);
         // Deep copy arg in args if arg is a node
         let viable_args = [];
         let args_copy = []
@@ -164,13 +192,14 @@ function newWriteMethod(originalFn, method) {
                 args_copy.push(arg.cloneNode(true));
         }
         if (ableRecord) {
-            beforeDS.recordDimension(this, args);
+            beforeDS.recordDimension(thisNode, args);
             record = {
-                target: this,
+                target: thisNode,
                 method: method,
                 args: viable_args,
                 args_snapshot: args_copy,
                 beforeDS: beforeDS,
+                beforeText: getNodeTextLight(thisNode),
                 trace: Error().stack,
                 id: wid
             }
@@ -183,13 +212,14 @@ function newWriteMethod(originalFn, method) {
         retVal = originalFn.apply(this, args);
         if (ableRecord) {
             let afterDS = new DimensionSets();
-            afterDS.recordDimension(this, args);
+            afterDS.recordDimension(thisNode, args);
             record.afterDS = afterDS;
+            record.afterText = getNodeTextLight(thisNode);
             // * Record only if the dimension changes
             // ! One thing to note is that the dimension of the node might not immediately change after the write (e.g. if write an image to the DOM, the dimension of the image might not be available immediately)
             // ! Might need to wait till the end of the page load for comparing the dimension
             if (!beforeDS.isDimensionMatch(afterDS)) {
-                _debug_log("write", this, method, args);
+                _debug_log("write", thisNode, method, args);
                 __write_log.push(record);
             }
             __raw_write_log.push(record);
@@ -215,6 +245,7 @@ function newSetMethod(originalFn, property) {
                 method: 'set:' + property,
                 args: [value_copy],
                 beforeDS: beforeDS,
+                beforeText: getNodeTextLight(this),
                 trace: Error().stack,
                 id: wid
             }
@@ -229,6 +260,7 @@ function newSetMethod(originalFn, property) {
             let afterDS = new DimensionSets();
             afterDS.recordDimension(this, [value]);
             record.afterDS = afterDS;
+            record.afterText = getNodeTextLight(this);
             // * Record only if the dimension changes
             if (!beforeDS.isDimensionMatch(afterDS)) {
                 _debug_log("set", this, property, value);
@@ -250,7 +282,7 @@ node_write_methods = [
 
 for (const method of node_write_methods) {
     const originalFn = Node.prototype[method];
-    Node.prototype[method] = newWriteMethod(originalFn, method);
+    Node.prototype[method] = newWriteMethod(originalFn, method, this);
 }
 
 // Override Node setter
@@ -291,7 +323,7 @@ element_write_methods = [
 
 for (const method of element_write_methods) {
     const originalFn = Element.prototype[method];
-    Element.prototype[method] = newWriteMethod(originalFn, method);
+    Element.prototype[method] = newWriteMethod(originalFn, method, this);
 }
 
 
@@ -315,6 +347,29 @@ for (const [element, properties] of Object.entries(element_properties)) {
         });
     }
 }
+
+// Override classList methods
+classList_methods = [
+    'add',
+    'remove',
+    'toggle'
+]
+
+for (const method of classList_methods) {
+    const originalFn = DOMTokenList.prototype[method];
+    DOMTokenList.prototype[method] = function(...args) {
+        // Look for node in the document that has this classList
+        let node = null;
+        for (const element of document.querySelectorAll('*')) {
+            if (element.classList === this) {
+                node = element;
+                break;
+            }
+        }
+        return node ? newWriteMethod(originalFn, `classList.${method}`, node).apply(this, args) : originalFn.apply(this, args);
+    }
+}
+
 // // * Override setTimeout and setInterval
 // const original_setTimeout = window.setTimeout;
 // window.setTimeout = function(callback, delay, ...args) {

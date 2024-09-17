@@ -2,9 +2,8 @@
  * Collect write logs after loading the page.
  * Note: need to override Node write methods and setters using node_write_override.js
  */
-__raw_write_log_processed = [];
-__final_write_log = [];
-__final_write_log_processed = [];
+__write_log_processed = [];
+__write_log = [];
 __recording_enabled = false;
 // Normalize all href and src attributes in node
 function _normalSRC(node){
@@ -40,10 +39,10 @@ function _normalSRC(node){
     return node;
 }
 
+
 function collect_writes(){
-    __raw_write_log_processed = [];
-    __final_write_log = [];
-    __final_write_log_processed = [];
+    __write_log_processed = [];
+    __write_log = [];
     // Process raw_args so that it can be stringified
     function process_args(raw_args) {
         let args = [];
@@ -103,32 +102,41 @@ function collect_writes(){
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
 
-        __raw_write_log_processed.push({
-            wid: record.id,
-            xpath: getDomXPath(record.target),
-            method: record.method,
-            arg: args
-        })
-
         let currentDS = new DimensionSets();
         currentDS.recordDimension(record.target, record.args);
-        // * Check if the dimension now is the same as before the write
-        // * The reason for checking it now is to catch lazy loaded elements
-        // * For example, if an image is written to the DOM, it might not be loaded immediately.
-        if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
-            continue
-        // ? Only include the write if the argument is still visible now.
-        // TODO: Think more about whether this is valid
-        // if (!visible(record, currentDS))
-        //     continue
-        __final_write_log.push(record);
-        // Handle img src
-        __final_write_log_processed.push({
+        const effective = record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS);
+        __write_log_processed.push({
             wid: record.id,
             xpath: getDomXPath(record.target),
             method: record.method,
-            arg: args
+            args: args,
+            beforeDS: record.beforeDS.getSelfDimension(),
+            beforeText: record.beforeText,
+            afterDS: record.afterDS.getSelfDimension(),
+            afterText: record.afterText,
+            currentDS: currentDS.getSelfDimension(),
+            effective: effective,
         })
+
+
+        // * All dimensions will be put into the log and the decision will be made in post-processing
+        // // * Check if the dimension now is the same as before the write
+        // // * The reason for checking it now is to catch lazy loaded elements
+        // // * For example, if an image is written to the DOM, it might not be loaded immediately.
+        // if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
+        //     continue
+        // // ? Only include the write if the argument is still visible now.
+        // // TODO: Think more about whether this is valid
+        // // if (!visible(record, currentDS))
+        // //     continue
+        // __final_write_log.push(record);
+        // // Handle img src
+        // __final_write_log_processed.push({
+        //     wid: record.id,
+        //     xpath: getDomXPath(record.target),
+        //     method: record.method,
+        //     args: args,
+        // })
     }
 }
 
