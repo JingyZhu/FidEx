@@ -104,7 +104,7 @@ function collect_writes(){
 
         let currentDS = new DimensionSets();
         currentDS.recordDimension(record.target, record.args);
-        const effective = record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS);
+        const effective = record.beforeDS.isDimensionMatch(record.afterDS);
         __write_log_processed.push({
             wid: record.id,
             xpath: getDomXPath(record.target),
