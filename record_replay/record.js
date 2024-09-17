@@ -132,21 +132,15 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
                 __recording_enabled = false;
                 collect_writes();
                 __recording_enabled = true;
-                return {
-                    writes: __final_write_log_processed,
-                    rawWrites: __raw_write_log_processed
-                }
+                return __write_log_processed
             });
             fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
-            const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
-            fs.writeFileSync(`${dirname}/${filename}_${i}_layout.json`, JSON.stringify(renderInfo.renderTree, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
     }
@@ -280,12 +274,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
             await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await recordPage.evaluate(() => {
-                return {
-                    writes: __final_write_log_processed,
-                    rawWrites: __raw_write_log_processed
-                }
-            });
+            const writeLog = await recordPage.evaluate(() => __write_log_processed);
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
 
@@ -299,13 +288,10 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // * Step 8: Collect the screenshots and all other measurement for checking fidelity
         if (options.screenshot){
             const rootFrame = recordPage.mainFrame();
-            const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
             await measure.collectNaiveInfo(recordPage, dirname, filename);
-            fs.writeFileSync(`${dirname}/${filename}_layout.json`, JSON.stringify(renderInfo.renderTree, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         const onloadURL = recordPage.url();

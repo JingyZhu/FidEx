@@ -69,23 +69,17 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
                 __recording_enabled = false;
                 collect_writes();
                 __recording_enabled = true;
-                return {
-                    writes: __final_write_log_processed,
-                    rawWrites: __raw_write_log_processed
-                }
+                return __write_log_processed;
             });
             fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
-            const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // console.log("Replay: Collected render tree");    
             await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
             // console.log("Replay: Collected screenshot");    
-            fs.writeFileSync(`${dirname}/${filename}_${i}_layout.json`, JSON.stringify(renderInfo.renderTree, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
     }
@@ -174,12 +168,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
             await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await page.evaluate(() => {
-                return {
-                    writes: __final_write_log_processed,
-                    rawWrites: __raw_write_log_processed
-                }
-            });
+            const writeLog = await page.evaluate(() => __write_log_processed);
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
 
@@ -192,15 +181,12 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // * Step 6: Collect the screenshot and other measurements
         if (options.screenshot){
             const rootFrame = page.mainFrame();
-            const renderInfo = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, true);
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
             // console.log("Replay: Collected render tree");
             await measure.collectNaiveInfo(page, dirname, filename);
             // console.log("Replay: Collected screenshot");
-            fs.writeFileSync(`${dirname}/${filename}_layout.json`, JSON.stringify(renderInfo.renderTree, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
 
