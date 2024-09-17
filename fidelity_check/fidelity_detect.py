@@ -31,9 +31,9 @@ def find_diff_elements(dirr, left_file, right_file) -> (list, list):
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
     left_element = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
-    left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))['writes']
+    left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
-    right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))['writes']
+    right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))
 
     left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
     left_unique, right_unique = check_utils.diff(left_element, left_writes, right_element, right_writes, returnHTML=False)

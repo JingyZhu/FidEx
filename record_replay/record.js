@@ -123,10 +123,15 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         try {
             await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
         } catch(e) {}
-        if (options.exetrace)
-            excepFF.afterInteraction(allEvents[i]);
         // if (options.scroll)
         //     await measure.scroll(page);
+        if (options.screenshot) {
+            const rootFrame = page.mainFrame();
+            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
+            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
+            fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
+        }
         if (options.write){
             const writeLog = await page.evaluate(() => {
                 __recording_enabled = false;
@@ -136,13 +141,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             });
             fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
-        if (options.screenshot) {
-            const rootFrame = page.mainFrame();
-            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
-            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
-            fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
-        }
+        if (options.exetrace)
+            excepFF.afterInteraction(allEvents[i]);
     }
     return allEvents;
 }
@@ -269,23 +269,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await sleep(1000);
         if (options.exetrace)
             excepFF.afterInteraction('onload');
-        
-        // * Step 6: Collect the writes to the DOM
-        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
-        if (options.write){
-            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await recordPage.evaluate(() => __write_log_processed);
-            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
 
-        // * Step 7: Collect execution traces
-        if (options.exetrace) {
-            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
-            // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
-        }
 
-        // * Step 8: Collect the screenshots and all other measurement for checking fidelity
+        // * Step 6: Collect the screenshots and all other measurement for checking fidelity
         if (options.screenshot){
             const rootFrame = recordPage.mainFrame();
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
@@ -294,7 +280,25 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await measure.collectNaiveInfo(recordPage, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
+
+        // * Step 7: Collect the writes to the DOM
+        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
+        if (options.write){
+            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await recordPage.evaluate(() => __write_log_processed);
+            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+
+        // * Step 8: Collect execution traces
+        if (options.exetrace) {
+            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
+            // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
+        }
+
         const onloadURL = recordPage.url();
+
+        
 
         // * Step 9: Interact with the webpage
         if (options.interaction){

@@ -60,19 +60,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         try {
             await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
         } catch(e) {}
-        if (options.exetrace)
-            excepFF.afterInteraction(allEvents[i]);
         // if (options.scroll)
         //     await measure.scroll(page);
-        if (options.write){
-            const writeLog = await page.evaluate(() => {
-                __recording_enabled = false;
-                collect_writes();
-                __recording_enabled = true;
-                return __write_log_processed;
-            });
-            fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
@@ -82,6 +71,17 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             // console.log("Replay: Collected screenshot");    
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
+        if (options.write){
+            const writeLog = await page.evaluate(() => {
+                __recording_enabled = false;
+                collect_writes();
+                __recording_enabled = true;
+                return __write_log_processed;
+            });
+            fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+        if (options.exetrace)
+            excepFF.afterInteraction(allEvents[i]);
     }
     return allEvents;
 }
@@ -163,22 +163,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await sleep(1000);
         if (options.exetrace)
             excepFF.afterInteraction('onload');
-        
-        // * Step 4: Collect the writes to the DOM
-        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
-        if (options.write){
-            await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await page.evaluate(() => __write_log_processed);
-            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
 
-        // * Step 5: Collect execution trace
-        if (options.exetrace) {
-            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
-        }
-
-        // * Step 6: Collect the screenshot and other measurements
+        // * Step 4: Collect the screenshot and other measurements
         if (options.screenshot){
             const rootFrame = page.mainFrame();
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
@@ -188,6 +174,20 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await measure.collectNaiveInfo(page, dirname, filename);
             // console.log("Replay: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
+        }
+
+        // * Step 5: Collect the writes to the DOM
+        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
+        if (options.write){
+            await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await page.evaluate(() => __write_log_processed);
+            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+
+        // * Step 6: Collect execution trace
+        if (options.exetrace) {
+            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
         }
 
         // * Step 7: Interact with the webpage
