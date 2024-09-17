@@ -49,21 +49,26 @@ class JSWrite:
                 if 'xpath' in a:
                     xpaths.append(a['xpath'])
         return xpaths
-
-    def __hash__(self):
-        if self._hash:
-            return self._hash
+    
+    def _hash_tuple(self):
         target = _tag_from_xpath(self.xpath)
         args = []
         for arg in self.args:
             args += _tag_from_arg(arg)
-        sig = [target] + args + [self.method]
-        sig = tuple([tuple(s) if isinstance(s, list) else s for s in sig])
-        self._hash = hash(sig)
+        sig = [target, self.method] + args
+        return tuple([tuple(s) if isinstance(s, list) else s for s in sig])
+
+    def __hash__(self):
+        if self._hash:
+            return self._hash
+        self._hash = hash(self._hash_tuple())
         return self._hash
+
+    def __eq__(self, other):
+        return self.__hash__() == other.__hash__()
     
     def __repr__(self) -> str:
-        return f"JSWrite({self.wid}, {self.xpath}, {self.method}, {[_tag_from_arg(a) for a in self.args]})"
+        return f"JSWrite({self.wid}, {self._hash_tuple()})"
 
     def __str__(self) -> str:
         return self.__repr__()

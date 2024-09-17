@@ -38,7 +38,8 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
         'https://mrjack.bet/',
 
         'https://www.smartrecruiters.com/',
-        
+        'https://www.hinet.net/',
+        'https://gettyimages.co.jp/',
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     
@@ -86,5 +87,5 @@ def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
         fidelity_detect.fidelity_issue_all(f'{HOME}/fidelity-files/writes/test/{host}', 'live', tocmp, True, True)
     print(test_results)
 
-# test_fidelity_detect_no_issue()
-test_fidelity_detect_no_issue_e2e()
+test_fidelity_detect_no_issue()
+# test_fidelity_detect_no_issue_e2e()

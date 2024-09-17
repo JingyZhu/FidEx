@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 from fidex.utils import url_utils
-from fidex.fidelity_check import layout_tree
+from fidex.fidelity_check import layout_tree_new as layout_tree
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
@@ -213,7 +213,6 @@ def filter_dynamism(left_unique, left_writes,
     Returns:
         (List, List): updated left_unique and right_unique
     """
-    write_type = 'rawWrites'
     new_left_unique, new_right_unique = [], []
     
     def select_writes(writes, xpaths):
@@ -248,10 +247,10 @@ def filter_dynamism(left_unique, left_writes,
                 continue
             left_associate_writes = []
             for l in left_br:
-                left_associate_writes += associate_writes(l, left_writes[write_type])
+                left_associate_writes += associate_writes(l, left_writes)
             left_associate_writes = select_writes(left_associate_writes, left_br)
             for r in right_br:
-                right_associate_writes = associate_writes(r, right_writes[write_type])
+                right_associate_writes = associate_writes(r, right_writes)
             right_associate_writes = select_writes(right_associate_writes, right_br)
             # print("left associate writes", left_br, json.dumps(left_associate_writes, indent=2))
             # print("right associate writes", right_br, json.dumps(right_associate_writes, indent=2))
