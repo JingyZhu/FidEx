@@ -25,67 +25,6 @@ function waitTimeout(event, ms) {
     return Promise.race([event, sleep(ms)]);
 }
 
-
-async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-    await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    const allEvents = await page.evaluate(() => {
-        let serializedEvents = [];
-        for (let idx = 0; idx < eli.listeners.length; idx++) {
-            const event = eli.listeners[idx];
-            let [elem, handlers] = event;
-            orig_path = eli.origPath[idx]
-            const serializedEvent = {
-                idx: idx,
-                element: getElemId(elem),
-                path: orig_path,
-                events: handlers,
-                url: window.location.href,
-             }
-            serializedEvents.push(serializedEvent);
-        }
-        return serializedEvents;
-    });
-    const numEvents = allEvents.length;
-    console.log("Replay:", "Number of events", numEvents);
-    // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
-    for (let i = 0; i < numEvents && i < 20; i++) {
-        console.log("Replay: Triggering interaction", i);
-        try {
-            await page.waitForFunction(async (idx) => {
-                    await eli.triggerNth(idx);
-                    return true;
-                }, {timeout: 3000}, i)
-        } catch(e) {}
-        try {
-            await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
-        } catch(e) {}
-        // if (options.scroll)
-        //     await measure.scroll(page);
-        if (options.screenshot) {
-            const rootFrame = page.mainFrame();
-            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
-                {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
-            // console.log("Replay: Collected render tree");    
-            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
-            // console.log("Replay: Collected screenshot");    
-            fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
-        }
-        if (options.write){
-            const writeLog = await page.evaluate(() => {
-                __recording_enabled = false;
-                collect_writes();
-                __recording_enabled = true;
-                return __write_log_processed;
-            });
-            fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
-        if (options.exetrace)
-            excepFF.afterInteraction(allEvents[i]);
-    }
-    return allEvents;
-}
-
 (async function(){
     // * Step 0: Prepare for running
     program = recordReplayArgs();
@@ -192,7 +131,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
 
         // * Step 7: Interact with the webpage
         if (options.interaction){
-            const allEvents = await interaction(page, client, excepFF, url, dirname, filename, options);
+            const allEvents = await measure.interaction(page, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
