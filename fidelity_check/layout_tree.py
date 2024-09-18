@@ -84,7 +84,11 @@ def associate_writes(element_xpath: str, writes: list) -> list:
         'setHTML': None,
         'set:className': None,
         'set:id': None,
-        'set:innerHTML': None
+        'set:innerHTML': None,
+
+        'classList.add': None,
+        'classList.remove': None,
+        'classList.toggle': None,
     }
     # {operation name: [related arguments idx]}
     # If empty list, all arguments are related
@@ -236,7 +240,7 @@ class LayoutElement:
         return False
     
     @functools.cached_property
-    def in_carousel(self) -> bool:
+    def is_carousel(self) -> bool:
         """Heuristic to decide if the element is part of the carousel
         2 candidate methods:
         a. Check if all chilren has the same structure (and if has dimension, same dimension and same top/left)
@@ -264,16 +268,22 @@ class LayoutElement:
                 return False
             if len(children_types) > 1:
                 return False
-        if len(dimensions) != 1:
+        
+        def has_keywords():
+            class_keywords = ['carousel', 'slider', 'slideshow', 'gallery', 'slick', 'swiper']
+            for c in class_keywords:
+                if c in self.text.lower():
+                    return True
+            return False
+        if len(dimensions) != 1 and not has_keywords():
             return False
         child_writes = sum([len(c.writes) for c in self.children])
+        if self.xpath == '/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]/div[1]/div[1]':
+            print("Carousel", dimensions, has_keywords(), child_writes)
         return child_writes > 0
 
         # * Method b
-        class_keywords = ['carousel', 'slider', 'slideshow', 'gallery', 'slick', 'swiper']
-        for c in class_keywords:
-            if c in self.text.lower():
-                return True
+        
 
     @functools.cached_property
     def features(self) -> tuple:
@@ -375,16 +385,16 @@ class LayoutElement:
             return False
         
         def carousel_eq(e1, e2):
-            if not (e1.stale or e1.in_carousel) or not (e2.stale or e2.in_carousel):
+            if not (e1.stale or e1.is_carousel) or not (e2.stale or e2.is_carousel):
                 return False
             if e1.xpath == e2.xpath:
-                e1.in_carousel = e2.in_carousel = True
+                e1.is_carousel = e2.is_carousel = True
                 return True
             # Dimension has the same top/left width and height
             e1_text = re.sub(r'style=".*?"', '', e1.text)
             e2_text = re.sub(r'style=".*?"', '', e2.text)
             if dimension_eq(e1.dimension, e2.dimension) and e1_text == e2_text:
-                e1.in_carousel = e2.in_carousel = True
+                e1.is_carousel = e2.is_carousel = True
                 return True
             return False
         
@@ -417,7 +427,7 @@ class LayoutElement:
                 tree_list.append(self)
         else:
             tree_list.append(self)
-        if self.in_carousel and len(tree_list) > 0 and tree_list[-1] == self:
+        if self.is_carousel:
             return tree_list
         children = sorted(self.children, key=lambda x: (x.dimension.get('top', 0)+x.dimension.get('height', 0), x.dimension.get('left', 0)+x.dimension.get('width', 0))) if layout_order else self.children
         for child in children:

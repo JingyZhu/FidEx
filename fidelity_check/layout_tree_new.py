@@ -7,6 +7,48 @@ import functools
 from fidex.fidelity_check import js_writes
 from fidex.utils import url_utils
 
+CSS_ANIMATION_STYLES = [
+    'transform.*',
+    'translate.*',
+    'transition.*',
+    'animation.*',
+    'width', 
+    'height',
+    'left',
+    'top',
+    'bottom',
+    'right',
+]
+
+FILTERED_STYLES = CSS_ANIMATION_STYLES + [
+    'background',
+    'background-image',
+    'background-color',
+    'opacity', 
+    'inset',
+    'display', 
+]
+
+def _filter_style(style, filter_keys=FILTERED_STYLES):
+    """Add style and throw away certain attr"""
+    # Strip the ending ;
+    style = re.sub(r';\s+', ';', style.strip(';'))
+    new_style = []
+    filter_keys = [re.compile(k) for k in filter_keys]
+    for s in style.split(';'):
+        # Replace all :\s+ with :
+        s = re.sub(r':\s+', ':', s)
+        to_filter = False
+        s_split = s.split(':')
+        for k in filter_keys:
+            if k.match(s_split[0]):
+                to_filter = True
+                break
+        if not to_filter:
+            new_style.append(': '.join(s_split))
+    return ';'.join(new_style)
+
+
 def _sibling_xpath(path1, path2, max_diff=1, only_last=False):
     """Check if path1 and path2 are siblings (same length, differ by one element)
     
@@ -137,40 +179,6 @@ class LayoutElement:
             tag_r = r(tag)
             if tag_r is not None:
                 features.append(tag_r)
-        # * Add style and throw away certain attr
-        def _filter_style(style):
-            # Strip the ending ;
-            style = re.sub(r';\s+', ';', style.strip(';'))
-            new_style = []
-            filter_keys = [
-                            'animation',
-                            'background',
-                            'background-image',
-                            'background-color',
-                            'opacity', 
-                            'inset',
-                            'width', 
-                            'height',
-                            'left',
-                            'top',
-                            'bottom',
-                            'right',
-                            'display', 
-                            'transform',
-                            'transition'
-                        ]
-            for s in style.split(';'):
-                # Replace all :\s+ with :
-                s = re.sub(r':\s+', ':', s)
-                to_filter = False
-                s_split = s.split(':')
-                for k in filter_keys:
-                    if k in s_split[0]:
-                        to_filter = True
-                        break
-                if not to_filter:
-                    new_style.append(': '.join(s_split))
-            return ';'.join(new_style)
         if 'style' in tag.attrs and tag.attrs['style'] != '':
             style = _filter_style(tag.attrs['style'])
             if len(style) > 0:
@@ -204,29 +212,44 @@ class LayoutElement:
             else:
                 return e1.features == e2.features
         
-        def dynamic_self_eq(e1, e2):
+        def js_dynamism_self_eq(e1, e2):
             """
             If one is stale and the other is not, and the stale one has subset of writes of the other. Return True
             """
             if len(e1.writes) + len(e2.writes) > 0 and e1.stale + e2.stale == 1:
-                e1_subset = e1.stale > e2.stale and set(e1.writes).issubset(set(e2.writes))
-                e2_subset = e2.stale > e1.stale and set(e2.writes).issubset(set(e1.writes))
+                e1_subset = set(e1.writes).issubset(set(e2.writes))
+                e2_subset = set(e2.writes).issubset(set(e1.writes))
                 if e1_subset or e2_subset:
                     return True
             return False
 
+        def css_dynamism_self_eq(e1, e2):
+            """Check if css dynamic elements can be matched"""
+            if not isinstance(e1.tag, Tag) or not isinstance(e2.tag, Tag):
+                return False
+            if 'style' in e1.tag.attrs and 'style' in e2.tag.attrs:
+                s1 = _filter_style(e1.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
+                s2 = _filter_style(e2.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
+                if s1 == s2 and e1.tagname == e2.tagname:
+                    return True
+            return False
         
+        # Static matching
         if features_eq(self, other) and dimension_eq(self.dimension, other.dimension):
             return True
         # Dynamic element that changes itself 
-        if dynamic_self_eq(self, other): 
+        if js_dynamism_self_eq(self, other): 
             return True
+        # Dynamism caused by css
+        if css_dynamism_self_eq(self, other):
+            return True
+        return False
 
-    @functools.cached_property
-    def visible(self):
+    def visible(self, check_viewport=False):
         has_dimension = self.dimension.get('width', 0) > 1 and self.dimension.get('height', 0) > 1
-        in_viewport = self.dimension.get('left', 0) + self.dimension.get('width', 0) > 0 and self.dimension.get('top', 0) + self.dimension.get('height', 0) > 0
-        return has_dimension and in_viewport
+        if check_viewport:
+            in_viewport = self.dimension.get('left', 0) + self.dimension.get('width', 0) > 0 and self.dimension.get('top', 0) + self.dimension.get('height', 0) > 0
+        return has_dimension and (not check_viewport or in_viewport)
 
     def tag_new_writes(self, other):
         """tag unique writes for both self and others"""
@@ -260,9 +283,9 @@ class LayoutElement:
         """
         tree_list = []
         if layout:
-            if self.visible:
+            if self.visible():
                 tree_list.append(self)
-            elif self.tag == '#text' and self.parent.visible:
+            elif self.tag == '#text' and self.parent.visible():
                 tree_list.append(self)
         else:
             tree_list.append(self)
@@ -327,8 +350,9 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
     for i, left_elem in enumerate(left_layout_list, 1):
         for j, right_elem in enumerate(right_layout_list, 1):
-            if left_elem.xpath == '/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]' and right_elem.xpath == '/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]':
-                print('here', left_elem == right_elem)
+            # if left_elem.xpath.startswith('/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]/div[1]/div[4]/span[3]') \
+            #     and right_elem.xpath.startswith('/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]/div[1]/div[4]/span[3]'):
+            #     print('here\n', left_elem.xpath, left_elem.writes, '\n', right_elem.xpath, right_elem.writes, '\n', left_elem == right_elem)
             if left_elem == right_elem:
                 lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
                 left_elem.tag_new_writes(right_elem)
@@ -357,11 +381,11 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
         else:
             j -= 1
     lcs_live.reverse()
-    print(json.dumps(lcs_live, indent=2))
+    # print(json.dumps(lcs_live, indent=2))
     lcs_archive.reverse()
-    print(json.dumps(lcs_archive, indent=2))
-    left_diff = [e for e in left_layout_list if e.xpath not in set(lcs_live) and e.visible and not e.made_by_new_writes()]
-    right_diff = [e for e in right_layout_list if e.xpath not in set(lcs_archive) and e.visible and not e.made_by_new_writes()]
+    # print(json.dumps(lcs_archive, indent=2))
+    left_diff = [e for e in left_layout_list if e.xpath not in set(lcs_live) and e.visible(check_viewport=True) and not e.made_by_new_writes()]
+    right_diff = [e for e in right_layout_list if e.xpath not in set(lcs_archive) and e.visible(check_viewport=True) and not e.made_by_new_writes()]
     left_diff = [e.xpath for e in left_diff]
     right_diff = [e.xpath for e in right_diff]
     return left_diff, right_diff
