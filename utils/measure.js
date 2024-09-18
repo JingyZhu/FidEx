@@ -170,11 +170,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         //     await measure.scroll(page);
         if (options.screenshot) {
             const rootFrame = page.mainFrame();
-            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+            const renderInfoRaw = await collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
-            // console.log("Replay: Collected render tree");    
-            await measure.collectNaiveInfo(page, dirname, `${filename}_${i}`)
-            // console.log("Replay: Collected screenshot");    
+            await collectNaiveInfo(page, dirname, `${filename}_${i}`)
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         if (options.write){

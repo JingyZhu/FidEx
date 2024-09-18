@@ -239,8 +239,6 @@ async function getActivePage(browser) {
 
         const onloadURL = recordPage.url();
 
-        
-
         // * Step 9: Interact with the webpage
         if (options.interaction){
             const allEvents = await measure.interaction(recordPage, client, excepFF, url, dirname, filename, options);
