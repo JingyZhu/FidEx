@@ -59,7 +59,8 @@ function getDomXPath(elm, fullTrace = false) {
 };
 
 // * chrome_ctx version of the code starts from here
-// * Replace unsafeWindow. with empty string
+// * To chrome_ctx: Replace unsafeWindow. with empty string
+// * From chrome_ctx: Replace __ with unsafdeWindow.__
 /**
  * Override (all) HTML Node's write methods to track the writes.
  */
@@ -89,19 +90,12 @@ function isNodeInDocument(node) {
     return node.isConnected;
 }
 
-// Copied from chrome_ctx/render_tree_collect.js
-function getNodeText(node) {
+// Light version of chrome_ctx/render_tree_collect.js
+function getNodeTextLight(node) {
     if (node.nodeType === Node.ELEMENT_NODE){
-        node = _normalSRC(node);
         let tag = node.outerHTML;
-        const innerHTML = node.innerHTML;
-        if (innerHTML !== "") {
-            const end = tag.lastIndexOf(innerHTML);
-            tag = tag.slice(0, end)
-        } else {
-            tag = tag.replace(/<\/.*?>/g, "");
-        }
-        return tag.replace(/\n/g, "");
+        match = tag.match(/<[^>]+>/);
+        return match ? match[0] : tag;
     } else if (node.nodeType === Node.TEXT_NODE){
         return node.textContent;
     } else
@@ -187,6 +181,15 @@ class DimensionSets {
         return true;
     }
 
+    getSelfDimension() {
+        return this.dimension ? {
+            left: this.dimension.left,
+            top: this.dimension.top,
+            width: this.dimension.width,
+            height: this.dimension.height,
+        } : null;
+    }
+
 }
 
 // Not used at this point.
@@ -259,6 +262,7 @@ function newWriteMethod(originalFn, method, thisNode) {
                 args: viable_args,
                 args_snapshot: args_copy,
                 beforeDS: beforeDS,
+                beforeText: getNodeTextLight(thisNode),
                 trace: Error().stack,
                 id: wid
             }
@@ -273,6 +277,7 @@ function newWriteMethod(originalFn, method, thisNode) {
             let afterDS = new DimensionSets();
             afterDS.recordDimension(thisNode, args);
             record.afterDS = afterDS;
+            record.afterText = getNodeTextLight(thisNode);
             // * Record only if the dimension changes
             // ! One thing to note is that the dimension of the node might not immediately change after the write (e.g. if write an image to the DOM, the dimension of the image might not be available immediately)
             // ! Might need to wait till the end of the page load for comparing the dimension
@@ -303,7 +308,7 @@ function newSetMethod(originalFn, property) {
                 method: 'set:' + property,
                 args: [value_copy],
                 beforeDS: beforeDS,
-                beforeText: getNodeText(this),
+                beforeText: getNodeTextLight(this),
                 trace: Error().stack,
                 id: wid
             }
@@ -318,7 +323,7 @@ function newSetMethod(originalFn, property) {
             let afterDS = new DimensionSets();
             afterDS.recordDimension(this, [value]);
             record.afterDS = afterDS;
-            record.afterText = getNodeText(this);
+            record.afterText = getNodeTextLight(this);
             // * Record only if the dimension changes
             if (!beforeDS.isDimensionMatch(afterDS)) {
                 _debug_log("set", this, property, value);

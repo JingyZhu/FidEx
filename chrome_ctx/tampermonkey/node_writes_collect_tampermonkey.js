@@ -136,26 +136,26 @@ class DimensionSets {
 }
 
 // * chrome_ctx version of the code starts from here
-// * Replace unsafeWindow. with empty string
+// * To chrome_ctx: Replace unsafeWindow. with empty string
+// * From chrome_ctx: Replace __ with unsafdeWindow.__
 /**
  * Collect write logs after loading the page.
  * Note: need to override Node write methods and setters using node_write_override.js
  */
-unsafeWindow.__raw_write_log_processed = [];
-unsafeWindow.__final_write_log = [];
-unsafeWindow.__final_write_log_processed = [];
-
+unsafeWindow.__write_log_processed = [];
+unsafeWindow.__write_log = [];
+unsafeWindow.__recording_enabled = false;
 // Normalize all href and src attributes in node
-function _normalSRC(node) {
+function _normalSRC(node){
     const _attrs = ['src', 'href', 'action'];
     const setSrcSet = (n) => {
         return; // * srcset seems to have bug for archive, not sure how broad the issue is
         // Change srcset to absolute path
-        if (n.hasAttribute('srcset')) {
+        if (n.hasAttribute('srcset')){
             let srcset = n.getAttribute('srcset');
             let srcsetList = srcset.split(', ');
             let newSrcSet = [];
-            for (const srcRes of srcsetList) {
+            for (const srcRes of srcsetList){
                 const src = srcRes.split(' ')[0];
                 let newSrc = new URL(src, window.location.href).href;
                 newSrcSet.push(`${newSrc} ${srcRes.split(' ')[1]}`);
@@ -163,14 +163,14 @@ function _normalSRC(node) {
             n.setAttribute('srcset', newSrcSet.join(', '));
         }
     }
-    for (let attr of _attrs) {
+    for (let attr of _attrs){
         if (node.hasAttribute(attr))
             node[attr] = node[attr];
         setSrcSet(node)
     }
     let allDescendants = node.querySelectorAll('*');
-    for (let descendant of allDescendants) {
-        for (let attr of _attrs) {
+    for (let descendant of allDescendants){
+        for (let attr of _attrs){
             if (descendant.hasAttribute(attr))
                 descendant[attr] = descendant[attr];
         }
@@ -179,8 +179,10 @@ function _normalSRC(node) {
     return node;
 }
 
-unsafeWindow.collect_writes = function () {
-    unsafeWindow.__recording_enabled = false;
+
+function collect_writes(){
+    unsafeWindow.__write_log_processed = [];
+    unsafeWindow.__write_log = [];
     // Process raw_args so that it can be stringified
     function process_args(raw_args) {
         let args = [];
@@ -215,7 +217,6 @@ unsafeWindow.collect_writes = function () {
         return args;
     }
 
-
     function visible(record, DS){
         if (!DS.visible())
             return false;
@@ -241,33 +242,45 @@ unsafeWindow.collect_writes = function () {
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
 
-        unsafeWindow.__raw_write_log_processed.push({
-            xpath: getDomXPath(record.target),
-            method: record.method,
-            arg: args
-        })
-
         let currentDS = new DimensionSets();
         currentDS.recordDimension(record.target, record.args);
-        // * Check if the dimension now is the same as before the write
-        // * The reason for checking it now is to catch lazy loaded elements
-        // * For example, if an image is written to the DOM, it might not be loaded immediately.
-        if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
-            continue
-        // ? Only include the write if the argument is still visible now.
-        // TODO: Think more about whether this is valid
-        // if (!visible(record, currentDS))
-        //     continue
-        unsafeWindow.__final_write_log.push(record);
-        // Handle img src
-        unsafeWindow.__final_write_log_processed.push({
+        const effective = !record.beforeDS.isDimensionMatch(record.afterDS);
+        unsafeWindow.__write_log_processed.push({
             wid: record.id,
             xpath: getDomXPath(record.target),
             method: record.method,
-            arg: args
+            args: args,
+            beforeDS: record.beforeDS.getSelfDimension(),
+            beforeText: record.beforeText,
+            afterDS: record.afterDS.getSelfDimension(),
+            afterText: record.afterText,
+            currentDS: currentDS.getSelfDimension(),
+            effective: effective,
         })
+
+
+        // * All dimensions will be put into the log and the decision will be made in post-processing
+        // // * Check if the dimension now is the same as before the write
+        // // * The reason for checking it now is to catch lazy loaded elements
+        // // * For example, if an image is written to the DOM, it might not be loaded immediately.
+        // if (record.beforeDS.isDimensionMatch(record.afterDS) && currentDS.isArgsDimensionMatch(record.beforeDS))
+        //     continue
+        // // ? Only include the write if the argument is still visible now.
+        // // TODO: Think more about whether this is valid
+        // // if (!visible(record, currentDS))
+        // //     continue
+        // unsafeWindow.__final_write_log.push(record);
+        // // Handle img src
+        // unsafeWindow.__final_write_log_processed.push({
+        //     wid: record.id,
+        //     xpath: getDomXPath(record.target),
+        //     method: record.method,
+        //     args: args,
+        // })
     }
 }
+
+// * chrome_ctx version of the code ends here
 
 // Find writes that have target of element (or element's ancestors)
 unsafeWindow.find_writes = function(log, element) {
