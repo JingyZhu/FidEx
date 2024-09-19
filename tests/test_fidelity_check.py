@@ -11,7 +11,7 @@ from fidex.record_replay import autorun
 import os
 HOME = os.path.expanduser("~")
 
-PROXY = 'http://pistons.eecs.umich.edu:8078'
+PROXY = 'http://pistons.eecs.umich.edu:8079'
 autorun.PROXYHOST = PROXY
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
