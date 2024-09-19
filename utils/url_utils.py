@@ -2,6 +2,8 @@ import re
 from urllib.parse import urlsplit, parse_qsl, urlunsplit
 from publicsuffixlist import PublicSuffixList
 import hashlib
+import requests
+from bs4 import BeautifulSoup
 
     
 def filter_archive(archive_url):
@@ -87,3 +89,19 @@ def calc_hostname(url):
     """Given a URL, extract its hostname + 10 char hash to construct a unique id"""
     url_hash = hashlib.md5(url.encode()).hexdigest()[:10]
     return f"{urlsplit(url).netloc.split(':')[0]}_{url_hash}"
+
+def request_live_url(url):
+    r = requests.get(url, timeout=10)
+    if r.status_code >= 400:
+        return None
+    final_url = r.url
+    soup = BeautifulSoup(r.text, 'html.parser')
+    # Find http-equiv refresh
+    refresh = soup.find('meta', attrs={'http-equiv': 'refresh'})
+    if refresh:
+        contents = refresh.get('content', '').split(';')
+        for content in contents:
+            content = content.strip()
+            if content.startswith('url='):
+                final_url = content[4:]
+    return final_url

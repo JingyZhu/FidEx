@@ -11,7 +11,6 @@ from subprocess import PIPE, check_call, Popen, call
 import random
 import os
 import json
-import requests
 import sys
 import re
 import socket
@@ -22,7 +21,7 @@ import time
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(_FILEDIR))
 _CURDIR = os.getcwd()
-from utils import upload, url_utils
+from fidex.utils import upload, url_utils
 
 
 REMOTE = True
@@ -42,8 +41,10 @@ def record(url, archive_name,
            write_path=f'{_CURDIR}/writes',
            download_path=None,
            archive_path='./',
-           wr_archive=default_archive, 
+           wr_archive=default_archive,
+           filename=None, 
            arguments=None):
+    filename = 'live' if filename is None else filename
     if download_path is not None:
         arguments = arguments + ['--download', download_path]
     p = Popen(['node', 'record.js', '-d', f'{write_path}/{archive_name}',
@@ -69,8 +70,10 @@ def replay(url, archive_name,
            chrome_data=DEFAULT_CHROMEDATA,
            write_path=f'{_CURDIR}/writes',
            proxy=False,
+           filename=None,
            arguments=None):
-    filename = 'proxy' if proxy else 'archive'
+    if filename is None:
+        filename = 'proxy' if proxy else 'archive'
     check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
                 '-f', filename,
                 '-c', chrome_data,
@@ -163,12 +166,11 @@ def record_replay_all_urls(urls,
     seen_dir = set([v['directory'] for v in metadata.values()])
 
     for i, url in list(enumerate(urls)):
-        print(i, url) if worker_id is None else print(worker_id, i, url)
+        print(i, url, flush=True) if worker_id is None else print(worker_id, i, url, flush=True)
         if url in metadata or url.replace('http://', 'https://') in metadata:
             continue
-        sys.stdout.flush()
         try:
-            req_url = requests.get(url, timeout=20).url # * In case of redirection, only focusing on getting new hostname
+            req_url = url_utils.request_live_url(url)
         except:
             continue
         if req_url in metadata:
@@ -202,7 +204,7 @@ def record_replay_all_urls(urls,
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
 def record_replay_all_urls_multi(urls, num_workers=8,
-                                 chrome_data_dir=DEFAULT_CHROMEDATA,
+                                 chrome_data_dir=os.path.dirname(DEFAULT_CHROMEDATA),
                                  metadata_prefix='metadata/metadata',
                                  write_path=f'{_CURDIR}/writes',
                                  download_path=None,
@@ -310,34 +312,11 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     json.dump(metadata, open(f'{metadata_prefix}.json', 'w+'), indent=2)
 
 
-
 # ! Below deprecated for now
-def replay_all_wayback():
-    metadata = json.load(open(metadata_file, 'r'))
-    urls = [u for u in metadata]
-
-    for i, url in list(enumerate(urls)):
-        print(i, url)
-        sys.stdout.flush()
-        # Query wayback CDX to get the latest archive
-        try:
-            r = requests.get('http://archive.org/wayback/available', params={'url': url, 'timestamp': metadata[url]['ts']})
-            r = r.json()
-            wayback_url = r['archived_snapshots']['closest']['url']
-        except Exception as e:
-            print(str(e))
-            continue
-        archive_name = url_utils.calc_hostname(url)
-        check_call(['node', 'replay.js', '-d', f'writes/{archive_name}', 
-                '-f', 'wayback', '-w',
-                wayback_url], cwd=_FILEDIR)
-        metadata[url]['wayback'] = wayback_url
-        json.dump(metadata, open(metadata_file, 'w+'), indent=2)
-
 def test_single_url():
     # * Test single URL
     test_url = "https://www.google.com"
-    test_req_url = requests.get(test_url).url # * In case of redirection
+    test_req_url = url_utils.request_live_url(test_url)
     test_archive = url_utils.calc_hostname(test_req_url)
     print(test_req_url, test_archive)
     wr_archive = 'test'
