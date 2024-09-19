@@ -1,11 +1,12 @@
 import re
-from urllib.parse import urlsplit, parse_qsl, urlunsplit
+from urllib.parse import urlsplit, parse_qsl, urlunsplit, urljoin
 from publicsuffixlist import PublicSuffixList
 import hashlib
 import requests
 from bs4 import BeautifulSoup
 
-    
+HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
+
 def filter_archive(archive_url):
     pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
     match = re.search(pattern, archive_url)
@@ -91,9 +92,9 @@ def calc_hostname(url):
     return f"{urlsplit(url).netloc.split(':')[0]}_{url_hash}"
 
 def request_live_url(url):
-    r = requests.get(url, timeout=10)
+    r = requests.get(url, timeout=10, headers=HEADERS)
     if r.status_code >= 400:
-        return None
+        return url
     final_url = r.url
     soup = BeautifulSoup(r.text, 'html.parser')
     # Find http-equiv refresh
@@ -103,5 +104,5 @@ def request_live_url(url):
         for content in contents:
             content = content.strip()
             if content.startswith('url='):
-                final_url = content[4:]
+                final_url = urljoin(url, content[4:])
     return final_url

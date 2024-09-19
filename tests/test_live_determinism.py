@@ -10,9 +10,11 @@ pd.set_option('display.width', None)
 
 def test_non_determinism():
     urls = [
-        "https://www.inkfrog.com/", # * Random increasing number
-        "https://www.superenalotto.com/", # * clock counting
-        
+        'https://www.inkfrog.com/', # * Random increasing number
+        'https://www.superenalotto.com/', # * clock counting
+        'https://www.deutschlandfunk.de/', # * Random popup survey
+        'https://www.datadoghq.com/', # * Different banner popup
+        'https://www.dailysignal.com/', # * Random picking titles
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     

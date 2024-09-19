@@ -30,14 +30,17 @@ def check_live_determinism(url, archive_name,
     """
     base_dirr = f'{_CURDIR}/determinism'
     dirr = f'{base_dirr}/{archive_name}'
-    for i in range(num_loads):
-        autorun.replay(url, archive_name,
-                    chrome_data=chrome_data,
-                    write_path=base_dirr,
-                    filename=f'determinism_{i}',
-                    arguments=ARGS)
+    try:
+        for i in range(num_loads):
+            autorun.replay(url, archive_name,
+                        chrome_data=chrome_data,
+                        write_path=base_dirr,
+                        filename=f'determinism_{i}',
+                        arguments=ARGS)
+    except Exception as e:
+        print(f"Seeing Exception on {url}: {e}")
+        return False, {}
     # DO fidelity check
-
     all_elements = glob.glob(f'{dirr}/determinism_*_dom.json')
     pair_comp = {}
     for left, right in combinations(all_elements, 2):
@@ -72,7 +75,7 @@ def live_determinism(urls, metadata_file,
             continue
         deterministic, pair_comp = check_live_determinism(req_url, archive_name, 
                                                           chrome_data=f'{HOME}/chrome_data/determinism_{worker_id}')
-        metadata[req_url] = {
+        metadata[url] = {
             'url': req_url,
             'original_url': url,
             'directory': archive_name,
