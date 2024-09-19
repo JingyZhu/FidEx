@@ -179,7 +179,7 @@ def record_replay_all_urls(urls,
         if archive_name in seen_dir:
             continue
         try:
-            ts, record_url = record_replay(url, archive_name, 
+            ts, record_url = record_replay(req_url, archive_name, 
                                     chrome_data=chrome_data,
                                     write_path=write_path, 
                                     download_path=download_path, 

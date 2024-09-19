@@ -1,104 +1,163 @@
 """
     Auto run live_determinism.js and 
 """
-from subprocess import PIPE, check_call, Popen
+from subprocess import call
+import concurrent
 import os
 import json
-import requests
 import time
 import glob
-import socket
+import multiprocessing
 from itertools import combinations
-from threading import Thread
-from multiprocessing import Process
 
-import sys
-sys.path.append('../../')
-from fidelity_check import fidelity_detect
-from utils import url_utils
 
-machine_idx = ['pistons', 'wolverines'].index(socket.gethostname())
+from fidex.fidelity_check import fidelity_detect
+from fidex.utils import url_utils
+from fidex.record_replay import autorun
 
-ARCHIVE_HOST = 'http://pistons.eecs.umich.edu:8080'
 HOME = os.path.expanduser("~")
-arguments = ['-s']
+_CURDIR = os.getcwd()
+ARGS = ['-w', '-s', '--scroll', '--headless']
 
-
-def check_live_determinism(url, dirr, chrome_data=None) -> (bool, dict):
+def check_live_determinism(url, archive_name, 
+                           num_loads=3, 
+                           chrome_data=autorun.DEFAULT_CHROMEDATA) -> (bool, dict):
     """
     Check if the livepage load is deterministic everytime
 
     Returns:
         bool: True if deterministic, False otherwise
     """
-    funcArgs = arguments + ['-c', chrome_data] if chrome_data else arguments
-    try:
-        check_call(['node', 'live_determinism.js', '-d', f'determinism/{dirr}', '-f', 'live', url, *funcArgs])
-    except:
-        return False, {}
+    base_dirr = f'{_CURDIR}/determinism'
+    dirr = f'{base_dirr}/{archive_name}'
+    for i in range(num_loads):
+        autorun.replay(url, archive_name,
+                    chrome_data=chrome_data,
+                    write_path=base_dirr,
+                    filename=f'determinism_{i}',
+                    arguments=ARGS)
     # DO fidelity check
-    dirr = f'determinism/{dirr}'
-    all_elements = glob.glob(f'{dirr}/live_*_elements.json')
+
+    all_elements = glob.glob(f'{dirr}/determinism_*_dom.json')
     pair_comp = {}
     for left, right in combinations(all_elements, 2):
         if not os.path.exists(left) or not os.path.exists(right):
             continue
-        left = os.path.basename(left).replace('_elements.json', '')
-        right = os.path.basename(right).replace('_elements.json', '')
+        left = os.path.basename(left).replace('_dom.json', '')
+        right = os.path.basename(right).replace('_dom.json', '')
         has_issue, (left_unique, right_unique) = fidelity_detect.fidelity_issue(dirr, left, right)
         pair_comp[f'{left}_{right}'] = has_issue
         if has_issue:
             return False, pair_comp
     return True, pair_comp
     
-def live_determinism(urls, worker_id=0) -> dict | None:
+def live_determinism(urls, metadata_file,
+                     worker_id=None) -> dict | None:
     """Entry func for a single worker"""
     start = time.time()
-    results = []
+    if not os.path.exists(metadata_file):
+        json.dump({}, open(metadata_file, 'w+'), indent=2)
+    metadata = json.load(open(metadata_file, 'r'))
+    seen_dir = set([v['directory'] for v in metadata.values()])
     for i, url in enumerate(urls):
+        print(i, url, flush=True) if worker_id is None else print(worker_id, i, url, flush=True)
+        if url in metadata or url.replace('http://', 'https://') in metadata:
+            continue
         try:
-            url = requests.get(url, timeout=10).url
+            req_url = url_utils.request_live_url(url)
         except:
             continue
-        print(worker_id, i, url)
-        dirr = url_utils.calc_hostname(url)
-        deterministic, pair_comp = check_live_determinism(url, dirr, chrome_data=f'{HOME}/chrome_data/determinism_{worker_id}')
-        results.append({
-            'url': url,
-            'hostname': dirr,
+        archive_name = url_utils.calc_hostname(req_url)
+        if archive_name in seen_dir:
+            continue
+        deterministic, pair_comp = check_live_determinism(req_url, archive_name, 
+                                                          chrome_data=f'{HOME}/chrome_data/determinism_{worker_id}')
+        metadata[req_url] = {
+            'url': req_url,
+            'original_url': url,
+            'directory': archive_name,
             'deterministic': deterministic,
             'pairwise_comparison': pair_comp
-        })
-        if i % 10 == 1:
-            json.dump(results, open(f'determinism_results/determinism_results_{worker_id}.json', 'w+'), indent=2)
+        }
+        json.dump(metadata, open(metadata_file, 'w+'), indent=2)
         print('Till Now:', time.time()-start)
-    json.dump(results, open(f'determinism_results/determinism_results_{worker_id}.json', 'w+'), indent=2)
+    json.dump(metadata, open(metadata_file, 'w+'), indent=2)
 
-def live_determinism_multiproc(urls, num_browsers=8):
+
+def _live_determinism_worker(url,
+                            metadata_file,
+                            chrome_data_dir,
+                            chrome_data,
+                            worker_id,
+                            id_lock: "multiprocessing.Manager.Lock",
+                            active_ids: "multiprocessing.Manager.dict") -> None:
+    if not os.path.exists(chrome_data):
+        call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
+        time.sleep(worker_id*5)
+    live_determinism([url],
+                    metadata_file,
+                    worker_id)
+    with id_lock:
+        active_ids.pop(worker_id)
+
+
+def live_determinism_multiproc(urls, num_workers=8,
+                               chrome_data_dir=os.path.dirname(autorun.DEFAULT_CHROMEDATA),
+                               metadata_prefix='metadata/determinism'):
     """
     Entry func
     Make sure to set the headless to new for js
     """
-    processes = []
-    for i in range(num_browsers):
-        urls_part = urls[i::num_browsers]
-        p = Process(target=live_determinism, args=(urls_part, i))
-        processes.append(p)
-        p.start()
-    for p in processes:
-        p.join()
-    # Combine all results
-    results = []
-    for i in range(num_browsers):
-        results += json.load(open(f'determinism_results/determinism_results_{i}.json', 'r'))
-    json.dump(results, open('determinism_results/determinism_results.json', 'w+'), indent=2)
+    for i in range(num_workers):
+        call(['rm', '-rf', f'{chrome_data_dir}/determinism_{i}'])
+    manager = multiprocessing.Manager()
+    active_ids = manager.dict()
+    id_lock = manager.Lock()
+    def _get_worker_task():
+        with id_lock:
+            for i in range(num_workers):
+                if i not in active_ids:
+                    active_ids[i] = True
+                    url = urls.pop(0) if len(urls) > 0 else None
+                    return i, url
+        return None, None
 
-
-if __name__ == "__main__":
-    data = json.load(open('../data/tranco_urls.json', 'r'))
-    seen = set()
-    if os.path.exists('determinism_results/determinism_results.json'):
-        seen = set([d['url'] for d in json.load(open('determinism_results/determinism_results.json', 'r'))])
-    urls = [d['live_url'] for d in data if d['live_url'] not in seen]
-    print("Total URLs to process:", len(urls))
-    live_determinism_multiproc(urls, 16)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # Keep track of futures
+        tasks = []
+        while True:
+            # Get worker id
+            sleep_time = 1
+            while True:
+                worker_id, url = _get_worker_task()
+                if worker_id is not None:
+                    break
+                else:
+                    sleep_time = min(sleep_time * 2, 30)
+                    time.sleep(sleep_time)
+            assert worker_id is not None, "Worker ID is None"
+            if url:
+                task = executor.submit(_live_determinism_worker, url,
+                                       f'{metadata_prefix}_{worker_id}.json',
+                                       chrome_data_dir,
+                                       f'{chrome_data_dir}/determinism_{worker_id}',
+                                       worker_id,
+                                       id_lock,
+                                       active_ids)
+                tasks.append(task)
+            else:
+                break
+            for task in tasks:
+                if task.done():
+                    tasks.remove(task)
+            if len(tasks) == 0 and len(active_ids) == 0:
+                break
+    # Merge metadata files
+    if os.path.exists(f'{metadata_prefix}.json'):
+        metadata = json.load(open(f'{metadata_prefix}.json', 'r'))
+    else:
+        metadata = {}
+    for i in range(num_workers):
+        metadata_worker = json.load(open(f'{metadata_prefix}_{i}.json', 'r'))
+        metadata.update(metadata_worker)
+    json.dump(metadata, open(f'{metadata_prefix}.json', 'w+'), indent=2)
