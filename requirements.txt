@@ -1,3 +1,5 @@
 beautifulsoup4
 opencv-python
 publicsuffixlist
+paramiko
+scp

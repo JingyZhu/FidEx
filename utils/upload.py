@@ -3,51 +3,113 @@ Upload crawled warc files and screenshots to group servers
 Remove the files after uploading
 """
 import os
-from subprocess import check_output, call, DEVNULL
+import paramiko
+from scp import SCPClient
+import time
+from subprocess import call
 
 # SERVER is from the .ssh/config file
-SERVER = 'pistons'
+ssh_config = paramiko.SSHConfig()
+ssh_alias = 'pistons'
+with open(os.path.expanduser('~/.ssh/config')) as f:
+    ssh_config.parse(f)
 ARCHIVEDIR = os.path.join(os.path.expanduser("~"), 'fidelity-files')
 PYWBENV = 'source /x/jingyz/pywb/env/bin/activate'
 
-def ssh_exec(cmd, check=True):
-    if check:
-        check_output(['ssh', SERVER, cmd])
-    else:
-        call(['ssh', SERVER, cmd], stdout=DEVNULL, stderr=DEVNULL)
+class SSHClientManager:
+    def __init__(self, server=None, user=None, password=None):
+        assert not server or (server and user and password), "If server provided, user and password should also be provided"
+        if server is None:
+            server = ssh_config.lookup(ssh_alias)['hostname']
+            user = ssh_config.lookup(ssh_alias)['user']
+            identity = ssh_config.lookup(ssh_alias)['identityfile']
+        
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.load_system_host_keys()
+        
+        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if password:
+            self.ssh_client.connect(server, username=user, password=password)
+        else:
+            self.ssh_client.connect(server, username=user, key_filename=identity)
+        self.ssh_client.get_transport().set_keepalive(30)
+        self.scp_client = SCPClient(self.ssh_client.get_transport())
 
-def scp_copy(local_path, remote_path):
-    check_output(['scp', '-r', local_path, f'{SERVER}:{remote_path}'])    
 
-def upload_screenshot(screenshot_path, directory='default'):
-    try:
-        # Create directory if not exist on the remote server
-        ssh_exec(f"mkdir -p {ARCHIVEDIR}/screenshots/{directory}")
-        scp_copy(screenshot_path, f'{ARCHIVEDIR}/screenshots/{directory}')
-        call(f"rm -rf {screenshot_path}", shell=True)
-    except Exception as e:
-        print("Exception on uploading screenshots", str(e))
+    def close(self):
+        if self.scp_client:
+            self.scp_client.close()
+        if self.ssh_client:
+            self.ssh_client.close()
 
-def upload_write(write_path, directory='default'):
-    try:
-        # Create directory if not exist on the remote server
-        ssh_exec(f"mkdir -p {ARCHIVEDIR}/writes/{directory}")
-        scp_copy(write_path, f'{ARCHIVEDIR}/writes/{directory}')
-        call(f"rm -rf {write_path}", shell=True)
-    except Exception as e:
-        print("Exception on uploading writes", str(e))
+    def ssh_exec(self, cmd, check=True):
+        stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
+        exit_status = stdout.channel.recv_exit_status()
+        stderr = stderr.read()
+        if check and exit_status != 0:
+            raise Exception(f"Exit status != 0: {exit_status}. stderr: {stderr.decode()}")
+        return stdout.read(), stderr
 
-def upload_warc(warc_path, col_name, directory='default'):
-    try:
-        ssh_exec(f"mkdir -p {ARCHIVEDIR}/warcs/{directory}")
-        scp_copy(warc_path, f'{ARCHIVEDIR}/warcs/{directory}')
-        warc_name = warc_path.split('/')[-1]
-        command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
-        command_init = f"{command_prefix} && wb-manager init {col_name}"
-        ssh_exec(command_init, check=False)
+    def scp_copy(self, local_path, remote_path):
+        self.scp_client.put(local_path, remote_path, recursive=True)
+    
+    def _lock(self, col_name):
+        lock_file = f"{ARCHIVEDIR}/collections/{col_name}/lock"
+        # Try create lock if not exist
+        self.ssh_exec(f"touch {lock_file}", check=False)
+        count = 0
+        while True:
+            stdout, stderr = self.ssh_exec(f"ln {lock_file} {lock_file}.lock && echo 'locked' || echo 'waiting'", check=False)
+            if stdout.decode().strip() == 'locked':
+                break
+            else:
+                time.sleep(5)
+                count += 1
+                if count % 2 == 0:
+                    # If waiting for too long, unlock and try again
+                    self._unlock(col_name)
 
-        command_add = f"{command_prefix} && wb-manager add {col_name} {ARCHIVEDIR}/warcs/{directory}/{warc_name}"
-        ssh_exec(command_add)
-        call(f"rm -rf {warc_path}", shell=True)
-    except Exception as e:
-        print("Exception on uploading warc", str(e))
+    def _unlock(self, col_name):
+        lock_file = f"{ARCHIVEDIR}/collections/{col_name}/lock.lock"
+        self.ssh_exec(f"rm -f {lock_file}", check=False)
+        
+    def upload_screenshot(self, screenshot_path, directory='default'):
+        try:
+            # Create directory if not exist on the remote server
+            self.ssh_exec(f"mkdir -p {ARCHIVEDIR}/screenshots/{directory}")
+            self.scp_copy(screenshot_path, f'{ARCHIVEDIR}/screenshots/{directory}')
+            call(f"rm -rf {screenshot_path}", shell=True)
+        except Exception as e:
+            print("Exception on uploading screenshots", str(e))
+
+    def upload_write(self, write_path, directory='default'):
+        try:
+            # Create directory if not exist on the remote server
+            self.ssh_exec(f"mkdir -p {ARCHIVEDIR}/writes/{directory}")
+            self.scp_copy(write_path, f'{ARCHIVEDIR}/writes/{directory}')
+            call(f"rm -rf {write_path}", shell=True)
+        except Exception as e:
+            print("Exception on uploading writes", str(e))
+
+    def upload_warc(self, warc_path, col_name, directory='default', lock=True):
+        try:
+            self.ssh_exec(f"mkdir -p {ARCHIVEDIR}/warcs/{directory}")
+            self.scp_copy(warc_path, f'{ARCHIVEDIR}/warcs/{directory}')
+            warc_name = warc_path.split('/')[-1]
+            command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
+            command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || {command_prefix} && wb-manager init {col_name} && touch {ARCHIVEDIR}/collections/{col_name}/lock"
+            self.ssh_exec(command_init, check=False)
+
+            # First keep waiting until  gather lock
+            if lock:
+                self._lock(col_name)
+
+            command_add = f"{command_prefix} && wb-manager add {col_name} {ARCHIVEDIR}/warcs/{directory}/{warc_name}"
+            self.ssh_exec(command_add)
+            call(f"rm -rf {warc_path}", shell=True)
+
+            # Then unlock
+            if lock:
+                self._unlock(col_name)
+        except Exception as e:
+            print("Exception on uploading warc", str(e))
