@@ -37,19 +37,11 @@ let ArchiveFile = null;
 let downloadPath = null;
 const TIMEOUT = 60*1000;
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function waitTimeout(event, ms) {
-    return Promise.race([event, sleep(ms)]);
-}
-
 
 async function clickDownload(page, url=null) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     await page.evaluate(archive => firstPageClick(archive), Archive)
-    await sleep(500);
+    await eventSync.sleep(500);
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     let {recordURL, pageTs} = await page.evaluate((url) => secondPageDownload(url), url);
     await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
@@ -66,7 +58,7 @@ async function dummyRecording(page) {
     await page.waitForSelector('archive-web-page-app');
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/start_recording.js`)
     while (!PORT) {
-        await sleep(500);
+        await eventSync.sleep(500);
     }
     const url = `http://localhost:${PORT}`
     await page.evaluate((archive, url) => startRecord(archive, url), 
@@ -77,7 +69,7 @@ async function getActivePage(browser) {
     var pages = await browser.pages();
     var arr = [];
     for (const p of pages) {
-        let visible = await waitTimeout(
+        let visible = await eventSync.waitTimeout(
             p.evaluate(() => { 
                 return document.visibilityState == 'visible' 
             }), 3000)
@@ -132,9 +124,9 @@ async function getActivePage(browser) {
             "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/index.html",
             {waitUntil: 'load'}
         )
-        await sleep(1000);
+        await eventSync.sleep(1000);
         await dummyRecording(page, url);
-        await sleep(1000);
+        await eventSync.sleep(1000);
         
         let recordPage = await getActivePage(browser);
         if (!recordPage)
@@ -143,7 +135,7 @@ async function getActivePage(browser) {
         let networkIdle = recordPage.waitForNetworkIdle({
             timeout: 2*1000
         })
-        await waitTimeout(networkIdle, 2*1000) 
+        await eventSync.waitTimeout(networkIdle, 2*1000) 
 
         // * Step 3: Prepare and Inject overriding script
         const client = await recordPage.createCDPSession();
@@ -173,12 +165,14 @@ async function getActivePage(browser) {
             client.on('Network.responseReceived', params => excepFF.onFetch(params))
         }
         // recordPage.on('response', async response => executableResources.onResponse(response));
-        await sleep(1000);
+        await eventSync.sleep(1000);
 
         await preventNavigation(recordPage);
         await preventWindowPopup(recordPage);
-        const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
-        await recordPage.evaluateOnNewDocument(script);
+        const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+        const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
+        await recordPage.evaluateOnNewDocument(nwoScript);
+        await recordPage.evaluateOnNewDocument(csScript);
         if (options.exetrace)
             await recordPage.evaluateOnNewDocument("__trace_enabled = true");
         // // Seen clearCache Cookie not working, can pause here to manually clear them
@@ -199,7 +193,7 @@ async function getActivePage(browser) {
             networkIdle = recordPage.waitForNetworkIdle({
                 timeout: TIMEOUT
             })
-            await waitTimeout(networkIdle, TIMEOUT); 
+            await eventSync.waitTimeout(networkIdle, TIMEOUT); 
         } catch {}
         if (scroll)
             await measure.scroll(recordPage);
@@ -207,7 +201,7 @@ async function getActivePage(browser) {
         if (options.manual)
             await eventSync.waitForReady();
         else
-            await sleep(1000);
+            await eventSync.waitCaptureSync(recordPage);
         if (options.exetrace)
             excepFF.afterInteraction('onload');
 
@@ -256,7 +250,7 @@ async function getActivePage(browser) {
             "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/index.html",
             {waitUntil: 'load'}
         )
-        await sleep(500);
+        await eventSync.sleep(500);
         let {recordURL, ts} = await clickDownload(page, finalURL);
         
         // * Step 11: Remove recordings

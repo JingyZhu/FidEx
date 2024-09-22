@@ -30,7 +30,7 @@ unsafeWindow.__tasks = new class {
         this.tasks = new Map();
         this.timeoutMap = new Map();
         this.timeIntervalMap = new Map();
-        this.inRecord = false;
+        this.inRecord = true;
         this.seen = new Map();
         this.finished = 0;
     }
@@ -248,7 +248,7 @@ unsafeWindow.XMLHttpRequest.prototype.send = function(...args) {
 if (window === window.top) {
     originalSetInterval(() => {
         // console.log("Remaining tasks", unsafeWindow.__tasks.length(), unsafeWindow.__tasks.tasks);
-        console.log("Remaining tasks", unsafeWindow.__tasks.length());
+        // console.log("Remaining tasks", unsafeWindow.__tasks.length());
         unsafeWindow.__tasks.removeTimeouts();
     }, 300);
 }

@@ -8,7 +8,7 @@ __tasks = new class {
         this.tasks = new Map();
         this.timeoutMap = new Map();
         this.timeIntervalMap = new Map();
-        this.inRecord = false;
+        this.inRecord = true;
         this.seen = new Map();
         this.finished = 0;
     }
@@ -226,7 +226,7 @@ XMLHttpRequest.prototype.send = function(...args) {
 if (window === window.top) {
     originalSetInterval(() => {
         // console.log("Remaining tasks", __tasks.length(), __tasks.tasks);
-        console.log("Remaining tasks", __tasks.length());
+        // console.log("Remaining tasks", __tasks.length());
         __tasks.removeTimeouts();
     }, 300);
 }

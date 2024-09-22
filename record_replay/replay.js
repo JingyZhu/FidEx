@@ -17,14 +17,6 @@ const { startChrome,
 const {recordReplayArgs} = require('../utils/argsparse');
 
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function waitTimeout(event, ms) {
-    return Promise.race([event, sleep(ms)]);
-}
-
 (async function(){
     // * Step 0: Prepare for running
     program = recordReplayArgs();
@@ -60,7 +52,7 @@ function waitTimeout(event, ms) {
         await client.send('Runtime.enable');
         await client.send('Debugger.enable');
         await client.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
-        await sleep(1000);
+        await eventSync.sleep(1000);
         
         // * Step 1: Parse and Inject the overriding script
         let excepFF = null, executionStacks = null;
@@ -75,12 +67,14 @@ function waitTimeout(event, ms) {
             })
             client.on('Network.responseReceived', params => excepFF.onFetch(params))
         }
-        const script = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
         const timeout = 30*1000;
         
         await preventNavigation(page);
         await preventWindowPopup(page);
-        await page.evaluateOnNewDocument(script);
+        const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+        const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
+        await page.evaluateOnNewDocument(nwoScript);
+        await page.evaluateOnNewDocument(csScript);
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");
         
@@ -90,7 +84,7 @@ function waitTimeout(event, ms) {
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            await waitTimeout(networkIdle, timeout); 
+            await eventSync.waitTimeout(networkIdle, timeout); 
         } catch {}
         if (scroll)
             await measure.scroll(page);
@@ -99,7 +93,7 @@ function waitTimeout(event, ms) {
         if (options.manual)
             await eventSync.waitForReady();
         else
-            await sleep(1000);
+            await eventSync.waitCaptureSync(page);
         if (options.exetrace)
             excepFF.afterInteraction('onload');
 

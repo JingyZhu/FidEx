@@ -10,6 +10,12 @@ function delay(time) {
     });
 }
 
+const sleep = delay;
+
+function waitTimeout(event, ms) {
+    return Promise.race([event, sleep(ms)]);
+}
+
 async function waitForReady() {
     const rl = readline.createInterface({
         input: process.stdin,
@@ -36,7 +42,26 @@ async function waitFile (filename) {
     })   
 }
 
+/**
+ * 
+ * @param {Puppeteer.Page} page 
+ * @param {Object} options {interval: 500, timeout: 3000}
+ */
+async function waitCaptureSync(page, options={interval: 500, timeout: 3000}) {
+    let ready = false;
+    let totalTime = 0;
+    while (totalTime <= options.timeout && !ready) {
+        ready = await page.evaluate(() => window.__tasks.stable());
+        await delay(options.interval);
+        totalTime += options.interval;
+    }
+}
+
 module.exports = {
+    sleep,
+    delay,
+    waitTimeout,
     waitFile,
-    waitForReady
+    waitForReady,
+    waitCaptureSync,
 }

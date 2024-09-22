@@ -7,6 +7,7 @@ const fs = require('fs');
 const { loadToChromeCTX, loadToChromeCTXWithUtils} = require('./load');
 const { Puppeteer } = require('puppeteer');
 const { parse: HTMLParse } = require('node-html-parser');
+const eventSync = require('./event_sync');
 
 function identicalURL(liveURL, archiveURL){
     if (liveURL == archiveURL)
@@ -159,13 +160,14 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         console.log("Interaction: Triggering interaction", i);
         try {
             await page.waitForFunction(async (idx) => {
+                    __tasks && __tasks.start();
                     await eli.triggerNth(idx);
                     return true;
-                }, {timeout: 3000}, i)
-        } catch(e) {}
-        try {
-            await waitTimeout(page.waitForNetworkIdle({timeout: 10000}), 10000);
-        } catch(e) {}
+                }, {timeout: 2000}, i)
+            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 10000);
+        } catch(e) {
+            console.error(`Exception: Interaction ${i} for ${url} \n ${e}`);
+        }
         // if (options.scroll)
         //     await measure.scroll(page);
         if (options.screenshot) {
