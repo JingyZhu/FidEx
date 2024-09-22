@@ -29,6 +29,11 @@ __tasks = new class {
         this.addTask(cbText, {callback: cb});
     }
 
+    addPromise(pr) {
+        const prExecutor = pr.executor ? pr.executor.toString() : pr;
+        this.addTask(prExecutor, {promise: pr});
+    }
+
     removeTask(task) {
         const currentTs = Date.now();
         if (!this.tasks.has(task)) {
@@ -44,6 +49,13 @@ __tasks = new class {
     removeCallback(cb) {
         const cbText = cb ? cb.toString() : cb;
         this.removeTask(cbText);
+    }
+
+    removePromise(pr) {
+        this.removeTask(pr);
+        return;
+        const prExecutor = pr.executor ? pr.executor.toString() : pr;
+        this.removeTask(prExecutor);
     }
 
     length() {
@@ -69,19 +81,18 @@ __tasks = new class {
         return this.finished > 0 && this.length() === 0;
     }
 
-    removeTimeouts(delta=1000) {
+    removeTimeouts(delta=2000) {
         const currentTs = Date.now();
-        for (let [task, {ts}] of this.timeoutMap) {
-            if (currentTs - ts > delta) {
+        for (let [task, value] of this.tasks) {
+            if (currentTs - value.ts > delta) {
                 this.removeTask(task);
-                this.timeoutMap.delete(task);
             }
         }
     }
 }
 
-const originalSetTimeout = window.setTimeout;
-window.setTimeout = function(callback, delay, ...args) {
+const originalSetTimeout = setTimeout;
+setTimeout = function(callback, delay, ...args) {
     let trackedCallBack = function(...cargs) {
         __tasks.removeCallback(callback);
         callback(...cargs);
@@ -92,17 +103,18 @@ window.setTimeout = function(callback, delay, ...args) {
     return ticket;
 };
 
-const originalClearTimeout = window.clearTimeout;
-window.clearTimeout = function(ticket) {
+const originalClearTimeout = clearTimeout;
+clearTimeout = function(ticket) {
     __tasks.removeCallback(__tasks.timeoutMap.get(ticket));
     __tasks.timeoutMap.delete(ticket);
     return originalClearTimeout(ticket);
 }
 
-const originalSetInterval = window.setInterval;
-// window.setInterval = function(callback, delay) {
+const originalSetInterval = setInterval;
+// * Version 1: SetInterval --> Limited SetTimeout
+// setInterval = function(callback, delay, ...args) {
 //     let counter = 0; // To keep track of the number of times the callback is called
-//     let maxCalls = 500; // Maximum number of times the callback can be called
+//     let maxCalls = 10; // Maximum number of times the callback can be called
 
 //     let limitedCallback = function(...args) {
 //         if (counter < maxCalls) {
@@ -110,24 +122,38 @@ const originalSetInterval = window.setInterval;
 //             callback(...args); // Call the original callback
 //             originalSetTimeout(limitedCallback, delay); // Schedule the next call
 //         }
-//         // __tasks.removeCallback(callback);
+//         __tasks.removeCallback(callback);
 //     }
 
 //     __tasks.addCallback(callback);
 //     // Start the first call
-//     const ticket = originalSetTimeout(limitedCallback, delay);
+//     const ticket = originalSetTimeout(limitedCallback, delay, ...args);
 //     return ticket;
 // };
 
-// const originalClearInterval = window.clearInterval;
-// window.clearInterval = function(ticket) {
-//     __tasks.removeCallback(__tasks.timeIntervalMap.get(ticket));
-//     __tasks.timeIntervalMap.delete(ticket);
-//     // return originalClearInterval(ticket);
-// };
 
-const originalRequestAnimationFrame = window.requestAnimationFrame;
-window.requestAnimationFrame = function(callback) {
+// * Version 2: SetInterval --> Tracked SetInterval
+setInterval = function(callback, delay, ...args) {
+    let trackedCallBack = function(...cargs) {
+        __tasks.removeCallback(callback);
+        callback(...cargs);
+    }
+    __tasks.addCallback(callback);
+    const ticket = originalSetInterval(trackedCallBack, delay, ...args);
+    __tasks.timeIntervalMap.set(ticket, callback);
+    return ticket;
+}
+
+const originalClearInterval = clearInterval;
+clearInterval = function(ticket) {
+    __tasks.removeCallback(__tasks.timeIntervalMap.get(ticket));
+    __tasks.timeIntervalMap.delete(ticket);
+    return originalClearInterval(ticket);
+}
+
+
+const originalRequestAnimationFrame = requestAnimationFrame;
+requestAnimationFrame = function(callback) {
     let trackedCallBack = function(...args) {
         callback(...args);
         __tasks.removeCallback(callback);
@@ -136,6 +162,16 @@ window.requestAnimationFrame = function(callback) {
     return originalRequestAnimationFrame(trackedCallBack);
 };
 
+
+// * Promise overrides
+const originalPromise = Promise;
+class TrackedPromise extends Promise {
+    constructor(executor) {
+        super(executor); // Call the original Promise constructor
+        this.executor = executor; // Store the executor function
+    }
+}
+Promise = TrackedPromise;
 
 /**
  * The reason we're only overriding then but not catch and finally is because the latter two are syntactic sugar for then
@@ -152,28 +188,28 @@ Promise.prototype.then = function(onFulfilled, onRejected) {
         if (fulFillIsFunction) {
             retval = onFulfilled.apply(promiseInstance, value);
         }
-        __tasks.removeTask(promiseInstance);
+        __tasks.removePromise(promiseInstance);
         return retval;
     }
     let trackedOnRejected = function(...reason) {
         let retval = reason[0];
-        __tasks.removeTask(promiseInstance);
+        __tasks.removePromise(promiseInstance);
         if (rejectIsFunction) {
             retval = onRejected.apply(promiseInstance, reason);
             return retval;
         }
         throw retval;
     }
-    __tasks.addTask(this);
+    __tasks.addPromise(this);
     return originalPromiseThen.call(this, trackedOnFulfilled, trackedOnRejected);
 };
 
 
 const originalOpen = XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-  this.requestMethod = method;
-  this.requestUrl = url;
-  originalOpen.apply(this, arguments);
+    this.requestMethod = method;
+    this.requestUrl = url;
+    originalOpen.apply(this, arguments);
 };
 
 const originalXHRSend = XMLHttpRequest.prototype.send;
@@ -189,6 +225,8 @@ XMLHttpRequest.prototype.send = function(...args) {
 
 if (window === window.top) {
     originalSetInterval(() => {
-        console.log("Remaining tasks", __tasks.length(), __tasks.tasks);
-    }, 1000);
+        // console.log("Remaining tasks", __tasks.length(), __tasks.tasks);
+        console.log("Remaining tasks", __tasks.length());
+        __tasks.removeTimeouts();
+    }, 300);
 }
