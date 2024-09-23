@@ -175,6 +175,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         } catch(e) {
             console.error(`Exception: Interaction ${i} for ${url} \n ${e}`);
         }
+        let t1 = new Date().getTime();
         // if (options.scroll)
         //     await measure.scroll(page);
         if (options.screenshot) {
@@ -184,6 +185,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await collectNaiveInfo(page, dirname, `${filename}_${i}`)
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
+        let t2 = new Date().getTime();
         if (options.write){
             const writeLog = await page.evaluate(() => {
                 __recording_enabled = false;
@@ -195,7 +197,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         }
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);
-        console.log(`Interaction: Triggered interaction, ${i} ${(new Date().getTime() - startTime)/1000}s`);
+        console.log(`Interaction: Triggered interaction ${i}, Total: ${(new Date().getTime() - startTime)/1000}s`);
     }
     return allEvents;
 }

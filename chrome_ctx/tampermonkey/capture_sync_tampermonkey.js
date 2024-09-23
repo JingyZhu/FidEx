@@ -100,7 +100,7 @@ unsafeWindow.__tasks = new class {
     }
 
     stable() {
-        return this.finished > 0 && this.length() === 0;
+        return this.length() === 0;
     }
 
     removeTimeouts(delta=2000) {

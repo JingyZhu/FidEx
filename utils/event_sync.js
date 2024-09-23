@@ -51,8 +51,8 @@ async function waitCaptureSync(page, options={interval: 500, timeout: 3000}) {
     let ready = false;
     let totalTime = 0;
     while (totalTime <= options.timeout && !ready) {
-        ready = await page.evaluate(() => window.__tasks.stable());
         await delay(options.interval);
+        ready = await page.evaluate(() => window.__tasks.stable());
         totalTime += options.interval;
     }
 }

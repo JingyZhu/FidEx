@@ -202,7 +202,7 @@ def record_replay_all_urls(urls,
             print(str(e))
             continue
         seen_dir.add(archive_name)
-        metadata[req_url] = {
+        metadata[url] = {
             'ts': ts,
             'url': record_url,
             'original_url': req_url,
@@ -318,6 +318,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         metadata_worker = json.load(open(f'{metadata_prefix}_{i}.json', 'r'))
         metadata.update(metadata_worker)
     json.dump(metadata, open(f'{metadata_prefix}.json', 'w+'), indent=2)
+    return metadata
 
 
 # ! Below deprecated for now
