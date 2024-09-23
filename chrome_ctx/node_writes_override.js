@@ -67,6 +67,9 @@ class DimensionSets {
         if (before.left < 0 || before.top < 0 || after.left < 0 || after.top < 0) {
             return false;
         }
+        if (before.width * before.height === 0 && after.width * after.height === 0) {
+            return false;
+        }
         return before.width !== after.width || before.height !== after.height;
     }
 

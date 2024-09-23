@@ -26,6 +26,7 @@ class JSWrite:
         self.method = write['method']
         self.xpath = write['xpath']
         self.args = write['args']
+        self.effective = write['effective']
         self._hash = None
 
     @functools.cached_property

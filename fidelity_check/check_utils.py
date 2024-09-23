@@ -106,7 +106,6 @@ def diff(left_elements, left_writes, right_elements, right_writes, returnHTML=Fa
     left_layout = layout_tree.build_layout_tree(left_elements, left_writes, True)
     right_layout = layout_tree.build_layout_tree(right_elements, right_writes, False)
     left_unique, right_unique = layout_tree.diff_layout_tree(left_layout, right_layout)
-    left_unique = layout_tree.post_process_diff(left_unique, left_layout)
     
     left_xpaths_map = {e['xpath']: e for e in left_elements}
     right_xpaths_map = {e['xpath']: e for e in right_elements}
