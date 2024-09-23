@@ -238,18 +238,35 @@ class LayoutElement:
         if features_eq(self, other) and dimension_eq(self.dimension, other.dimension):
             return True
         # Dynamic element that changes itself 
-        if js_dynamism_self_eq(self, other): 
+        if js_dynamism_self_eq(self, other):
+            self.dynamic_matched = True
+            other.dynamic_matched = True
             return True
         # Dynamism caused by css
         if css_dynamism_self_eq(self, other):
             return True
         return False
 
-    def visible(self, check_viewport=False):
+    def visible(self, check_viewport=False, historical=False):
+        """
+        Args:
+            check_viewport (bool): If True, check if the element is in the viewport
+            historical (bool): If True, check if the element is visible historically
+        """
         has_dimension = self.dimension.get('width', 0) > 1 and self.dimension.get('height', 0) > 1
         if check_viewport:
             in_viewport = self.dimension.get('left', 0) + self.dimension.get('width', 0) > 0 and self.dimension.get('top', 0) + self.dimension.get('height', 0) > 0
+        if historical:
+            has_dimension = has_dimension or len(self.writes) > 0
         return has_dimension and (not check_viewport or in_viewport)
+
+    def ancestors(self):
+        ancestors = []
+        cur_node = self
+        while cur_node.parent:
+            ancestors.append(cur_node.parent)
+            cur_node = cur_node.parent
+        return ancestors
 
     def tag_new_writes(self, other):
         """tag unique writes for both self and others"""
@@ -283,7 +300,7 @@ class LayoutElement:
         """
         tree_list = []
         if layout:
-            if self.visible():
+            if self.visible(historical=True):
                 tree_list.append(self)
             elif self.tag == '#text' and self.parent.visible():
                 tree_list.append(self)
@@ -350,9 +367,9 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
     for i, left_elem in enumerate(left_layout_list, 1):
         for j, right_elem in enumerate(right_layout_list, 1):
-            # if left_elem.xpath.startswith('/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]/div[1]/div[4]/span[3]') \
-            #     and right_elem.xpath.startswith('/html[1]/body[1]/div[1]/div[2]/article[1]/aside[1]/div[1]/div[1]/div[4]/span[3]'):
-            #     print('here\n', left_elem.xpath, left_elem.writes, '\n', right_elem.xpath, right_elem.writes, '\n', left_elem == right_elem)
+            # xpath = '/html[1]/body[1]/div[5]/div[1]/div[1]/div[1]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]'
+            # if left_elem.xpath == xpath and right_elem.xpath == xpath:
+            #     print('here\n', left_elem == right_elem)
             if left_elem == right_elem:
                 lcs_lengths[i][j] = lcs_lengths[i-1][j-1] + 1
                 left_elem.tag_new_writes(right_elem)
@@ -384,23 +401,25 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     # print(json.dumps(lcs_live, indent=2))
     lcs_archive.reverse()
     # print(json.dumps(lcs_archive, indent=2))
-    left_diff = [e for e in left_layout_list if e.xpath not in set(lcs_live) and e.visible(check_viewport=True) and not e.made_by_new_writes()]
-    right_diff = [e for e in right_layout_list if e.xpath not in set(lcs_archive) and e.visible(check_viewport=True) and not e.made_by_new_writes()]
+    left_diff = [e for e in left_layout_list if e.xpath not in set(lcs_live) and post_diff_element(e)]
+    right_diff = [e for e in right_layout_list if e.xpath not in set(lcs_archive) and post_diff_element(e)]
     left_diff = [e.xpath for e in left_diff]
     right_diff = [e.xpath for e in right_diff]
     return left_diff, right_diff
     
 
-def post_process_diff(unique: list, layout: "LayoutElement") -> "list[str]":
+def post_diff_element(element: "LayoutElement") -> bool:
     """
     Post process the diff result to filter out the elements that are wrongly added.
     """
-    if len(unique) == 0:
-        return []
-    new_unique = []
-    layout_map = {e.xpath: e for e in layout.list_tree()}
-    for u in unique:
-        if u in layout_map:
-            new_unique.append(u)
-    return new_unique
-    
+    if element.visible(check_viewport=True):
+        return False
+    if element.made_by_new_writes():
+        return False
+    # * Check if the diff could be caused by dynamic ancestors
+    # * Since some writes may only change parents, but all descendants are affected
+    ancestors = element.ancestors()
+    for a in ancestors:
+        if getattr(a, 'dynamic_matched', False):
+            return False
+    return True

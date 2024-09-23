@@ -12,11 +12,12 @@ import os
 HOME = os.path.expanduser("~")
 
 PROXY = 'http://pistons.eecs.umich.edu:8078'
+PREFIX = 'test'
 autorun.PROXYHOST = PROXY
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
 def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
-    PREFIX = 'gt_tranco'
+    global PREFIX
     if record:
         PREFIX = 'test'
         test_utils.init_test()
@@ -31,13 +32,11 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
         'https://crpt.ru/',
         'https://mojohost.com/',
         'https://www.dearfoams.com/',
-        'https://www.healio.com/',
         'https://rtvbn.tv/',
         'https://yapolitic.ru/',
         'https://ediig.com/',
         'https://www.healio.com/',
         'https://mrjack.bet/',
-
         'https://www.smartrecruiters.com/',
         'https://www.hinet.net/',
         'https://gettyimages.co.jp/',
@@ -45,12 +44,13 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
     if record:
         urls_copy = urls.copy()
         arguments = ['-w', '-s', '--scroll', '-i', '--headless']
-        autorun.record_replay_all_urls_multi(urls_copy, 1, 
+        metadata = autorun.record_replay_all_urls_multi(urls_copy, 16, 
                                     chrome_data_dir=chrome_data_dir,
                                     metadata_prefix='metadata/test',
                                     pw_archive='test',
                                     proxy=True,
-                                    arguments=arguments)    
+                                    arguments=arguments)
+        urls = [metadata[u]['url'] if u in metadata else u for u in urls]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     
     test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if not correct)'])
@@ -98,5 +98,5 @@ def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
         fidelity_detect.fidelity_issue_all(f'{HOME}/fidelity-files/writes/test/{host}', 'live', tocmp, True, True)
     print(test_results)
 
-test_fidelity_detect_no_issue(record=True)
+test_fidelity_detect_no_issue(record=False)
 # test_fidelity_detect_no_issue_e2e()
