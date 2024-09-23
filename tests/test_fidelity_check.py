@@ -11,18 +11,20 @@ from fidex.record_replay import autorun
 import os
 HOME = os.path.expanduser("~")
 
-PROXY = 'http://pistons.eecs.umich.edu:8079'
+PROXY = 'http://pistons.eecs.umich.edu:8078'
 autorun.PROXYHOST = PROXY
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
-def test_fidelity_detect_no_issue(tocmp='proxy'):
+def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
     PREFIX = 'gt_tranco'
+    if record:
+        PREFIX = 'test'
+        test_utils.init_test()
     writes_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
     urls = [
-        'https://sherlockcomms.com/',
+        'https://www.sherlockcomms.com/',
         'https://www.stackcommerce.com/',
         'https://www.jimdo.com/',
-        'https://stmichaelsschooldgp.in/',
         'https://www.si.edu/',
         'https://www.google.com.gh/',
         'https://www.infonline.de/',
@@ -33,7 +35,6 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
         'https://rtvbn.tv/',
         'https://yapolitic.ru/',
         'https://ediig.com/',
-        'https://www.nike.com/',
         'https://www.healio.com/',
         'https://mrjack.bet/',
 
@@ -41,6 +42,15 @@ def test_fidelity_detect_no_issue(tocmp='proxy'):
         'https://www.hinet.net/',
         'https://gettyimages.co.jp/',
     ]
+    if record:
+        urls_copy = urls.copy()
+        arguments = ['-w', '-s', '--scroll', '-i', '--headless']
+        autorun.record_replay_all_urls_multi(urls_copy, 1, 
+                                    chrome_data_dir=chrome_data_dir,
+                                    metadata_prefix='metadata/test',
+                                    pw_archive='test',
+                                    proxy=True,
+                                    arguments=arguments)    
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     
     test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if not correct)'])
@@ -73,6 +83,7 @@ def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
     urls = [
         'https://crpt.ru/',
         # 'https://7zap.com/en/',
+        'https://www.t-mobile.com/',
         
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
@@ -87,5 +98,5 @@ def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
         fidelity_detect.fidelity_issue_all(f'{HOME}/fidelity-files/writes/test/{host}', 'live', tocmp, True, True)
     print(test_results)
 
-test_fidelity_detect_no_issue()
+test_fidelity_detect_no_issue(record=True)
 # test_fidelity_detect_no_issue_e2e()
