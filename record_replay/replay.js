@@ -135,7 +135,7 @@ const {recordReplayArgs} = require('../utils/argsparse');
         
         
     } catch (err) {
-        console.error(err);
+        console.error(`Replay exception on ${urlStr}: ${err}`);
     } finally {
         await browser.close();
         process.exit();

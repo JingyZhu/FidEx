@@ -469,7 +469,7 @@ class eventListenersIterator {
             let uncancel_handlers = _filter_handlers(handlers);
             for (const h of uncancel_handlers) {
                 _triggerEvent(elem, h);
-                await delay(300);
+                // await delay(300);
             };
             // await delay(1000);
             return {

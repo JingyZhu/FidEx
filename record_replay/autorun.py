@@ -89,6 +89,7 @@ def record_replay(url, archive_name,
                   wr_archive=default_archive, 
                   pw_archive=default_archive,
                   remote_host=REMOTE,
+                  sshclient=None,
                   proxy=False,
                   arguments=None):
     """
@@ -105,6 +106,11 @@ def record_replay(url, archive_name,
     """
     if arguments is None:
         arguments = DEFAULTARGS
+    temp_client = False
+    if remote_host and sshclient is None:
+        temp_client = True
+        sshclient = upload.SSHClientManager()
+
     ts, record_url = record(url, archive_name, 
                 chrome_data=chrome_data, 
                 write_path=write_path, 
@@ -121,7 +127,7 @@ def record_replay(url, archive_name,
         return '', record_url
     check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_FILEDIR)
     if remote_host:
-        upload.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
+        sshclient.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
     else:
         check_call(['wb-manager', 'add', pw_archive, 
                     f'{download_path}/{archive_name}.warc'], cwd=archive_path)
@@ -141,8 +147,9 @@ def record_replay(url, archive_name,
                 proxy=True,
                 arguments=proxy_arguments)
     if remote_host:
-        upload.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
-
+        sshclient.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
+    if temp_client:
+        sshclient.close()
     return ts, record_url
 
 
@@ -195,10 +202,11 @@ def record_replay_all_urls(urls,
             print(str(e))
             continue
         seen_dir.add(archive_name)
-        metadata[url] = {
+        metadata[req_url] = {
             'ts': ts,
             'url': record_url,
-            'archive': f'{HOST}/{pw_archive}/{ts}/{url}',
+            'original_url': req_url,
+            'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
             'directory': archive_name,
         }
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)

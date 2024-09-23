@@ -260,7 +260,7 @@ async function getActivePage(browser) {
         // ! Signal of the end of the program
         console.log("recorded page:", JSON.stringify({ts: ts, url: recordURL}));
     } catch (err) {
-        console.error(err);
+        console.error(`Record exception on ${urlStr}: ${err}`);
     } finally {
         await browser.close();
         process.exit();
