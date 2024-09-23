@@ -135,7 +135,12 @@ async function collectNaiveInfo(page, dirname,
 
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-    await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
+    // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
+    const {exceptionDetails } = await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true, returnByValue: true});
+    if (exceptionDetails) {
+        console.error(`Exception: Interaction on Runtime.evaluate ${exceptionDetails}`);
+        return []
+    }
     const allEvents = await page.evaluate(() => {
         let serializedEvents = [];
         for (let idx = 0; idx < eli.listeners.length; idx++) {
@@ -157,14 +162,16 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     console.log("Interaction:", "Number of events", numEvents);
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     for (let i = 0; i < numEvents && i < 20; i++) {
-        console.log("Interaction: Triggering interaction", i);
+        let startTime = new Date().getTime();
         try {
             await page.waitForFunction(async (idx) => {
                     __tasks && __tasks.start();
                     await eli.triggerNth(idx);
                     return true;
                 }, {timeout: 2000}, i)
-            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 10000);
+        } catch(e) {}
+        try {
+            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 5000);
         } catch(e) {
             console.error(`Exception: Interaction ${i} for ${url} \n ${e}`);
         }
@@ -188,6 +195,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         }
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);
+        console.log(`Interaction: Triggered interaction, ${i} ${(new Date().getTime() - startTime)/1000}s`);
     }
     return allEvents;
 }

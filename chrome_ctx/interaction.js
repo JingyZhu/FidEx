@@ -274,7 +274,11 @@ function getCandidateElements(listeners) {
             if (el && el.href && el.href != ""){
                 // If el.href is not the same as the current URL, ignore it
                 // Taking fragments into account
-                let url = new URL(el.href);
+                // Check if el.href is a valid URL
+                let url = null;
+                try {
+                    url = new URL(el.href);
+                } catch {return;}
                 // * Need to consider in archived copy, the location needs to be get from window.WB_wombat_location
                 const windowLocation = 'WB_wombat_location' in window ? window.WB_wombat_location : window.location;
                 if (url.origin != windowLocation.origin 
