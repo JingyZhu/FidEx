@@ -160,11 +160,15 @@ class CSSOverrider {
  * 
  * @param {Function} originalFn 
  * @param {String} method 
- * @param {object} thisNode 
+ * @param {object} contextNode If provided, will be the actual node that this write is applied to. If not, this will be the node that the write method is called on.
  * @returns 
  */
-function newWriteMethod(originalFn, method, thisNode) {
+function newWriteMethod(originalFn, method, contextNode=null) {
     return function (...args) {
+        let thisNode = contextNode;
+        if (thisNode == null) {
+            thisNode = this;
+        }
         const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
@@ -282,7 +286,7 @@ node_write_methods = [
 
 for (const method of node_write_methods) {
     const originalFn = Node.prototype[method];
-    Node.prototype[method] = newWriteMethod(originalFn, method, this);
+    Node.prototype[method] = newWriteMethod(originalFn, method);
 }
 
 // Override Node setter
@@ -323,7 +327,7 @@ element_write_methods = [
 
 for (const method of element_write_methods) {
     const originalFn = Element.prototype[method];
-    Element.prototype[method] = newWriteMethod(originalFn, method, this);
+    Element.prototype[method] = newWriteMethod(originalFn, method);
 }
 
 
