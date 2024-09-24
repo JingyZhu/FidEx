@@ -37,6 +37,8 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
 
     left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
     left_unique, right_unique = check_utils.diff(left_element, left_writes, right_element, right_writes, returnHTML=False)
+    if meaningful:
+        left_unique, right_unique = check_meaningful.meaningful_diff(left_element, left_unique, right_element, right_unique)
     # * Same visual part
     if len(left_unique) + len(right_unique) > 0:
         if os.path.exists(f"{dirr}/{left_prefix}.png") and os.path.exists(f"{dirr}/{right_prefix}.png"):
@@ -45,8 +47,6 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
                                                                             right_img, right_unique, right_element)
         else:
             print("Warning: diff layout tree but no screenshots found")
-    if meaningful:
-        left_unique, right_unique = check_meaningful.meaningful_diff(left_element, left_unique, right_element, right_unique)
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
 
 

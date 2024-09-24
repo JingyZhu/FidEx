@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import unquote
+from collections import namedtuple
 import re
 import json, time
 import functools
@@ -350,24 +351,13 @@ def build_layout_tree(elements: "list[element]", writes: list, stale=False) -> "
                 nodes[xpath].add_writes([w])
     return nodes[root_e['xpath']]
 
-
-def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement") -> "tuple[list[str], list[str]]":
-    """
-    Compute the diff between left_tree and right_tree by computing the longest common subsequence
-    
-    Returns:
-        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
-    """
-    left_layout_list = left_layout.list_tree()
-    right_layout_list = right_layout.list_tree()
-    # print(json.dumps([e.xpath for e in left_layout_list], indent=2))
-    # print(json.dumps([e.xpath for e in right_layout_list], indent=2))
-
+def _lcs_diff(left_seq, right_seq):
+    """Impl 1 based on lcs"""
     # Apply longest common subsequence to get the diff of live and archive htmls
-    lcs_lengths = [[0 for _ in range(len(right_layout_list) + 1)] for _ in range(len(left_layout_list) + 1)]
-    for i, left_elem in enumerate(left_layout_list, 1):
-        for j, right_elem in enumerate(right_layout_list, 1):
-            # xpath = '/html[1]/body[1]/div[5]/div[1]/div[1]/div[1]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]'
+    lcs_lengths = [[0 for _ in range(len(right_seq) + 1)] for _ in range(len(left_seq) + 1)]
+    for i, left_elem in enumerate(left_seq, 1):
+        for j, right_elem in enumerate(right_seq, 1):
+            # xpath = '/html[1]/body[1]/div[7]/div[1]/svg[1]'
             # if left_elem.xpath == xpath and right_elem.xpath == xpath:
             #     print('here\n', left_elem == right_elem)
             if left_elem == right_elem:
@@ -376,12 +366,12 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
             else:
                 lcs_lengths[i][j] = max(lcs_lengths[i-1][j], lcs_lengths[i][j-1])
     # Backtrack to get the lcs sequence
-    lcs_live, lcs_archive = [], []
-    i, j = len(left_layout_list), len(right_layout_list)
+    lcs_left, lcs_right = [], []
+    i, j = len(left_seq), len(right_seq)
     while i > 0 and j > 0:
-        if left_layout_list[i-1] == right_layout_list[j-1]:
-            lcs_live.append(left_layout_list[i-1].xpath)
-            lcs_archive.append(right_layout_list[j-1].xpath)
+        if left_seq[i-1] == right_seq[j-1]:
+            lcs_left.append(left_seq[i-1].xpath)
+            lcs_right.append(right_seq[j-1].xpath)
             i -= 1
             j -= 1
         # This means left_layout_list[i] is not in the lcs
@@ -397,14 +387,98 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
         # or both can be in (e.g. abca and abac)
         else:
             j -= 1
-    lcs_live.reverse()
+    lcs_left.reverse()
     # print(json.dumps(lcs_live, indent=2))
-    lcs_archive.reverse()
+    lcs_right.reverse()
     # print(json.dumps(lcs_archive, indent=2))
-    left_diff = [e for e in left_layout_list if e.xpath not in set(lcs_live) and post_diff_element(e)]
-    right_diff = [e for e in right_layout_list if e.xpath not in set(lcs_archive) and post_diff_element(e)]
-    left_diff = [e.xpath for e in left_diff]
-    right_diff = [e.xpath for e in right_diff]
+    left_diff = [e for e in left_seq if e.xpath not in set(lcs_left)]
+    right_diff = [e for e in right_seq if e.xpath not in set(lcs_right)]
+    return left_diff, right_diff
+
+
+def _myers_diff(left_seq, right_seq):
+    """
+    myers algorithm borrowed from https://gist.github.com/adamnew123456/37923cf53f51d6b9af32a539cdfa7cc4
+    """
+    # See frontier in myers_diff
+    Frontier = namedtuple('Frontier', ['x', 'left_diff', 'right_diff'])
+
+    # This marks the farthest-right point along each diagonal in the edit
+    # graph, along with the history that got it there
+    frontier = {1: Frontier(0, [], [])}
+
+    L = len(left_seq)
+    R = len(right_seq)
+    for d in range(0, L + R + 1):
+        for k in range(-d, d + 1, 2):
+            # This determines whether our next search point will be going down
+            # in the edit graph, or to the right.
+            #
+            # The intuition for this is that we should go down if we're on the
+            # left edge (k == -d) to make sure that the left edge is fully
+            # explored.
+            #
+            # If we aren't on the top (k != d), then only go down if going down
+            # would take us to territory that hasn't sufficiently been explored
+            # yet.
+            go_down = (k == -d or 
+                    (k != d and frontier[k - 1].x < frontier[k + 1].x))
+
+            # Figure out the starting point of this iteration. The diagonal
+            # offsets come from the geometry of the edit grid - if you're going
+            # down, your diagonal is lower, and if you're going right, your
+            # diagonal is higher.
+            if go_down:
+                x, left_diff, right_diff = frontier[k + 1]
+            else:
+                x, left_diff, right_diff = frontier[k - 1]
+                x += 1
+
+            # We want to avoid modifying the old history, since some other step
+            # may decide to use it.
+            left_diff, right_diff = left_diff.copy(), right_diff.copy()
+            y = x - k
+
+            # We start at the invalid point (0, 0) - we should only start building
+            # up history when we move off of it.
+            if 1 <= y <= R and go_down:
+                right_diff.append((right_seq[y-1]))
+            elif 1 <= x <= L:
+                left_diff.append(left_seq[x-1])
+
+            # Chew up as many diagonal moves as we can - these correspond to common lines,
+            # and they're considered "free" by the algorithm because we want to maximize
+            # the number of these in the output.
+            while x < L and y < R and left_seq[x] == right_seq[y]:
+                left_seq[x].tag_new_writes(right_seq[y])
+                x += 1
+                y += 1
+
+            if x >= L and y >= R:
+                # If we're here, then we've traversed through the bottom-left corner,
+                # and are done.
+                return left_diff, right_diff
+            else:
+                frontier[k] = Frontier(x, left_diff, right_diff)
+
+    assert False, 'Could not find edit script'
+
+def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement") -> "tuple[list[str], list[str]]":
+    """
+    Compute the diff between left_tree and right_tree by computing the longest common subsequence
+    
+    Returns:
+        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
+    """
+    left_layout_list = left_layout.list_tree()
+    right_layout_list = right_layout.list_tree()
+    # print(json.dumps([e.xpath for e in left_layout_list], indent=2))
+    # print(json.dumps([e.xpath for e in right_layout_list], indent=2))
+
+    # left_diff, right_diff = _lcs_diff(left_layout_list, right_layout_list)
+    left_diff, right_diff = _myers_diff(left_layout_list, right_layout_list)
+    left_diff = [e.xpath for e in left_diff if post_diff_element(e)]
+    right_diff = [e.xpath for e in right_diff if post_diff_element(e)]
     return left_diff, right_diff
     
 
@@ -412,7 +486,7 @@ def post_diff_element(element: "LayoutElement") -> bool:
     """
     Post process the diff result to filter out the elements that are wrongly added.
     """
-    if element.visible(check_viewport=True):
+    if not element.visible(check_viewport=True):
         return False
     if element.made_by_new_writes():
         return False
