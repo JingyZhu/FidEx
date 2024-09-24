@@ -101,7 +101,7 @@ def xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(left_elements, left_writes, right_elements, right_writes, returnHTML=False) -> (list, list):
+def diff(left_elements, left_writes, right_elements, right_writes) -> (list, list):
     # Currently we assue left element is always the live page and right element is the archive/proxy page 
     left_layout = layout_tree.build_layout_tree(left_elements, left_writes, True)
     right_layout = layout_tree.build_layout_tree(right_elements, right_writes, False)
@@ -111,13 +111,9 @@ def diff(left_elements, left_writes, right_elements, right_writes, returnHTML=Fa
     right_xpaths_map = {e['xpath']: e for e in right_elements}
     left_unique = _merge_xpaths(left_unique)
     # print("left_unique number", [len(xpaths) for xpaths in left_unique])
-    if returnHTML:
-        left_unique = [xpaths_2_text(xpaths, left_xpaths_map) for xpaths in left_unique]
     
     right_unique = _merge_xpaths(right_unique)
     # print("right_unique number", [len(xpaths) for xpaths in right_unique])
-    if returnHTML:
-        right_unique = [xpaths_2_text(xpaths, right_xpaths_map) for xpaths in right_unique]
     return left_unique, right_unique
 
 

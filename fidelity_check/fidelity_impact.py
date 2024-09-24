@@ -228,7 +228,7 @@ def fidelity_issue_impact(dirr, left_prefix='live', right_prefix='archive') -> f
     """Returns: fraction of pages with fidelity issue"""
     left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
-    left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
+    left_unique, right_unique = check_utils.diff(left_element, right_element)
     # * Meaningful diff
     left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
 
@@ -245,7 +245,7 @@ def fidelity_issue_impact_heatmap(dirr, left_prefix='live', right_prefix='archiv
     """Returns: Rectangle area of the fidelity issue"""
     left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
-    left_unique, right_unique = check_utils.diff(left_element, right_element, returnHTML=False)
+    left_unique, right_unique = check_utils.diff(left_element, right_element)
     # * Meaningful diff
     left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
     
