@@ -50,7 +50,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
                                     pw_archive='test',
                                     proxy=True,
                                     arguments=arguments)
-        urls = [metadata[u]['url'] if u in metadata else u for u in urls]
+        urls = [metadata[u]['req_url'] if u in metadata else u for u in urls]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
     
     test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if not correct)'])
@@ -62,8 +62,8 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             print(f'No writes for {host}')
             test_results.loc[len(test_results)] = {'url': url, 'correct?': 'No writes', 'stage (if not correct)': None}
 
-    with multiprocessing.Pool(16) as p:
-        results = p.starmap(fidelity_detect.fidelity_issue_all, [(f'{writes_dir}/{host}', 'live', tocmp, True, True) for host in available_host_url])
+    with multiprocessing.Pool(32) as p:
+        results = p.starmap(fidelity_detect.fidelity_issue_all, [(f'{writes_dir}/{host}', 'live', tocmp, False, True) for host in available_host_url])
         
         for r in results:
             if r is None:

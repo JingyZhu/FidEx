@@ -205,7 +205,7 @@ def record_replay_all_urls(urls,
         metadata[url] = {
             'ts': ts,
             'url': record_url,
-            'original_url': req_url,
+            'req_url': req_url,
             'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
             'directory': archive_name,
         }
