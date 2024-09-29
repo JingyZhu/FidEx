@@ -216,33 +216,36 @@ async function getActivePage(browser) {
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
 
-        // * Step 7: Collect the writes to the DOM
-        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
-        if (options.write){
-            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await recordPage.evaluate(() => __write_log_processed);
-            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
-
-        // * Step 8: Collect execution traces
-        if (options.exetrace) {
-            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
-            // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
-        }
-
         const onloadURL = recordPage.url();
 
-        // * Step 9: Interact with the webpage
+        // * Step 7: Interact with the webpage
         if (options.interaction){
             const allEvents = await measure.interaction(recordPage, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
         }
-        const finalURL = recordPage.url();
-        if (options.exetrace)
+
+        // * Step 8: Collect the writes to the DOM
+        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
+        if (options.write){
+            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await recordPage.evaluate(() => { 
+                collect_writes();
+                return __write_log_processed;
+            });
+            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+
+        // * Step 9: Collect execution traces
+        if (options.exetrace) {
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
+            // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
+        }
+
+        const finalURL = recordPage.url();
         await recordPage.close();
         
         // * Step 10: Download recorded archive

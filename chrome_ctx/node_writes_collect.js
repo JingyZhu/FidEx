@@ -4,7 +4,7 @@
  */
 __write_log_processed = [];
 __write_log = [];
-__recording_enabled = false;
+
 // Normalize all href and src attributes in node
 function _normalSRC(node){
     const _attrs = ['src', 'href', 'action'];
@@ -141,5 +141,4 @@ function collect_writes(){
     }
 }
 
-collect_writes()
-__recording_enabled = true;
+// collect_writes()

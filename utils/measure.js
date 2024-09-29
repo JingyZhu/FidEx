@@ -186,15 +186,6 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         let t2 = new Date().getTime();
-        if (options.write){
-            const writeLog = await page.evaluate(() => {
-                __recording_enabled = false;
-                collect_writes();
-                __recording_enabled = true;
-                return __write_log_processed;
-            });
-            fs.writeFileSync(`${dirname}/${filename}_${i}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);
         console.log(`Interaction: Triggered interaction ${i}, Total: ${(new Date().getTime() - startTime)/1000}s`);
@@ -306,7 +297,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
     let returnObj = {
         renderTree: newRenderTree
     }
-    if (parentInfo.depth == 0) {
+    if (parentInfo.depth == 0) { // At top level
         let renderHTML = [];
         for (let i = 0; i < newRenderTree.length; i++){
             let element = newRenderTree[i];
@@ -314,6 +305,15 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
             renderHTML.push(`${'  '.repeat(element.depth)}${i}:${line}`)
         }
         returnObj['renderHTML'] = renderHTML
+        // * Switch stage to next
+        iframe.evaluate(() => {
+            if (!__current_stage)
+                __current_stage = 'onload';
+            else if (__current_stage == 'onload')
+                __current_stage = 'interaction_0'
+            else if (__current_stage.startsWith('interaction_'))
+                __current_stage = `interaction_${parseInt(__current_stage.split('_')[1]) + 1}`
+        });
     }
 
     return returnObj;

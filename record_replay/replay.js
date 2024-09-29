@@ -103,36 +103,35 @@ const {recordReplayArgs} = require('../utils/argsparse');
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            // console.log("Replay: Collected render tree");
             await measure.collectNaiveInfo(page, dirname, filename);
-            // console.log("Replay: Collected screenshot");
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
 
-        // * Step 5: Collect the writes to the DOM
-        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
-        if (options.write){
-            await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await page.evaluate(() => __write_log_processed);
-            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
-        }
-
-        // * Step 6: Collect execution trace
-        if (options.exetrace) {
-            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
-        }
-
-        // * Step 7: Interact with the webpage
+        // * Step 5: Interact with the webpage
         if (options.interaction){
             const allEvents = await measure.interaction(page, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
         }
-        if (options.exetrace)
+
+        // * Step 6: Collect the writes to the DOM
+        // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
+        if (options.write){
+            await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await page.evaluate(() => { 
+                collect_writes();
+                return __write_log_processed;
+            });
+            fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
+        }
+
+        // * Step 7: Collect execution trace
+        if (options.exetrace) {
+            fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
-        
+        }
         
     } catch (err) {
         console.error(`Replay exception on ${urlStr}: ${err}`);
