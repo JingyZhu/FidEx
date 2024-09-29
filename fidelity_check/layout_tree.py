@@ -319,11 +319,12 @@ class LayoutElement:
         return f"{self.xpath} {self.text} {self.dimension}"
 
 
-def build_layout_tree(elements: "list[element]", writes: list, stale=False) -> "Optional[LayoutElement]":
+def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list, stale=False) -> "Optional[LayoutElement]":
     """
     Args:
         stale: If the tree being built is stale than the other. Used for counting writes.
     """
+    stack_map = {w['writeID']: w for w in writeStacks}
     if len(elements) == 0:
         return
     root_e = elements[0]
@@ -398,6 +399,7 @@ def _lcs_diff(left_seq, right_seq):
 
 def _myers_diff(left_seq, right_seq):
     """
+    Impl 2: Myers diff algorithm
     myers algorithm borrowed from https://gist.github.com/adamnew123456/37923cf53f51d6b9af32a539cdfa7cc4
     """
     # See frontier in myers_diff
