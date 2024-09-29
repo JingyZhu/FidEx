@@ -115,6 +115,7 @@ function collect_writes(){
             afterDS: record.afterDS.getSelfDimension(),
             afterText: record.afterText,
             currentDS: currentDS.getSelfDimension(),
+            currentStage: record.currentStage,
             effective: effective,
         })
 

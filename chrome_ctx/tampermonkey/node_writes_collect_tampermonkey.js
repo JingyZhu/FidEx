@@ -136,6 +136,15 @@ class DimensionSets {
         return true;
     }
 
+    getSelfDimension() {
+        return this.dimension ? {
+            left: this.dimension.left,
+            top: this.dimension.top,
+            width: this.dimension.width,
+            height: this.dimension.height,
+        } : null;
+    }
+
 }
 
 // * chrome_ctx version of the code starts from here
@@ -147,7 +156,7 @@ class DimensionSets {
  */
 unsafeWindow.__write_log_processed = [];
 unsafeWindow.__write_log = [];
-unsafeWindow.__recording_enabled = false;
+unsafeWindow.__recording_enabled = true;
 // Normalize all href and src attributes in node
 function _normalSRC(node){
     const _attrs = ['src', 'href', 'action'];
@@ -183,7 +192,7 @@ function _normalSRC(node){
 }
 
 
-function collect_writes(){
+unsafeWindow.collect_writes = function (){
     unsafeWindow.__write_log_processed = [];
     unsafeWindow.__write_log = [];
     // Process raw_args so that it can be stringified
@@ -258,6 +267,7 @@ function collect_writes(){
             afterDS: record.afterDS.getSelfDimension(),
             afterText: record.afterText,
             currentDS: currentDS.getSelfDimension(),
+            currentStage: record.currentStage,
             effective: effective,
         })
 

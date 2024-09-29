@@ -70,6 +70,7 @@ unsafeWindow.__trace_enabled = false;
 unsafeWindow.__write_log = [];
 unsafeWindow.__raw_write_log = [];
 unsafeWindow.__write_id = 0;
+unsafeWindow.__current_stage = 'onload'
 
 
 function _debug_log(...args) {
@@ -271,13 +272,14 @@ function newWriteMethod(originalFn, method, contextNode=null) {
                 beforeDS: beforeDS,
                 beforeText: getNodeTextLight(thisNode),
                 trace: Error().stack,
-                id: wid
+                id: wid,
+                currentStage: unsafeWindow.__current_stage,
             }
         }
 
         // * Record current stack trace.
         if (unsafeWindow.__trace_enabled)
-            console.trace(wid);
+            console.count("wid " + wid);
 
         retVal = originalFn.apply(this, args);
         if (ableRecord) {
@@ -317,13 +319,14 @@ function newSetMethod(originalFn, property) {
                 beforeDS: beforeDS,
                 beforeText: getNodeTextLight(this),
                 trace: Error().stack,
-                id: wid
+                id: wid,
+                currentStage: unsafeWindow.__current_stage,
             }
         }
 
         // * Record current stack trace.
         if (unsafeWindow.__trace_enabled)
-            console.trace(wid);
+            console.count("wid " + wid);
 
         retVal = originalFn.apply(this, [value]);
         if (ableRecord) {
