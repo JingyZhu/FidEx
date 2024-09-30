@@ -61,7 +61,7 @@ class ExecutionStacks {
         if (params.type !== 'count')
             return;
         // "wid {num}: 1" --> num
-        const match = params.args[0].value.match(/wid (\d+)/);
+        const match = params.args[0].value.match(/^wid (.*): \d+$/);
         const wid = match ? match[1] : -1;
         let writeStack = {
             writeID: wid,

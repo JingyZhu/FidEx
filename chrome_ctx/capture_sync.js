@@ -25,7 +25,10 @@ __tasks = new class {
     }
 
     addCallback(cb) {
-        const cbText = cb ? cb.toString() : cb;
+        // * Note that wombat will bind the original function with new context
+        // * For these functions, the toString() method will always return "[native code]"
+        // * So if seen [native code] in the log, don't use toString() result
+        const cbText = cb && !cb.toString().match(/\[native code\]/) ? cb.toString : cb;
         this.addTask(cbText, {callback: cb});
     }
 
@@ -91,13 +94,32 @@ __tasks = new class {
             }
         }
     }
+
+    distribution() {
+        let dist = {promise: 0, callback: 0};
+        for (let [task, value] of this.tasks) {
+            if (value.promise) 
+                dist.promise++;
+            if (value.callback)
+                dist.callback++;
+        }
+        return dist;
+    }
+
+    cloneTasks() {
+        let clonedTasks = new Map();
+        for (let [task, value] of this.tasks) {
+            clonedTasks.set(task, {...value});
+        }
+        return clonedTasks;
+    }
 }
 
 const originalSetTimeout = setTimeout;
 setTimeout = function(callback, delay, ...args) {
     let trackedCallBack = function(...cargs) {
-        __tasks.removeCallback(callback);
         callback(...cargs);
+        __tasks.removeCallback(callback);
     }
     __tasks.addCallback(callback);
     const ticket = originalSetTimeout(trackedCallBack, delay, ...args);
@@ -137,8 +159,8 @@ const originalSetInterval = setInterval;
 // * Version 2: SetInterval --> Tracked SetInterval
 setInterval = function(callback, delay, ...args) {
     let trackedCallBack = function(...cargs) {
-        __tasks.removeCallback(callback);
         callback(...cargs);
+        __tasks.removeCallback(callback);
     }
     __tasks.addCallback(callback);
     const ticket = originalSetInterval(trackedCallBack, delay, ...args);
@@ -227,8 +249,8 @@ XMLHttpRequest.prototype.send = function(...args) {
 
 if (window === window.top) {
     originalSetInterval(() => {
-        // console.log("Remaining tasks", __tasks.length(), __tasks.tasks);
-        // console.log("Remaining tasks", __tasks.length());
+        // console.log("Remaining tasks", __tasks.length(), __tasks.cloneTasks());
+        // console.log("Remaining tasks", __tasks.length(), __tasks.distribution());
         __tasks.removeTimeouts();
     }, 300);
 }

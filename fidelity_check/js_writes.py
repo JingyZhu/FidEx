@@ -21,12 +21,13 @@ def _tag_from_arg(args):
     return tags
 
 class JSWrite:
-    def __init__(self, write: dict):
+    def __init__(self, write: dict, stack: list = None):
         self.wid = write['wid']
         self.method = write['method']
         self.xpath = write['xpath']
         self.args = write['args']
         self.effective = write['effective']
+        self.stack = stack
         self._hash = None
 
     @functools.cached_property
@@ -50,6 +51,15 @@ class JSWrite:
                 if 'xpath' in a:
                     xpaths.append(a['xpath'])
         return xpaths
+    
+    @functools.cached_property
+    def serialized_stack(self) -> "tuple(tuple)":
+        all_frames = []
+        for call_frames in self.stack:
+            call_frames = call_frames['callFrames']
+            for frame in call_frames:
+                all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
+        return tuple(all_frames)
     
     def _hash_tuple(self):
         target = _tag_from_xpath(self.xpath)
