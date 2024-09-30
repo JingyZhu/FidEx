@@ -81,10 +81,12 @@ __tasks = new class {
         return this.length() === 0;
     }
 
-    removeTimeouts(delta=2000) {
+    removeTimeouts({promiseDelta=2000, callbackDelta=5000}={}) {
         const currentTs = Date.now();
         for (let [task, value] of this.tasks) {
-            if (currentTs - value.ts > delta) {
+            if (value.promise && currentTs - value.ts > promiseDelta) {
+                this.removeTask(task);
+            } else if (value.callback && currentTs - value.ts > callbackDelta) {
                 this.removeTask(task);
             }
         }
