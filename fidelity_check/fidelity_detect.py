@@ -30,13 +30,29 @@ def find_diff_elements(dirr, left_file, right_file) -> (list, list):
 
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
+    left_base, left_stage = left_prefix.split('_') if '_' in left_prefix else (left_prefix, 'onload')
+    right_base, right_stage = right_prefix.split('_') if '_' in right_prefix else (right_prefix, 'onload')
     left_element = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
-    left_writes = json.load(open(f"{dirr}/{left_prefix}_writes.json"))
+    left_writes = json.load(open(f"{dirr}/{left_base}_writes.json"))
+    left_write_stacks = json.load(open(f"{dirr}/{left_base}_writeStacks.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
-    right_writes = json.load(open(f"{dirr}/{right_prefix}_writes.json"))
+    right_writes = json.load(open(f"{dirr}/{right_base}_writes.json"))
+    right_write_stacks = json.load(open(f"{dirr}/{right_base}_writeStacks.json"))
+
+    def stage_nolater(s1, s2):
+        if s1 == 'onload':
+            return True
+        if s2 == 'onload':
+            return False
+        s1 = s1.replace('interaction_', '')
+        s2 = s2.replace('interaction_', '')
+        return int(s1) <= int(s2)
+    # Filter writes based on stages
+    left_writes = [w for w in left_writes if stage_nolater(w['currentStage'], left_stage)]
+    right_writes = [w for w in right_writes if stage_nolater(w['currentStage'], right_stage)]
 
     left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
-    left_unique, right_unique = check_utils.diff(left_element, left_writes, right_element, right_writes)
+    left_unique, right_unique = check_utils.diff(left_element, left_writes, left_write_stacks, right_element, right_writes, right_write_stacks)
     if meaningful:
         left_unique, right_unique = check_meaningful.meaningful_diff(left_element, left_unique, right_element, right_unique)
     # * Same visual part
