@@ -142,3 +142,18 @@ function collect_writes(){
 }
 
 // collect_writes()
+
+// Find writes that have target of element (or element's ancestors)
+function find_writes(log, element) {
+    let writes = [];
+    for (let i = 0; i < log.length; i++) {
+        const target = log[i].target;
+        // check if target is element or the ancestor of element
+        if (target.contains(element)){
+            let write = Object.assign({}, log[i]);
+            write.idx = i;
+            writes.push(write);
+        }
+    }
+    return writes;
+}

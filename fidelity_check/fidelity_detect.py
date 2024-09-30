@@ -148,7 +148,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             s_diff_stage = f'interaction_{i}'
             s_simi = i_s_simi
         print(dirr, f'{k+1}/{len(left_idx)}', 'elasped:', time.time()-start)
-        if diff_stage and s_diff_stage:
+        if diff_stage and (not screenshot or s_diff_stage):
             return {
                 'hostname': dirr,
                 'diff': diff,
