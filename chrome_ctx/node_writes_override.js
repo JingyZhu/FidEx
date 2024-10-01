@@ -8,7 +8,7 @@ __write_log = [];
 __raw_write_log = [];
 __write_id = 0;
 __current_stage = 'onload';
-
+__console_message = console.warn;
 
 function _debug_log(...args) {
     if (__debug)
@@ -216,7 +216,7 @@ function newWriteMethod(originalFn, method, contextNode=null) {
 
         // * Record current stack trace.
         if (__trace_enabled)
-            console.count("wid " + wid);
+            __console_message("wid " + wid);
 
         retVal = originalFn.apply(this, args);
         if (ableRecord) {
@@ -263,7 +263,7 @@ function newSetMethod(originalFn, property) {
 
         // * Record current stack trace.
         if (__trace_enabled)
-            console.count("wid " + wid);
+            __console_message("wid " + wid);
 
         retVal = originalFn.apply(this, [value]);
         if (ableRecord) {

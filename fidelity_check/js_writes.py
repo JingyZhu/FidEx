@@ -55,7 +55,7 @@ class JSWrite:
     @functools.cached_property
     def serialized_stack(self) -> "tuple(tuple)":
         all_frames = []
-        for call_frames in self.stack:
+        for call_frames in self.stack[:1]:
             call_frames = call_frames['callFrames']
             for frame in call_frames:
                 all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))

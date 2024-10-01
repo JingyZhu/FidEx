@@ -293,8 +293,6 @@ unsafeWindow.collect_writes = function (){
     }
 }
 
-// * chrome_ctx version of the code ends here
-
 // Find writes that have target of element (or element's ancestors)
 unsafeWindow.find_writes = function(log, element) {
     let writes = [];
@@ -309,3 +307,5 @@ unsafeWindow.find_writes = function(log, element) {
     }
     return writes;
 }
+
+// * chrome_ctx version of the code ends here

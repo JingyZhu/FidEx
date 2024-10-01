@@ -71,6 +71,7 @@ unsafeWindow.__write_log = [];
 unsafeWindow.__raw_write_log = [];
 unsafeWindow.__write_id = 0;
 unsafeWindow.__current_stage = 'onload'
+unsafeWindow.__console_message = console.warn;
 
 
 function _debug_log(...args) {
@@ -279,7 +280,7 @@ function newWriteMethod(originalFn, method, contextNode=null) {
 
         // * Record current stack trace.
         if (unsafeWindow.__trace_enabled)
-            console.count("wid " + wid);
+            unsafeWindow.__console_message("wid " + wid);
 
         retVal = originalFn.apply(this, args);
         if (ableRecord) {
@@ -326,7 +327,7 @@ function newSetMethod(originalFn, property) {
 
         // * Record current stack trace.
         if (unsafeWindow.__trace_enabled)
-            console.count("wid " + wid);
+            unsafeWindow.__console_message("wid " + wid);
 
         retVal = originalFn.apply(this, [value]);
         if (ableRecord) {

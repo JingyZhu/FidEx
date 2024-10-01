@@ -58,11 +58,13 @@ class ExecutionStacks {
      * @param {object} params from Runtime.consoleAPICalled
      */
     onWriteStack(params){
-        if (params.type !== 'count')
+        if (params.type !== 'warning')
             return;
         // "wid {num}: 1" --> num
-        const match = params.args[0].value.match(/^wid (.*): \d+$/);
-        const wid = match ? match[1] : -1;
+        const match = params.args[0].value.match(/^wid (.*)/);
+        if (!match)
+            return;
+        const wid = match[1];
         let writeStack = {
             writeID: wid,
             stackInfo: []
