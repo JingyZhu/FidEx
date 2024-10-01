@@ -104,7 +104,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             'diff': diff,
             'screenshot_diff': s_diff,
             'diff_stage': diff_stage,
-            'sreenshot_diff_stage': s_diff_stage,
+            'screenshot_diff_stage': s_diff_stage,
             'similarity': s_simi
         }
     
@@ -130,7 +130,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             'diff': True,
             'screenshot_diff': True,
             'diff_stage': 'extraInteraction',
-            'sreenshot_diff_stage': 'extraInteraction'
+            'screenshot_diff_stage': 'extraInteraction'
         }
     
     # * Check for each interaction
@@ -154,7 +154,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
                 'diff': diff,
                 'screenshot_diff': s_diff,
                 'diff_stage': diff_stage,
-                'sreenshot_diff_stage': s_diff_stage,
+                'screenshot_diff_stage': s_diff_stage,
                 'similarity': s_simi
             }
     return {
@@ -162,7 +162,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
         'diff': diff,
         'screenshot_diff': s_diff,
         'diff_stage': diff_stage,
-        'sreenshot_diff_stage': s_diff_stage,
+        'screenshot_diff_stage': s_diff_stage,
         'similarity': s_simi
     }
 
