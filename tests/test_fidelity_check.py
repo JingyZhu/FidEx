@@ -43,8 +43,8 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
     ]
     if record:
         urls_copy = urls.copy()
-        arguments = ['-w', '-s', '--scroll', '-i', '--headless']
-        metadata = autorun.record_replay_all_urls_multi(urls_copy, 16, 
+        arguments = ['-w', '-s', '--scroll', '-i', '--headless', '-e']
+        metadata = autorun.record_replay_all_urls_multi(urls_copy, min(16, len(urls_copy)), 
                                     chrome_data_dir=chrome_data_dir,
                                     metadata_prefix='metadata/test',
                                     pw_archive='test',
@@ -98,5 +98,5 @@ def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
         fidelity_detect.fidelity_issue_all(f'{HOME}/fidelity-files/writes/test/{host}', 'live', tocmp, True, True)
     print(test_results)
 
-test_fidelity_detect_no_issue(record=False)
+test_fidelity_detect_no_issue(record=True)
 # test_fidelity_detect_no_issue_e2e()

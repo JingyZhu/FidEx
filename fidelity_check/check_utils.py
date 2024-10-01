@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 from fidex.utils import url_utils
-from fidex.fidelity_check import layout_tree_new as layout_tree
+from fidex.fidelity_check import layout_tree as layout_tree
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
@@ -101,10 +101,13 @@ def xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(left_elements, left_writes, right_elements, right_writes) -> (list, list):
+def diff(left_elements, left_writes, left_writeStacks, right_elements, right_writes, right_writeStacks) -> (list, list):
     # Currently we assue left element is always the live page and right element is the archive/proxy page 
-    left_layout = layout_tree.build_layout_tree(left_elements, left_writes, True)
-    right_layout = layout_tree.build_layout_tree(right_elements, right_writes, False)
+    left_layout = layout_tree.build_layout_tree(left_elements, left_writes, left_writeStacks, True)
+    right_layout = layout_tree.build_layout_tree(right_elements, right_writes,right_writeStacks, False)
+
+    # print(f"{json.dumps(list(left_write_stacks - right_write_stacks), indent=2)}")
+    # print(f"{json.dumps(list(right_write_stacks - left_write_stacks), indent=2)}")
     left_unique, right_unique = layout_tree.diff_layout_tree(left_layout, right_layout)
     
     left_xpaths_map = {e['xpath']: e for e in left_elements}
