@@ -103,6 +103,8 @@ async function scroll(page) {
 async function collectNaiveInfo(page, dirname,
     filename = "dimension",
     options = { html: false }) {
+    // // ! TEMP
+    // return;
     const dimensions = await getDimensions(page);
     let [width, height] = await maxWidthHeight(dimensions);
     
@@ -172,6 +174,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         } catch(e) {}
         try {
             await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 5000);
+            if (options.manual)
+                await eventSync.waitForReady();
         } catch(e) {
             console.error(`Exception: Interaction ${i} for ${url} \n ${e}`);
         }

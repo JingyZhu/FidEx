@@ -27,6 +27,7 @@ class JSWrite:
         self.xpath = write['xpath']
         self.args = write['args']
         self.effective = write['effective']
+        self.currentDS = write.get('currentDS', {})
         self.stack = stack
         self._hash = None
 
@@ -59,6 +60,7 @@ class JSWrite:
             call_frames = call_frames['callFrames']
             for frame in call_frames:
                 all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
+                # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber']))
         return tuple(all_frames)
     
     def _hash_tuple(self):

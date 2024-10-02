@@ -155,6 +155,11 @@ function getNodeExtraAttr(node){
                     // console.log(node)
             }
         }
+        // check for CSS animation attributes
+        let cssStyle = window.getComputedStyle(node);
+        const animation = cssStyle.animation;
+        if (animation && !animation.startsWith('none'))
+            attrs['animation'] = animation;
     }
     return attrs;
 }

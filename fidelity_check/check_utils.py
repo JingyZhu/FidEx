@@ -108,10 +108,11 @@ def diff(left_elements, left_writes, left_writeStacks, right_elements, right_wri
 
     # print(f"{json.dumps(list(left_write_stacks - right_write_stacks), indent=2)}")
     # print(f"{json.dumps(list(right_write_stacks - left_write_stacks), indent=2)}")
-    left_unique, right_unique = layout_tree.diff_layout_tree(left_layout, right_layout)
+    for layout_order in [False, True]:
+        left_unique, right_unique = layout_tree.diff_layout_tree(left_layout, right_layout, layout_order=layout_order)
+        if len(left_unique) == 0 and len(right_unique) == 0:
+            break
     
-    left_xpaths_map = {e['xpath']: e for e in left_elements}
-    right_xpaths_map = {e['xpath']: e for e in right_elements}
     left_unique = _merge_xpaths(left_unique)
     # print("left_unique number", [len(xpaths) for xpaths in left_unique])
     

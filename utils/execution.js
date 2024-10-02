@@ -61,7 +61,7 @@ class ExecutionStacks {
         if (params.type !== 'warning')
             return;
         // "wid {num}: 1" --> num
-        const match = params.args[0].value.match(/^wid (.*)/);
+        const match = params.args[0].value && params.args[0].value.match(/^wid (.*)/);
         if (!match)
             return;
         const wid = match[1];
