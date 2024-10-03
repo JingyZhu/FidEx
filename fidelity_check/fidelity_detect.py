@@ -2,6 +2,7 @@ import json
 from . import check_utils, check_meaningful
 import time
 import os
+import glob
 
 def dedeup_elements(layout):
     seen_xpath = set()
@@ -34,10 +35,16 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
     right_base, right_stage = right_prefix.split('_') if '_' in right_prefix else (right_prefix, 'onload')
     left_element = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
     left_writes = json.load(open(f"{dirr}/{left_base}_writes.json"))
-    left_write_stacks = json.load(open(f"{dirr}/{left_base}_writeStacks.json"))
     right_element = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
     right_writes = json.load(open(f"{dirr}/{right_base}_writes.json"))
-    right_write_stacks = json.load(open(f"{dirr}/{right_base}_writeStacks.json"))
+    
+    def read_write_stacks(dirr, base):
+        write_stacks = []
+        for file in glob.glob(f"{dirr}/{base}_writeStacks_*.json"):
+            write_stacks += json.load(open(file))
+        return write_stacks
+    left_write_stacks = read_write_stacks(dirr, left_base)
+    right_write_stacks = read_write_stacks(dirr, right_base)
 
     def stage_nolater(s1, s2):
         if s1 == 'onload':

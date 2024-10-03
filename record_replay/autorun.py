@@ -173,7 +173,7 @@ def record_replay_all_urls(urls,
     seen_dir = set([v['directory'] for v in metadata.values()])
 
     for i, url in list(enumerate(urls)):
-        print(i, url, flush=True) if worker_id is None else print(worker_id, i, url, flush=True)
+        print("Start", i, url, flush=True) if worker_id is None else print("Start", worker_id, i, url, flush=True)
         if url in metadata or url.replace('http://', 'https://') in metadata:
             continue
         try:
@@ -196,10 +196,11 @@ def record_replay_all_urls(urls,
                                     remote_host=remote_host, 
                                     proxy=proxy,
                                     arguments=arguments)
+            print("Finished", url, ts)
             if ts == '':
                 continue
         except Exception as e:
-            print(str(e))
+            print(f"Issue when record_replay URL {url}: {str(e)}")
             continue
         seen_dir.add(archive_name)
         metadata[url] = {
@@ -230,7 +231,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         arguments = DEFAULTARGS
     for i in range(num_workers):
         call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{i}'])
-    random.shuffle(urls)
+    # random.shuffle(urls)
     active_ids = set()
     id_lock = threading.Lock()
     def _get_worker_task():
