@@ -237,16 +237,16 @@ async function getActivePage(browser) {
             fs.writeFileSync(`${dirname}/${filename}_writes.json`, JSON.stringify(writeLog, null, 2));
         }
 
+        const finalURL = recordPage.url();
+        await recordPage.close();
+
         // * Step 9: Collect execution traces
         if (options.exetrace) {
             fs.writeFileSync(`${dirname}/${filename}_exception_failfetch.json`, JSON.stringify(excepFF.excepFFDelta, null, 2));
             fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacks, null, 2));
-            fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacks, null, 2));
+            executionStacks.splitWriteStacks(`${dirname}/${filename}_writeStacks`);
             // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
         }
-
-        const finalURL = recordPage.url();
-        await recordPage.close();
         
         // * Step 10: Download recorded archive
         await page.goto(

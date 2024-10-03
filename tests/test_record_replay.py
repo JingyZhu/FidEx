@@ -16,6 +16,7 @@ arguments = ['-w', '-s', '--scroll', '-i', '-e', '--headless']
 HOME = os.path.expanduser("~")
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 PROXY = 'http://pistons.eecs.umich.edu:8078'
+ARCHIVEDIR = os.path.join(os.path.expanduser("~"), 'fidelity-files')
 autorun.PROXYHOST = PROXY
 
 def test_record():
@@ -42,6 +43,14 @@ def test_record():
         test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct' if r.status_code == 200 else 'Wrong', 'status_code': r.status_code}
     print(test_results)
 
+def _check_record_replay(host):
+    stages = ['live', 'archive', 'proxy']
+    error_stages = []
+    for stage in stages:
+        if not os.path.exists(f'{ARCHIVEDIR}/writes/test/{host}/{stage}_events.json'):
+            error_stages.append(stage)
+    return error_stages
+
 def test_record_replay():
     test_utils.init_test()
 
@@ -53,7 +62,7 @@ def test_record_replay():
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
 
-    test_results = pd.DataFrame(columns=['url', 'correct?', 'status_code'])
+    test_results = pd.DataFrame(columns=['url', 'correct?', 'failed stages'])
     for host, url in host_url.items():
         autorun.record_replay(url, host,
                        chrome_data=f'{chrome_data_dir}/test',
@@ -61,16 +70,20 @@ def test_record_replay():
                        pw_archive='test',
                        proxy=True,
                        arguments=arguments)
-        r = requests.get(url, proxies={'http': PROXY, 'https': PROXY}, verify=False)
-        test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct' if r.status_code == 200 else 'Wrong', 'status_code': r.status_code}
+        failed_stages = _check_record_replay(host)
+        if len(failed_stages) == 0:
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct', 'failed stages': None}
+        else:
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Wrong', 'failed stages': ','.join(failed_stages)}
+
     print(test_results)
 
 def test_record_replay_multiproc():
     test_utils.init_test()
     urls = [
-        # 'https://www.yellowshop.es/',
+        'https://www.yellowshop.es/',
         'https://crpt.ru/',
-        # 'https://gettyimages.co.jp/',
+        'https://gettyimages.co.jp/',
         'https://starlink.com',
         'https://www.hevs.ch/fr',
     ]
@@ -84,9 +97,12 @@ def test_record_replay_multiproc():
                                             pw_archive='test',
                                             proxy=True,
                                             arguments=arguments)
-    for _, url in host_url.items():    
-        r = requests.get(url, proxies={'http': PROXY, 'https': PROXY}, verify=False)
-        test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct' if r.status_code == 200 else 'Wrong', 'status_code': r.status_code}
+    for host, url in host_url.items():    
+        failed_stages = _check_record_replay(host)
+        if len(failed_stages) == 0:
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct', 'failed stages': None}
+        else:
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Wrong', 'failed stages': ','.join(failed_stages)}
     print(test_results)
 
 test_record_replay_multiproc()

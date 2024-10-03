@@ -140,7 +140,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
     const {exceptionDetails } = await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true, returnByValue: true});
     if (exceptionDetails) {
-        console.error(`Exception: Interaction on Runtime.evaluate ${exceptionDetails}`);
+        console.error(`Exception: Interaction on Runtime.evaluate ${exceptionDetails.text}`);
         return []
     }
     const allEvents = await page.evaluate(() => {

@@ -1,6 +1,7 @@
 /**
  * Functions for collecting execution information.
  */
+const fs = require('fs');
 
 /**
  * Parse stack trace into a list of call frames.
@@ -28,6 +29,19 @@ function parseStack(stack){
         stack = stack.parent;
     }
     return stackInfo;
+}
+
+/**
+ * Filter stack trace to remove unnecessary information.
+ * @param {Object} stackInfo stackInfo from parseStack 
+ * @returns {Boolean} Whether the stack should be kept.
+ */
+function targetStack(stackInfo) {
+    let bottomFrames = stackInfo[stackInfo.length-1];
+    let bottomFrame = bottomFrames.callFrames[bottomFrames.callFrames.length-1];
+    if (bottomFrame.url.includes('chrome-extension://'))
+        return false;
+    return true;
 }
 
 class ExecutionStacks {
@@ -70,8 +84,20 @@ class ExecutionStacks {
             stackInfo: []
         }
         let stack = params.stackTrace;
-        writeStack.stackInfo = parseStack(stack);
+        const stackInfo = parseStack(stack);
+        if (!targetStack(stackInfo))
+            return;
+        writeStack.stackInfo = stackInfo;
         this.writeStacks.push(writeStack);
+    }
+
+    splitWriteStacks(fileprefix, maxSplit=1000) {
+        for (let i = 0; i < this.writeStacks.length; i += maxSplit) {
+            let splitStacks = this.writeStacks.slice(i, i+maxSplit);
+            const range = `${this.writeStacks[i].writeID}-${this.writeStacks[Math.min(i+maxSplit, this.writeStacks.length)-1].writeID}`;
+            const filename = `${fileprefix}_${range}.json`;
+            fs.writeFileSync(filename, JSON.stringify(splitStacks, null, 2));
+        }
     }
 }
 
