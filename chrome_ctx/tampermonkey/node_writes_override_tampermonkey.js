@@ -70,7 +70,7 @@ unsafeWindow.__trace_enabled = false;
 unsafeWindow.__write_log = [];
 unsafeWindow.__raw_write_log = [];
 unsafeWindow.__write_id = 0;
-unsafeWindow.__current_stage = 'onload'
+unsafeWindow.__current_stage = 'onload';
 unsafeWindow.__console_message = console.warn;
 
 
@@ -80,11 +80,12 @@ function _debug_log(...args) {
 }
 
 function _get_wid() {
-    const frameName = window.name;
-    if (window.name === '')
+    if (window === window.top)
         return `${unsafeWindow.__write_id++}`;
-    else
+    else {
+        const frameName = window.name;
         return `${unsafeWindow.__write_id++}:${frameName}`;
+    }
 }
 
 // Check if the node is in the document
@@ -197,33 +198,6 @@ class DimensionSets {
 
 }
 
-// Not used at this point.
-class CSSOverrider {
-    constructor() {
-        this.overriddenElement = new Set();
-    }
-
-    _overrideStyleProperties(element) {
-        for (const property of unsafeWindow.__CSSStyleProperties) {
-            // TODO: Override all CSS properties.
-        }
-
-    }
-
-    /**
-     * Override CSS of the element and all its children
-     * @param {HTMLElement} element
-     */
-    overrideElements(element) {
-        // TODO: Write this function
-        this._overrideStyleProperties(element);
-        const elements = element.querySelectorAll('*');
-        for (const element of elements) {
-            this._overrideStyleProperties(element);
-        }
-    }
-}
-
 /**
  * 
  * @param {Function} originalFn 
@@ -301,51 +275,6 @@ function newWriteMethod(originalFn, method, contextNode=null) {
     };
 }
 
-function newSetMethod(originalFn, property) {
-    return function (value) {
-        const wid = _get_wid();
-        let beforeDS = new DimensionSets();
-        let record = null;
-        const ableRecord = unsafeWindow.__recording_enabled && isNodeInDocument(this);
-        // Deep copy value if value is a node
-        value_copy = value;
-        if (value instanceof Node)
-            value_copy = value.cloneNode(true);
-        if (ableRecord) {
-            beforeDS.recordDimension(this, [value]);
-            record = {
-                target: this,
-                method: 'set:' + property,
-                args: [value_copy],
-                beforeDS: beforeDS,
-                beforeText: getNodeTextLight(this),
-                trace: Error().stack,
-                id: wid,
-                currentStage: unsafeWindow.__current_stage,
-            }
-        }
-
-        // * Record current stack trace.
-        if (unsafeWindow.__trace_enabled)
-            unsafeWindow.__console_message("wid " + wid);
-
-        retVal = originalFn.apply(this, [value]);
-        if (ableRecord) {
-            let afterDS = new DimensionSets();
-            afterDS.recordDimension(this, [value]);
-            record.afterDS = afterDS;
-            record.afterText = getNodeTextLight(this);
-            // * Record only if the dimension changes
-            if (!beforeDS.isDimensionMatch(afterDS)) {
-                _debug_log("set", this, property, value);
-                unsafeWindow.__write_log.push(record);
-            }
-            unsafeWindow.__raw_write_log.push(record);
-        }
-        return retVal;
-    }
-}
-
 // Override Node write methods
 node_write_methods = [
     'appendChild',
@@ -368,7 +297,7 @@ node_properties = [
 for (const property of node_properties) {
     const origianlFn = Object.getOwnPropertyDescriptor(Node.prototype, property).set;
     Object.defineProperty(Node.prototype, property, {
-        set: newSetMethod(origianlFn, property)
+        set: newWriteMethod(origianlFn, `set:${property}`)
     });
 }
 
@@ -417,7 +346,7 @@ for (const [element, properties] of Object.entries(element_properties)) {
         //     continue;
         const originalFn = originalDesc.set;
         Object.defineProperty(window[element].prototype, property, {
-            set: newSetMethod(originalFn, property)
+            set: newWriteMethod(originalFn, `set:${property}`)
         });
     }
 }
@@ -443,3 +372,63 @@ for (const method of classList_methods) {
         return node ? newWriteMethod(originalFn, `classList.${method}`, node).apply(this, args) : originalFn.apply(this, args);
     }
 }
+
+// Override CSSStyleDeclaration set
+cssstyle_methods = [
+    'setProperty'
+]
+
+for (const method of cssstyle_methods) {
+    const originalFn = CSSStyleDeclaration.prototype[method];
+    CSSStyleDeclaration.prototype.setProperty = function (...args) {
+        // Look for node in the document that has this classList
+        let node = null;
+        for (const element of document.querySelectorAll('*')) {
+            if (element.style === this) {
+                node = element;
+                break;
+            }
+        }
+        return node ? newWriteMethod(originalFn, `CSSStyleDeclaration.${method}`, node).apply(this, args) : originalFn.apply(this, args);
+    }
+}
+
+const originalStyleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
+const originalStyleGet = originalStyleDesc.get;
+
+function proxyStyle(style) {
+    return new Proxy(style, {
+        set: function(target, property, value, receiver) {
+            const originalSet = (property, value) => {target[property] = value};
+            // Look for node in the document that has this classList
+            let node = null;
+            for (const element of document.querySelectorAll('*')) {
+                if (element.style === receiver) {
+                    node = element;
+                    break;
+                }
+            }
+            return node ? newWriteMethod(originalSet, `set:CSSStyleDeclaration.${property}`, node).apply(target, [property, value]) : originalSet(property, value);
+        },
+        get: function(target, property, receiver) {
+            const value = Reflect.get(target, property, receiver);
+            // If the value is a function, bind it to the target object to maintain context
+            if (typeof value === "function")
+                return value.bind(target);
+            return value;
+        },
+    });
+}
+  
+Object.defineProperty(HTMLElement.prototype, "style", {
+    get: function () {
+        if (this._proxyStyle)
+          return this._proxyStyle;
+        const originalStyle = originalStyleGet.call(this);
+        this._style = originalStyle;
+        this._proxyStyle = proxyStyle(originalStyle);
+        return this._proxyStyle;
+      },
+    configurable: true, // Allows the property to be reconfigured later if needed
+    enumerable: true, // Makes the property show up in enumeration (e.g., for-in)
+});
