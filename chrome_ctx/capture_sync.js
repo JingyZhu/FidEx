@@ -68,6 +68,7 @@ __tasks = new class {
 
     clear() {
         this.tasks.clear();
+        this.seen.clear();
     }
 
     start() {

@@ -199,11 +199,11 @@ class DimensionSets {
 }
 
 /**
- * 
- * @param {Function} originalFn 
- * @param {String} method 
+ *
+ * @param {Function} originalFn
+ * @param {String} method
  * @param {object} contextNode If provided, will be the actual node that this write is applied to. If not, this will be the node that the write method is called on.
- * @returns 
+ * @returns
  */
 function newWriteMethod(originalFn, method, contextNode=null) {
     return function (...args) {
@@ -399,7 +399,7 @@ const originalStyleGet = originalStyleDesc.get;
 function proxyStyle(style) {
     return new Proxy(style, {
         set: function(target, property, value, receiver) {
-            const originalSet = (property, value) => {target[property] = value};
+            const originalSet = (property, value) => {target[property] = value; return true};
             // Look for node in the document that has this classList
             let node = null;
             for (const element of document.querySelectorAll('*')) {
@@ -408,7 +408,7 @@ function proxyStyle(style) {
                     break;
                 }
             }
-            return node ? newWriteMethod(originalSet, `set:CSSStyleDeclaration.${property}`, node).apply(target, [property, value]) : originalSet(property, value);
+            return node && typeof property == 'string' ? newWriteMethod(originalSet, `set:CSSStyleDeclaration.${property}`, node).apply(target, [property, value]) : originalSet(property, value);
         },
         get: function(target, property, receiver) {
             const value = Reflect.get(target, property, receiver);
@@ -419,7 +419,7 @@ function proxyStyle(style) {
         },
     });
 }
-  
+
 Object.defineProperty(HTMLElement.prototype, "style", {
     get: function () {
         if (this._proxyStyle)

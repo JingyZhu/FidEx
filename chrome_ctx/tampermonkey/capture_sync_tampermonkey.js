@@ -90,6 +90,7 @@ unsafeWindow.__tasks = new class {
 
     clear() {
         this.tasks.clear();
+        this.seen.clear();
     }
 
     start() {
