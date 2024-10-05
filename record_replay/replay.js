@@ -16,7 +16,7 @@ const { startChrome,
       } = require('../utils/load');
 const { recordReplayArgs } = require('../utils/argsparse');
 
-
+Error.stackTraceLimit = 50; // Adjust to a larger number if needed
 (async function(){
     // * Step 0: Prepare for running
     program = recordReplayArgs();

@@ -192,7 +192,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         let t2 = new Date().getTime();
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);
-        console.log(`Interaction: Triggered interaction ${i}, Total: ${(new Date().getTime() - startTime)/1000}s`);
+        console.log(`Interaction: Triggered interaction ${i}, Total: ${(t1 - startTime)/1000}s`);
     }
     return allEvents;
 }
