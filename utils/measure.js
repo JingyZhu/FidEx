@@ -268,7 +268,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
         }
     }
     const childFrames = await iframe.childFrames();
-    let childRenderTrees = [], childidx = [];
+    let childRenderTrees = [];
     for (const childFrame of childFrames){
         let childFrameIDs = new IframeIDs()
         await childFrameIDs.fromCDPFrame(childFrame);
@@ -289,14 +289,17 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
         currentInfo.prefix = parentInfo.prefix + '  ' + prefix;
         try {
             const childInfo = await collectRenderTree(childFrame, currentInfo);
-            childRenderTrees.push(childInfo.renderTree);
-            childidx.push(htmlIframe.idx);
+            // Potentially, idx could be overlapped
+            childRenderTrees.push({idx: htmlIframe.idx, renderTree: childInfo.renderTree});
         } catch {}
     }
-    childidx.push(renderTree.length-1)
-    let newRenderTree = renderTree.slice(0, childidx[0]+1)
-    for(let i = 0; i < childRenderTrees.length; i++){
-        newRenderTree = newRenderTree.concat(childRenderTrees[i], renderTree.slice(childidx[i]+1, childidx[i+1]+1));
+    childRenderTrees.sort((a, b) => a.idx - b.idx);
+    childRenderTrees.push({idx: renderTree.length-1, renderTree: []});
+    let newRenderTree = renderTree.slice(0, childRenderTrees[0].idx+1);
+    for(let i = 0; i < childRenderTrees.length-1; i++){
+        const childRenderTree = childRenderTrees[i].renderTree;
+        const childIdx = childRenderTrees[i].idx, childIdxNext = childRenderTrees[i+1].idx;
+        newRenderTree = newRenderTree.concat(childRenderTree, renderTree.slice(childIdx+1, childIdxNext+1));
     }
     let returnObj = {
         renderTree: newRenderTree
