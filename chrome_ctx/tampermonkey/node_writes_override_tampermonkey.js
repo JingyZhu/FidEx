@@ -411,7 +411,7 @@ function proxyStyle(style) {
             return node && typeof property == 'string' ? newWriteMethod(originalSet, `set:CSSStyleDeclaration.${property}`, node).apply(target, [property, value]) : originalSet(property, value);
         },
         get: function(target, property, receiver) {
-            const value = Reflect.get(target, property, receiver);
+            const value = Reflect.get(target, property);
             // If the value is a function, bind it to the target object to maintain context
             if (typeof value === "function")
                 return value.bind(target);

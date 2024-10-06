@@ -86,6 +86,9 @@ def test_record_replay_multiproc():
         'https://gettyimages.co.jp/',
         'https://starlink.com',
         'https://www.hevs.ch/fr',
+        'https://www.radtouren.at/', # * Reflect.get without receiver
+        'https://www.si.edu/', # * Reflect.get without receiver
+        'https://egihosting.com/', # Looks like archive can't finish
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
 

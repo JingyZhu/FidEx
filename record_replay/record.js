@@ -19,7 +19,6 @@ const measure = require('../utils/measure');
 const { recordReplayArgs } = require('../utils/argsparse');
 const execution = require('../utils/execution');
 
-Error.stackTraceLimit = 50; // Adjust to a larger number if needed
 // Dummy server for enable page's network and runtime before loading actual page
 let PORT = null;
 try{
@@ -176,7 +175,8 @@ async function getActivePage(browser) {
         if (options.exetrace)
             await recordPage.evaluateOnNewDocument("__trace_enabled = true");
         // // Seen clearCache Cookie not working, can pause here to manually clear them
-        // await eventSync.waitForReady();
+        Error.stackTraceLimit = Infinity;
+
         // * Step 4: Load the page
         await recordPage.goto(
             url,

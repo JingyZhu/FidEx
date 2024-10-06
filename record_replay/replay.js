@@ -16,7 +16,6 @@ const { startChrome,
       } = require('../utils/load');
 const { recordReplayArgs } = require('../utils/argsparse');
 
-Error.stackTraceLimit = 50; // Adjust to a larger number if needed
 (async function(){
     // * Step 0: Prepare for running
     program = recordReplayArgs();
@@ -77,7 +76,8 @@ Error.stackTraceLimit = 50; // Adjust to a larger number if needed
         await page.evaluateOnNewDocument(csScript);
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");
-        
+        Error.stackTraceLimit = Infinity;
+
         // * Step 2: Load the page
         try {
             console.log("Replay: Start loading the actual page");
@@ -114,7 +114,7 @@ Error.stackTraceLimit = 50; // Adjust to a larger number if needed
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
         }
-
+        
         // * Step 6: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
