@@ -23961,8 +23961,12 @@
             (this.protocol = e.protocol),
             e.requestHeaders && (this.requestHeaders = e.requestHeaders),
             e.requestHeadersText &&
-             (this.requestHeadersText = e.requestHeadersText),
-            (this.responseHeaders = e.headers),
+              (this.requestHeadersText = e.requestHeadersText),
+              // * Changed by jingyz
+              // Reason: Directly assigning this.reasponseHeaders as e.headers will eliminate headers exist before
+              // One important example is the 'set-cookie' since redirecte won't have the 'set-cookie' again
+              (this.responseHeaders = { ...{}, ...e.headers, ...this.responseHeaders}),
+              // * End of change
             e.headersText && (this.responseHeadersText = e.headersText),
             (this.fromServiceWorker = !!e.fromServiceWorker),
             e.securityDetails)
