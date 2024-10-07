@@ -134,7 +134,7 @@ const { recordReplayArgs } = require('../utils/argsparse');
         }
         
     } catch (err) {
-        console.error(`Replay exception on ${urlStr}: ${err.stack}`);
+        console.error(`Replay proxy=${options.proxy?true:false} exception on ${urlStr}: ${err.stack}`);
     } finally {
         await browser.close();
         process.exit();

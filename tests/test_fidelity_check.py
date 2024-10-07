@@ -22,25 +22,54 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
         PREFIX = 'test'
         test_utils.init_test()
     writes_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
-    urls = [
-        'https://www.sherlockcomms.com/',
-        'https://www.stackcommerce.com/',
-        'https://www.jimdo.com/',
-        'https://www.si.edu/',
-        'https://www.google.com.gh/',
-        'https://www.infonline.de/',
-        'https://crpt.ru/',
-        'https://mojohost.com/',
-        'https://www.dearfoams.com/',
-        'https://rtvbn.tv/',
-        'https://yapolitic.ru/',
-        'https://ediig.com/',
-        'https://www.healio.com/',
-        'https://mrjack.bet/',
-        'https://www.smartrecruiters.com/',
-        'https://www.hinet.net/',
-        'https://gettyimages.co.jp/',
-    ]
+    urls = {
+        'proxy': [
+            # 'https://www.sherlockcomms.com/',
+            # 'https://www.stackcommerce.com/',
+            # 'https://www.jimdo.com/',
+            # 'https://www.si.edu/',
+            # 'https://www.google.com.gh/',
+            # 'https://www.infonline.de/',
+            # 'https://crpt.ru/',
+            # 'https://www.dearfoams.com/',
+            # 'https://rtvbn.tv/',
+            # 'https://yapolitic.ru/',
+            # 'https://ediig.com/',
+            # 'https://www.healio.com/',
+            # 'https://gettyimages.co.jp/',
+            # 'https://www.passwordboss.com/',
+            # 'https://jrgroupindia.com/',
+            # 'https://realrobo.in/',
+            # 'https://www.nit.pt/', # Order of interaction
+            
+            # 'https://mojohost.com/',
+            'https://www.hinet.net/',
+            'https://q10.com/Colombia',
+            'https://mrjack.bet/',
+            'https://www.efortuna.pl/',
+            'https://www.yellowshop.es/',
+            'https://www.eldestapeweb.com/',
+            # 'https://www.radtouren.at/',
+
+            # * Need to resolve
+            'https://www.nist.gov/',
+            'https://confluent.cloud/',
+            'https://www.trustpilot.com/',
+            
+            # ? Fail to load somtime
+            'https://www.smartrecruiters.com/',
+            
+            # ? Observed non-determinism across loads but should have not issue
+            'https://www.gsa.gov/', # svg 404 without redirection
+            'https://www.tado.com/all-en', # Messenger seems only appears in live
+
+            # ! Unable to fix now
+            # 'https://www.instagram.com/', # ! Can be wrong sometime because of long onload
+            # 'https://videojs.com/', #! Long carousel that always trigger timeouts
+            # 'https://bigsport.today/', # ! (Non-determinisitically) blocked by adblocker
+        ]
+    }
+    urls = urls[tocmp]
     if record:
         urls_copy = urls.copy()
         arguments = ['-w', '-s', '--scroll', '-i', '--headless', '-e']
@@ -56,7 +85,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
     test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if not correct)'])
     available_host_url = {}
     for host, url in host_url.items():
-        if os.path.exists(f'{writes_dir}/{host}'):
+        if os.path.exists(f'{writes_dir}/{host}/proxy_writes.json'):
             available_host_url[host] = url
         else:
             print(f'No writes for {host}')
@@ -75,28 +104,48 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
     print(test_results)
 
 
-def test_fidelity_detect_no_issue_e2e(runtimes=1, tocmp='proxy'):
-    test_utils.init_test()
-    arguments = ['-w', '-s', '--scroll', '-i']
-    call(f'rm -rf {chrome_data_dir}/test', shell=True)
-    call(f'cp -r {chrome_data_dir}/base {chrome_data_dir}/test', shell=True)
+def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
+    global PREFIX
+    if record:
+        PREFIX = 'test'
+        test_utils.init_test()
+    writes_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
     urls = [
-        'https://crpt.ru/',
-        # 'https://7zap.com/en/',
-        'https://www.t-mobile.com/',
-        
+        'https://www.starlink.com/', # Watch now icon seems not in proxy
     ]
+    if record:
+        urls_copy = urls.copy()
+        arguments = ['-w', '-s', '--scroll', '-i', '--headless', '-e']
+        metadata = autorun.record_replay_all_urls_multi(urls_copy, min(16, len(urls_copy)), 
+                                    chrome_data_dir=chrome_data_dir,
+                                    metadata_prefix='metadata/test',
+                                    pw_archive='test',
+                                    proxy=True,
+                                    arguments=arguments)
+        urls = [metadata[u]['req_url'] if u in metadata else u for u in urls]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
-    test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if not correct)'])
+    
+    test_results = pd.DataFrame(columns=['url', 'correct?', 'stage (if correct)'])
+    available_host_url = {}
     for host, url in host_url.items():
-        autorun.record_replay(url, host,
-                       chrome_data=f'{chrome_data_dir}/test',
-                       wr_archive='test',
-                       pw_archive='test',
-                       proxy=True,
-                       arguments=arguments)
-        fidelity_detect.fidelity_issue_all(f'{HOME}/fidelity-files/writes/test/{host}', 'live', tocmp, True, True)
+        if os.path.exists(f'{writes_dir}/{host}/proxy_writes.json'):
+            available_host_url[host] = url
+        else:
+            print(f'No writes for {host}')
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': 'No writes', 'stage (if correct)': None}
+
+    with multiprocessing.Pool(32) as p:
+        results = p.starmap(fidelity_detect.fidelity_issue_all, [(f'{writes_dir}/{host}', 'live', tocmp, False, True) for host in available_host_url])
+        
+        for r in results:
+            if r is None:
+                continue
+            hostname = r['hostname'].split('/')[-1]
+            url = available_host_url[hostname]
+            correct = 'Wrong' if r['diff'] == False else 'Correct'
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': correct, 'stage (if correct)': r['diff_stage']}
     print(test_results)
 
-test_fidelity_detect_no_issue(record=True)
-# test_fidelity_detect_no_issue_e2e()
+
+# test_fidelity_detect_no_issue(record=True)
+test_fidelity_detect_with_issue(record=True)
