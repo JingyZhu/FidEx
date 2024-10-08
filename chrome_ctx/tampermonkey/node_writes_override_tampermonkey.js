@@ -403,7 +403,7 @@ function proxyStyle(style) {
             // Look for node in the document that has this classList
             let node = null;
             for (const element of document.querySelectorAll('*')) {
-                if (element.style === receiver) {
+                if (element._style === target) {
                     node = element;
                     break;
                 }
