@@ -9,6 +9,26 @@ def _ignore_tag(branch):
                 return True
     return False
 
+def _visible(branch, xpaths_map):
+    any_visible = False
+    for xpath in branch:
+        tag = xpath.split('/')[-1].split('[')[0]
+        if tag == '#text':
+            xpath = '/'.join(xpath.split('/')[:-1])
+        dimension = xpaths_map[xpath].get('dimension', None)
+        if not dimension:
+            continue
+        if dimension.get('width', 0) > 1 and dimension.get('height', 0) > 1:
+            any_visible = True
+            break
+    if len(branch) == 1:
+        # Check for minus z-index
+        n_zindex = re.compile('<div.*style=".*z-index: -\d+.*".*>')
+        element = xpaths_map[branch[0]]
+        if n_zindex.search(element['text'].lower()):
+            any_visible = False
+    return any_visible
+
 def _from_recaptcha(branch, xpaths_map):
         xpath = branch[0]
         # * Check parent
@@ -135,6 +155,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
     new_left_unique = []
     for branch in left_unique:
         branch_meaningful = True
+        if not _visible(branch, left_xpaths_map):
+            branch_meaningful = False
         if _ignore_tag(branch):
             branch_meaningful = False
         if _from_recaptcha(branch, left_xpaths_map):
@@ -150,6 +172,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
     new_right_unique = []
     for branch in right_unique:
         branch_meaningful = True
+        if not _visible(branch, right_xpaths_map):
+            branch_meaningful = False
         if _ignore_tag(branch):
             branch_meaningful = False
         if _from_recaptcha(branch, right_xpaths_map):
