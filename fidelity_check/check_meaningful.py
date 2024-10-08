@@ -11,6 +11,15 @@ def _ignore_tag(branch):
 
 def _visible(branch, xpaths_map):
     any_visible = False
+    # Check for minus z-index
+    top_element = xpaths_map[branch[0]]
+    tag = BeautifulSoup(top_element['text'].lower(), 'html.parser')
+    if tag.find():
+        style = tag.find().attrs.get('style', '')
+        n_zindex = re.compile('z-index: -\d+;')
+        if n_zindex.search(style):
+            return False
+
     for xpath in branch:
         tag = xpath.split('/')[-1].split('[')[0]
         if tag == '#text':
@@ -21,12 +30,6 @@ def _visible(branch, xpaths_map):
         if dimension.get('width', 0) > 1 and dimension.get('height', 0) > 1:
             any_visible = True
             break
-    if len(branch) == 1:
-        # Check for minus z-index
-        n_zindex = re.compile('<div.*style=".*z-index: -\d+.*".*>')
-        element = xpaths_map[branch[0]]
-        if n_zindex.search(element['text'].lower()):
-            any_visible = False
     return any_visible
 
 def _from_recaptcha(branch, xpaths_map):
