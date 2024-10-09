@@ -24,12 +24,14 @@ __tasks = new class {
         this.tasks.set(task, {...value, ...{count: this.tasks.get(task).count + 1, ts: currentTs}});
     }
 
-    addCallback(cb) {
+    addCallback(cb, timeout=null) {
         // * Note that wombat will bind the original function with new context
         // * For these functions, the toString() method will always return "[native code]"
         // * So if seen [native code] in the log, don't use toString() result
         const cbText = cb && !cb.toString().match(/\[native code\]/) ? cb.toString : cb;
-        this.addTask(cbText, {callback: cb});
+        let value = {callback: cb};
+        if (timeout) value.timeout = timeout;
+        this.addTask(cbText, value);
     }
 
     addPromise(pr) {
@@ -85,13 +87,15 @@ __tasks = new class {
         return this.length() === 0;
     }
 
-    removeTimeouts({promiseDelta=2000, callbackDelta=5000}={}) {
+    removeTimeouts({promiseDelta=2000, callbackDelta=10000}={}) {
         const currentTs = Date.now();
         for (let [task, value] of this.tasks) {
             if (value.promise && currentTs - value.ts > promiseDelta) {
                 this.removeTask(task);
-            } else if (value.callback && currentTs - value.ts > callbackDelta) {
-                this.removeTask(task);
+            } else if (value.callback) {
+                const callbackTimeout =  Math.min(value.timeout || callbackDelta, callbackDelta);
+                if (currentTs - value.ts > callbackTimeout)
+                    this.removeTask(task);
             }
         }
     }
@@ -122,7 +126,7 @@ setTimeout = function(callback, delay, ...args) {
         callback(...cargs);
         __tasks.removeCallback(callback);
     }
-    __tasks.addCallback(callback);
+    __tasks.addCallback(callback, delay);
     const ticket = originalSetTimeout(trackedCallBack, delay, ...args);
     __tasks.timeoutMap.set(ticket, callback);
     return ticket;

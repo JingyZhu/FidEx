@@ -46,12 +46,14 @@ unsafeWindow.__tasks = new class {
         this.tasks.set(task, {...value, ...{count: this.tasks.get(task).count + 1, ts: currentTs}});
     }
 
-    addCallback(cb) {
+    addCallback(cb, timeout=null) {
         // * Note that wombat will bind the original function with new context
         // * For these functions, the toString() method will always return "[native code]"
         // * So if seen [native code] in the log, don't use toString() result
         const cbText = cb && !cb.toString().match(/\[native code\]/) ? cb.toString : cb;
-        this.addTask(cbText, {callback: cb});
+        let value = {callback: cb};
+        if (timeout) value.timeout = timeout;
+        this.addTask(cbText, value);
     }
 
     addPromise(pr) {
@@ -107,13 +109,15 @@ unsafeWindow.__tasks = new class {
         return this.length() === 0;
     }
 
-    removeTimeouts({promiseDelta=2000, callbackDelta=5000}={}) {
+    removeTimeouts({promiseDelta=2000, callbackDelta=10000}={}) {
         const currentTs = Date.now();
         for (let [task, value] of this.tasks) {
             if (value.promise && currentTs - value.ts > promiseDelta) {
                 this.removeTask(task);
-            } else if (value.callback && currentTs - value.ts > callbackDelta) {
-                this.removeTask(task);
+            } else if (value.callback) {
+                const callbackTimeout =  Math.min(value.timeout || callbackDelta, callbackDelta);
+                if (currentTs - value.ts > callbackTimeout)
+                    this.removeTask(task);
             }
         }
     }
@@ -141,10 +145,10 @@ unsafeWindow.__tasks = new class {
 const originalSetTimeout = unsafeWindow.setTimeout;
 unsafeWindow.setTimeout = function(callback, delay, ...args) {
     let trackedCallBack = function(...cargs) {
-        unsafeWindow.__tasks.removeCallback(callback);
         callback(...cargs);
+        unsafeWindow.__tasks.removeCallback(callback);
     }
-    unsafeWindow.__tasks.addCallback(callback);
+    unsafeWindow.__tasks.addCallback(callback, delay);
     const ticket = originalSetTimeout(trackedCallBack, delay, ...args);
     unsafeWindow.__tasks.timeoutMap.set(ticket, callback);
     return ticket;
@@ -169,7 +173,7 @@ const originalSetInterval = unsafeWindow.setInterval;
 //             callback(...args); // Call the original callback
 //             originalSetTimeout(limitedCallback, delay); // Schedule the next call
 //         }
-//         // unsafeWindow.__tasks.removeCallback(callback);
+//             unsafeWindow.__tasks.removeCallback(callback);
 //     }
 
 //     unsafeWindow.__tasks.addCallback(callback);
@@ -182,8 +186,8 @@ const originalSetInterval = unsafeWindow.setInterval;
 // * Version 2: SetInterval --> Tracked SetInterval
 unsafeWindow.setInterval = function(callback, delay, ...args) {
     let trackedCallBack = function(...cargs) {
-        unsafeWindow.__tasks.removeCallback(callback);
         callback(...cargs);
+        unsafeWindow.__tasks.removeCallback(callback);
     }
     unsafeWindow.__tasks.addCallback(callback);
     const ticket = originalSetInterval(trackedCallBack, delay, ...args);

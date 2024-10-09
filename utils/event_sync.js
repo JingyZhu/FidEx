@@ -47,7 +47,7 @@ async function waitFile (filename) {
  * @param {Puppeteer.Page} page 
  * @param {Object} options {interval: 500, timeout: 3000}
  */
-async function waitCaptureSync(page, options={interval: 500, timeout: 3000}) {
+async function waitCaptureSync(page, options={interval: 500, timeout: 10000}) {
     let ready = false;
     let totalTime = 0;
     while (totalTime <= options.timeout && !ready) {
