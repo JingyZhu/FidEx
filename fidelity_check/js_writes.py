@@ -26,11 +26,53 @@ class JSWrite:
         self.method = write['method']
         self.xpath = write['xpath']
         self.args = write['args']
-        self.effective = write['effective']
         self.currentDS = write.get('currentDS', {})
         self.stack = stack
+        self.write = write
         self._hash = None
 
+    @staticmethod
+    def effective(write: dict) -> "bool":
+        """
+        Filter out effective writes
+        """
+        # setTextContent should always be effective on the text children
+        def _write_to_text(write):
+            if write['method'] == 'set:textContent':
+                return True
+            for arg in write['args']:
+                if not isinstance(arg, dict):
+                    continue
+                if arg['html'] in ['#text']:
+                    return True
+            return False
+        
+        def _img_set_src(write):
+            target_name = _tag_from_xpath(write['xpath'])
+            if target_name not in ['img']:
+                return False
+            if write['method'] in ['set:src']:
+                return True
+            if write['method'] in ['setAttribute']:
+                first_arg = write.get('args', [{}])[0]
+                if first_arg.get('html', '') in ['src']:
+                    return True
+            return False
+        
+        return write['effective']  \
+                or _write_to_text(write) \
+                or _img_set_src(write)
+
+    def _write_to_text(self) -> "bool":
+        if self.method == 'set:textContent':
+            return True
+        for arg in self.args:
+            if not isinstance(arg, dict):
+                continue
+            if arg['html'] in ['#text']:
+                return True
+        return False
+                
     @functools.cached_property
     def associated_xpaths(self) -> "list[str]":
         """
@@ -51,6 +93,8 @@ class JSWrite:
                     continue
                 if 'xpath' in a:
                     xpaths.append(a['xpath'])
+        if JSWrite.effective(self.write):
+            xpaths.append(self.xpath + '/#text[1]')
         return xpaths
     
     @functools.cached_property
@@ -59,8 +103,9 @@ class JSWrite:
         for call_frames in self.stack[:1]:
             call_frames = call_frames['callFrames']
             for frame in call_frames:
-                all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
-                # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber']))
+                if 'wombat.js' not in frame['url']:
+                    # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
+                    all_frames.append((frame['functionName']))
         return tuple(all_frames)
     
     def _hash_tuple(self):
@@ -74,7 +119,8 @@ class JSWrite:
     def __hash__(self):
         if self._hash:
             return self._hash
-        self._hash = hash(self._hash_tuple())
+        # self._hash = hash(self._hash_tuple())
+        self._hash = hash(self.serialized_stack)
         return self._hash
 
     def __eq__(self, other):
