@@ -4,7 +4,7 @@
  */
 __write_log_processed = [];
 __write_log = [];
-
+__recording_enabled = true;
 // Normalize all href and src attributes in node
 function _normalSRC(node){
     const _attrs = ['src', 'href', 'action'];
@@ -98,6 +98,8 @@ function collect_writes(){
     }
 
     for (const record of __raw_write_log) {
+        if (!isNodeInDocument(record.target))
+            continue
         args = process_args(record.args);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
@@ -116,6 +118,7 @@ function collect_writes(){
             afterText: record.afterText,
             currentDS: currentDS.getSelfDimension(),
             currentStage: record.currentStage,
+            inDocument: record.inDocument,
             effective: effective,
         })
 
@@ -141,15 +144,13 @@ function collect_writes(){
     }
 }
 
-// collect_writes()
-
 // Find writes that have target of element (or element's ancestors)
-function find_writes(log, element) {
+function find_writes(log, element, strict=false) {
     let writes = [];
     for (let i = 0; i < log.length; i++) {
         const target = log[i].target;
         // check if target is element or the ancestor of element
-        if (target.contains(element)){
+        if ((!strict && target.contains(element)) || (strict && target === element)) {
             let write = Object.assign({}, log[i]);
             write.idx = i;
             writes.push(write);

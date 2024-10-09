@@ -9,6 +9,7 @@ __raw_write_log = [];
 __write_id = 0;
 __current_stage = 'onload';
 __console_message = console.warn;
+__referenced_nodes = new Set();
 
 
 function _debug_log(...args) {
@@ -151,7 +152,7 @@ function newWriteMethod(originalFn, method, contextNode=null) {
         const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
-        const ableRecord = __recording_enabled && isNodeInDocument(thisNode);
+        const ableRecord = __recording_enabled;
         // Deep copy arg in args if arg is a node
         let viable_args = [];
         let args_copy = []
@@ -185,6 +186,7 @@ function newWriteMethod(originalFn, method, contextNode=null) {
                 beforeText: getNodeTextLight(thisNode),
                 trace: Error().stack,
                 id: wid,
+                inDocument: isNodeInDocument(thisNode),
                 currentStage: __current_stage,
             }
         }
@@ -202,10 +204,10 @@ function newWriteMethod(originalFn, method, contextNode=null) {
             // * Record only if the dimension changes
             // ! One thing to note is that the dimension of the node might not immediately change after the write (e.g. if write an image to the DOM, the dimension of the image might not be available immediately)
             // ! Might need to wait till the end of the page load for comparing the dimension
-            if (!beforeDS.isDimensionMatch(afterDS)) {
-                _debug_log("write", thisNode, method, args);
-                __write_log.push(record);
-            }
+            // if (!beforeDS.isDimensionMatch(afterDS)) {
+            //     _debug_log("write", thisNode, method, args);
+            //     __write_log.push(record);
+            // }
             __raw_write_log.push(record);
         }
         return retVal;
@@ -289,6 +291,16 @@ for (const [element, properties] of Object.entries(element_properties)) {
 }
 
 // Override classList methods
+const originalClassListGet = Object.getOwnPropertyDescriptor(Element.prototype, 'classList').get;
+Object.defineProperty(Element.prototype, "classList", {
+    get: function () {
+        __referenced_nodes.add(this);
+        return originalClassListGet.call(this);
+      },
+    configurable: true, // Allows the property to be reconfigured later if needed
+    enumerable: true, // Makes the property show up in enumeration (e.g., for-in)
+});
+
 classList_methods = [
     'add',
     'remove',
@@ -300,10 +312,18 @@ for (const method of classList_methods) {
     DOMTokenList.prototype[method] = function(...args) {
         // Look for node in the document that has this classList
         let node = null;
-        for (const element of document.querySelectorAll('*')) {
-            if (element.classList === this) {
+        for (const element of __referenced_nodes) {
+            if (element.classList && element.classList === this) {
                 node = element;
                 break;
+            }
+        }
+        if (!node) {
+            for (const element of document.querySelectorAll('*')) {
+                if (element.classList === this) {
+                    node = element;
+                    break;
+                }
             }
         }
         return node ? newWriteMethod(originalFn, `classList.${method}`, node).apply(this, args) : originalFn.apply(this, args);
@@ -320,10 +340,18 @@ for (const method of cssstyle_methods) {
     CSSStyleDeclaration.prototype.setProperty = function (...args) {
         // Look for node in the document that has this classList
         let node = null;
-        for (const element of document.querySelectorAll('*')) {
-            if (element.style === this) {
+        for (const element of __referenced_nodes) {
+            if (element.style && element.style === this) {
                 node = element;
                 break;
+            }
+        }
+        if (!node) {
+            for (const element of document.querySelectorAll('*')) {
+                if (element.style === this) {
+                    node = element;
+                    break;
+                }
             }
         }
         return node ? newWriteMethod(originalFn, `CSSStyleDeclaration.${method}`, node).apply(this, args) : originalFn.apply(this, args);
@@ -359,6 +387,7 @@ function proxyStyle(style) {
 
 Object.defineProperty(HTMLElement.prototype, "style", {
     get: function () {
+        __referenced_nodes.add(this);
         if (this._proxyStyle)
           return this._proxyStyle;
         const originalStyle = originalStyleGet.call(this);

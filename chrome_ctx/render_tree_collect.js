@@ -160,6 +160,9 @@ function getNodeExtraAttr(node){
         const animation = cssStyle.animation;
         if (animation && !animation.startsWith('none'))
             attrs['animation'] = animation;
+        const visibility = cssStyle.visibility;
+        if (visibility && visibility !== 'visible')
+            attrs['visibility'] = visibility;
     }
     return attrs;
 }

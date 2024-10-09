@@ -147,6 +147,11 @@ class DimensionSets {
 
 }
 
+// Check if the node is in the document
+function isNodeInDocument(node) {
+    return node.isConnected;
+}
+
 // * chrome_ctx version of the code starts from here
 // * To chrome_ctx: Replace unsafeWindow. with empty string
 // * From chrome_ctx: Replace __ with unsafdeWindow.__
@@ -250,6 +255,8 @@ unsafeWindow.collect_writes = function (){
     }
 
     for (const record of unsafeWindow.__raw_write_log) {
+        if (!isNodeInDocument(record.target))
+            continue
         args = process_args(record.args);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
@@ -268,6 +275,7 @@ unsafeWindow.collect_writes = function (){
             afterText: record.afterText,
             currentDS: currentDS.getSelfDimension(),
             currentStage: record.currentStage,
+            inDocument: record.inDocument,
             effective: effective,
         })
 
@@ -294,12 +302,12 @@ unsafeWindow.collect_writes = function (){
 }
 
 // Find writes that have target of element (or element's ancestors)
-unsafeWindow.find_writes = function(log, element) {
+unsafeWindow.find_writes = function(log, element, strict=false) {
     let writes = [];
     for (let i = 0; i < log.length; i++) {
         const target = log[i].target;
         // check if target is element or the ancestor of element
-        if (target.contains(element)){
+        if ((!strict && target.contains(element)) || (strict && target === element)) {
             let write = Object.assign({}, log[i]);
             write.idx = i;
             writes.push(write);
