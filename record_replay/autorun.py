@@ -91,6 +91,7 @@ def record_replay(url, archive_name,
                   remote_host=REMOTE,
                   sshclient=None,
                   proxy=False,
+                  archive=True,
                   arguments=None):
     """
     Args:
@@ -133,11 +134,12 @@ def record_replay(url, archive_name,
                     f'{download_path}/{archive_name}.warc'], cwd=archive_path)
 
     ts = ts.strip()
-    archive_url = f"{HOST}/{pw_archive}/{ts}/{record_url}"
-    replay(archive_url, archive_name, 
-            chrome_data=chrome_data,
-            write_path=write_path, 
-            arguments=arguments)
+    if archive:
+        archive_url = f"{HOST}/{pw_archive}/{ts}/{record_url}"
+        replay(archive_url, archive_name, 
+                chrome_data=chrome_data,
+                write_path=write_path, 
+                arguments=arguments)
     
     if proxy:
         proxy_arguments = arguments + ['--proxy', PROXYHOST]
@@ -164,6 +166,7 @@ def record_replay_all_urls(urls,
                            pw_archive=default_archive, 
                            remote_host=REMOTE,
                            proxy=False,
+                           archive=True,
                            arguments=None):
     if arguments is None:
         arguments = DEFAULTARGS
@@ -195,6 +198,7 @@ def record_replay_all_urls(urls,
                                     pw_archive=pw_archive, 
                                     remote_host=remote_host, 
                                     proxy=proxy,
+                                    archive=archive,
                                     arguments=arguments)
             print("Finished", url, ts)
             if ts == '':
@@ -221,6 +225,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                  pw_archive=default_archive,
                                  remote_host=REMOTE,
                                  proxy=False,
+                                 archive=True,
                                  arguments=None):
     """
     The  multi-threaded version of record_replay_all_urls
@@ -252,9 +257,10 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                              pw_archive, 
                              remote_host,
                              proxy,
+                             archive,
                              arguments):
         if not os.path.exists(chrome_data):
-            call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
+            call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             time.sleep(worker_id*5)
         record_replay_all_urls([url], 
                                metadata_file,
@@ -266,6 +272,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                pw_archive=pw_archive, 
                                remote_host=remote_host,
                                proxy=proxy,
+                               archive=archive,
                                arguments=arguments)
         with id_lock:
             active_ids.remove(worker_id)
@@ -297,6 +304,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                         pw_archive=pw_archive,
                                         remote_host=remote_host,
                                         proxy=proxy,
+                                        archive=archive,
                                         arguments=arguments)
                 tasks.append(task)
             else:
