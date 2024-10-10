@@ -17,12 +17,19 @@ import socket
 import threading
 import concurrent.futures
 import time
+import logging
 
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(_FILEDIR))
 _CURDIR = os.getcwd()
 from fidex.utils import upload, url_utils
 
+# Configure the logger
+logging.basicConfig(
+    format='[%(asctime)s %(levelname)s] %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d-%H:%M:%S'
+)
 
 REMOTE = True
 HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
@@ -176,7 +183,7 @@ def record_replay_all_urls(urls,
     seen_dir = set([v['directory'] for v in metadata.values()])
 
     for i, url in list(enumerate(urls)):
-        print("Start", i, url, flush=True) if worker_id is None else print("Start", worker_id, i, url, flush=True)
+        logging.info(f"Start {i} {url}") if worker_id is None else logging.info(f"Start {worker_id} {i} {url}")
         if url in metadata or url.replace('http://', 'https://') in metadata:
             continue
         try:
@@ -200,11 +207,11 @@ def record_replay_all_urls(urls,
                                     proxy=proxy,
                                     archive=archive,
                                     arguments=arguments)
-            print("Finished", url, ts)
+            logging.info(f"Finished {url} {ts}")
             if ts == '':
                 continue
         except Exception as e:
-            print(f"Issue when record_replay URL {url}: {str(e)}")
+            logging.error(f"Issue when record_replay URL {url}: {str(e)}")
             continue
         seen_dir.add(archive_name)
         metadata[url] = {
