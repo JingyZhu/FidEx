@@ -1,61 +1,38 @@
-class Logger {
-    constructor() {
-        this.levels = ['debug', 'verbose', 'log', 'warn', 'error'];
-        this.colors = ['\x1b[34m', '\x1b[36m', '\x1b[32m', '\x1b[33m', '\x1b[31m']
-        this.level = 'log';
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+const originalInfo = console.info;
+
+function loggerizeConsole() {
+    function getCurrentTimestamp() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');  // Months are 0-based, so add 1
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     }
 
-    _colorize(msg, color) {
-        if (process.stdout.isTTY)
-            return `${color}${msg}\x1b[0m`;
-        else
-            return msg
-    }
+    console.log = (...args) => {
+        originalLog(`[${getCurrentTimestamp()} INFO JS]`, ...args);
+    };
 
-    log(...args) {
-        let idx = this.levels.indexOf('log');
-        if (idx < this.levels.indexOf(this.level))
-            return;
-        const [firstArg, ...remainingArgs] = args;
-        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
-    }
+    console.error = (...args) => {
+        originalError(`[${getCurrentTimestamp()} ERROR JS]`, ...args);
+    };
 
-    debug(...args) {
-        let idx = this.levels.indexOf('debug');
-        if (idx < this.levels.indexOf(this.level))
-            return;
-        const [firstArg, ...remainingArgs] = args;
-        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
-    }
+    console.warn = (...args) => {
+        originalWarn(`[${getCurrentTimestamp()} WARN JS]`, ...args);
+    };
 
-    verbose(...args) {
-        let idx = this.levels.indexOf('verbose');
-        if (idx < this.levels.indexOf(this.level))
-            return;
-        const [firstArg, ...remainingArgs] = args;
-        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
-    }
-
-    warn(...args) {
-        let idx = this.levels.indexOf('warn');
-        if (idx < this.levels.indexOf(this.level))
-            return;
-        const [firstArg, ...remainingArgs] = args;
-        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
-    }
-
-    error(...args) {
-        let idx = this.levels.indexOf('error');
-        if (idx < this.levels.indexOf(this.level))
-            return;
-        const [firstArg, ...remainingArgs] = args;
-        console.log(this._colorize(firstArg, this.colors[idx]), ...remainingArgs);
-    }
+    console.info = (...args) => {
+        originalInfo(`[${getCurrentTimestamp()} INFO JS]`, ...args);
+    };
 }
 
-const logger = new Logger();
-
 module.exports = { 
-    Logger,
-    logger
+    loggerizeConsole
 };

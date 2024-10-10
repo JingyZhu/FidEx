@@ -28,7 +28,7 @@ from fidex.utils import upload, url_utils
 logging.basicConfig(
     format='[%(asctime)s %(levelname)s] %(message)s',
     level=logging.INFO,
-    datefmt='%Y-%m-%d-%H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 
 REMOTE = True
