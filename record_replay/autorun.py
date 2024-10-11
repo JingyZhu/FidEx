@@ -249,6 +249,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{i}'])
     # random.shuffle(urls)
     active_ids = set()
+    pywb_servers = []
     id_lock = threading.Lock()
 
     def _get_worker_task():
@@ -259,6 +260,16 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                     url = urls.pop(0) if len(urls) > 0 else None
                     return i, url
         return None, None
+    
+    def _start_pywb_servers():
+        for _ in range(num_workers):
+            pywb_server, pywb_server_proxy = upload.PYWBServer(archive=pw_archive), upload.PYWBServer(archive=pw_archive, proxy=True)
+            if proxy:
+                pywb_server_proxy.start()
+            if archive:
+                pywb_server.start()
+            pywb_servers.append((pywb_server, pywb_server_proxy))
+    _start_pywb_servers()
 
     def _replace_port(url, port):
             us = urlsplit(url)
@@ -278,13 +289,11 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                              proxy,
                              archive,
                              arguments):
-        pywb_server, pywb_server_proxy = upload.PYWBServer(archive=pw_archive), upload.PYWBServer(archive=pw_archive, proxy=True)
+        pywb_server, pywb_server_proxy = pywb_servers[worker_id]
         if proxy:
-            proxy_port = pywb_server_proxy.start()
-            proxy = _replace_port(PROXYHOST, proxy_port)
+            proxy = _replace_port(PROXYHOST, pywb_server_proxy.port)
         if archive:
-            archive_port = pywb_server.start()
-            archive = _replace_port(HOST, archive_port)
+            archive = _replace_port(HOST, pywb_server.port)
         if not os.path.exists(chrome_data):
             call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             time.sleep(worker_id*5)
