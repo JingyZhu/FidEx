@@ -6,7 +6,9 @@ import os
 import paramiko
 from scp import SCPClient
 import time
-from subprocess import check_call, call, check_output, DEVNULL
+import socket, threading
+from subprocess import check_call, call, check_output, Popen, DEVNULL, PIPE
+
 
 # SERVER is from the .ssh/config file
 ssh_config = paramiko.SSHConfig()
@@ -14,7 +16,41 @@ ssh_alias = 'pistons'
 with open(os.path.expanduser('~/.ssh/config')) as f:
     ssh_config.parse(f)
 ARCHIVEDIR = os.path.join(os.path.expanduser("~"), 'fidelity-files')
-PYWBENV = 'source /x/jingyz/pywb/env/bin/activate'
+PYWBENV = '. /x/jingyz/pywb/env/bin/activate'
+
+class PYWBServer:
+    def __init__(self, proxy=False, archive='test'):
+        self.port = None
+        self.server = None
+        self.thread = None
+        self.archive = archive
+        self.proxy = proxy
+
+    def _start_server(self):
+        print(f"Starting server {self.port}")
+        if self.proxy:
+            cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && wayback --proxy {self.archive} -p {self.port} > /dev/null 2>&1 & echo $!'
+        else:
+            cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && wayback -p {self.port} > /dev/null 2>&1 & echo $!'
+        server = Popen(cmd, shell=True, stdout=PIPE)
+        self.server = server.communicate()[0].decode().strip()
+
+    def start(self) -> int:
+        # Get free port
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('localhost', 0))
+        self.port = s.getsockname()[1]
+        s.close()
+        self.thread = threading.Thread(target=self._start_server)
+        self.thread.daemon = True
+        self.thread.start()
+        return self.port
+    
+    def __del__(self):
+        if self.server:
+            print(f"Killing server {self.port}")
+            call(f"kill -9 {self.server}", shell=True)
+
 
 class SSHClientManager:
     def __init__(self, server=None, user=None, password=None):
@@ -164,13 +200,13 @@ class LocalUploadManager:
             warc_name = warc_path.split('/')[-1]
             command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
             command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
-            call(f'bash -c "{command_init}"', shell=True)
+            call(command_init, shell=True)
 
             if lock:
                 self._lock(col_name)
             
             command_add = f"{command_prefix} && wb-manager add {col_name} {ARCHIVEDIR}/warcs/{directory}/{warc_name}"
-            check_call(f'bash -c "{command_add}"', shell=True)
+            check_call(command_add, shell=True)
             call(f"rm -rf {warc_path}", shell=True)
 
             if lock:

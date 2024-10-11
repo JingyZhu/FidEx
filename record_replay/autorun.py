@@ -8,6 +8,7 @@
         - This script is run with pywb venv on.
 """
 from subprocess import PIPE, check_call, Popen, call
+from urllib.parse import urlsplit, urlunsplit
 import random
 import os
 import json
@@ -110,7 +111,8 @@ def record_replay(url, archive_name,
         wr_archive: Name of the archive to save & export on webrecorder
         pw_archive: Name of the archive to import for warc on pywb
         remote_host: True if run on remote host, False if run on local host
-        proxy: If proxy mode will be replayed on
+        proxy (bool | str): True if run with proxy, False if run with archive, str if run with specific proxy
+        archive (bool | str): True if run with archive, False if not run with archive, str if run with specific archive
     """
     if arguments is None:
         arguments = DEFAULTARGS
@@ -142,14 +144,16 @@ def record_replay(url, archive_name,
 
     ts = ts.strip()
     if archive:
-        archive_url = f"{HOST}/{pw_archive}/{ts}/{record_url}"
+        AHOST = archive if isinstance(archive, str) else HOST
+        archive_url = f"{AHOST}/{pw_archive}/{ts}/{record_url}"
         replay(archive_url, archive_name, 
                 chrome_data=chrome_data,
                 write_path=write_path, 
                 arguments=arguments)
     
     if proxy:
-        proxy_arguments = arguments + ['--proxy', PROXYHOST]
+        PHOST = proxy if isinstance(proxy, str) else PROXYHOST
+        proxy_arguments = arguments + ['--proxy', PHOST]
         replay(record_url, archive_name, 
                 chrome_data=chrome_data,
                 write_path=write_path, 
@@ -246,6 +250,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     # random.shuffle(urls)
     active_ids = set()
     id_lock = threading.Lock()
+
     def _get_worker_task():
         with id_lock:
             for i in range(num_workers):
@@ -254,6 +259,13 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                     url = urls.pop(0) if len(urls) > 0 else None
                     return i, url
         return None, None
+
+    def _replace_port(url, port):
+            us = urlsplit(url)
+            hostname = us.hostname.split(':')[0]
+            us = us._replace(netloc=f'{hostname}:{port}')
+            return urlunsplit(us)
+
     def record_replay_worker(url, 
                              metadata_file,
                              chrome_data,
@@ -266,6 +278,13 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                              proxy,
                              archive,
                              arguments):
+        pywb_server, pywb_server_proxy = upload.PYWBServer(archive=pw_archive), upload.PYWBServer(archive=pw_archive, proxy=True)
+        if proxy:
+            proxy_port = pywb_server_proxy.start()
+            proxy = _replace_port(PROXYHOST, proxy_port)
+        if archive:
+            archive_port = pywb_server.start()
+            archive = _replace_port(HOST, archive_port)
         if not os.path.exists(chrome_data):
             call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             time.sleep(worker_id*5)
