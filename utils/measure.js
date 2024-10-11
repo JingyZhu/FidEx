@@ -182,13 +182,14 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         let t1 = new Date().getTime();
         // if (options.scroll)
         //     await measure.scroll(page);
-        if (options.screenshot) {
+        if (options.rendertree) {
             const rootFrame = page.mainFrame();
             const renderInfoRaw = await collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
-            await collectNaiveInfo(page, dirname, `${filename}_${i}`)
-            fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
+            fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));    
         }
+        if (options.screenshot)
+            await collectNaiveInfo(page, dirname, `${filename}_${i}`)
         let t2 = new Date().getTime();
         if (options.exetrace)
             excepFF.afterInteraction(allEvents[i]);

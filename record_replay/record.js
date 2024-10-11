@@ -18,7 +18,9 @@ const { startChrome,
 const measure = require('../utils/measure');
 const { recordReplayArgs } = require('../utils/argsparse');
 const execution = require('../utils/execution');
+const { loggerizeConsole } = require('../utils/logger');
 
+loggerizeConsole();
 // Dummy server for enable page's network and runtime before loading actual page
 let PORT = null;
 try{
@@ -207,14 +209,15 @@ async function getActivePage(browser) {
 
 
         // * Step 6: Collect the screenshots and all other measurement for checking fidelity
-        if (options.screenshot){
+        if (options.rendertree){
             const rootFrame = recordPage.mainFrame();
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
-            // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectNaiveInfo(recordPage, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
+        if (options.screenshot)
+            // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+            await measure.collectNaiveInfo(recordPage, dirname, filename);
 
         const onloadURL = recordPage.url();
 

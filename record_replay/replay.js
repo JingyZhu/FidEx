@@ -15,6 +15,9 @@ const { startChrome,
         preventWindowPopup, 
       } = require('../utils/load');
 const { recordReplayArgs } = require('../utils/argsparse');
+const { loggerizeConsole } = require('../utils/logger');
+
+loggerizeConsole();
 
 (async function(){
     // * Step 0: Prepare for running
@@ -98,14 +101,15 @@ const { recordReplayArgs } = require('../utils/argsparse');
             excepFF.afterInteraction('onload');
 
         // * Step 4: Collect the screenshot and other measurements
-        if (options.screenshot){
+        if (options.rendertree){
             const rootFrame = page.mainFrame();
             const renderInfoRaw = await measure.collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
-            // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectNaiveInfo(page, dirname, filename);
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
+        if (options.screenshot)
+            // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
+            await measure.collectNaiveInfo(page, dirname, filename);
 
         // * Step 5: Interact with the webpage
         if (options.interaction){
