@@ -45,12 +45,10 @@ function targetStack(stackInfo) {
 }
 
 class ExecutionStacks {
-    requestStacks = [];
-    writeStacks = [];
-    
+
     constructor(){
-        this.requestStacks = [];
-        this.writeStacks = [];
+        this.requestStacks = new Map();
+        this.writeStacks = new Map();
     }
 
     /**
@@ -58,13 +56,13 @@ class ExecutionStacks {
      * @param {object} params from Network.requestWillBeSent
      */
     onRequestStack(params){
-        let requestStack = {
-            url: params.request.url,
-            stackInfo: []
-        }
+        const url = params.request.url;
         let stack = params.initiator.stack;
-        requestStack.stackInfo = parseStack(stack);
-        this.requestStacks.push(requestStack);
+        const stackInfo = parseStack(stack);
+        const stackStr = JSON.stringify(stackInfo);
+        if (!this.requestStacks.has(stackStr))
+            this.requestStacks.set(stackStr, []);
+        this.requestStacks.get(stackStr).push(url);
     }
 
     /**
@@ -79,16 +77,14 @@ class ExecutionStacks {
         if (!match)
             return;
         const wid = match[1];
-        let writeStack = {
-            writeID: wid,
-            stackInfo: []
-        }
         let stack = params.stackTrace;
         const stackInfo = parseStack(stack);
         if (!targetStack(stackInfo))
             return;
-        writeStack.stackInfo = stackInfo;
-        this.writeStacks.push(writeStack);
+        const stackStr = JSON.stringify(stackInfo);
+        if (!this.writeStacks.has(stackStr))
+            this.writeStacks.set(stackStr, []);
+        this.writeStacks.get(stackStr).push(wid);
     }
 
     splitWriteStacks(fileprefix, maxSplit=1000) {
@@ -98,6 +94,28 @@ class ExecutionStacks {
             const filename = `${fileprefix}_${range}.json`;
             fs.writeFileSync(filename, JSON.stringify(splitStacks, null, 2));
         }
+    }
+
+    requestStacksToList() {
+        let list = [];
+        for (const [stack, urls] of this.requestStacks) {
+            list.push({
+                stackInfo: JSON.parse(stack),
+                urls: urls
+            })
+        }
+        return list;
+    }
+
+    writeStacksToList() {
+        let list = [];
+        for (const [stack, wids] of this.writeStacks) {
+            list.push({
+                stackInfo: JSON.parse(stack),
+                wids: wids
+            })
+        }
+        return list;
     }
 }
 

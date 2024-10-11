@@ -38,11 +38,23 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
     right_element = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
     right_writes = json.load(open(f"{dirr}/{right_base}_writes.json"))
     
+    # def read_write_stacks(dirr, base):
+    #     write_stacks = []
+    #     for file in glob.glob(f"{dirr}/{base}_writeStacks_*.json"):
+    #         write_stacks += json.load(open(file))
+    #     return write_stacks
     def read_write_stacks(dirr, base):
-        write_stacks = []
-        for file in glob.glob(f"{dirr}/{base}_writeStacks_*.json"):
-            write_stacks += json.load(open(file))
-        return write_stacks
+        write_stacks = json.load(open(f"{dirr}/{base}_writeStacks.json"))
+        write_stacks_flattered = []
+        for obj in write_stacks:
+            stackInfo, wids = obj['stackInfo'], obj['wids']
+            for wid in wids:
+                write_stacks_flattered.append({
+                    'wid': wid,
+                    'stackInfo': stackInfo
+                })
+        return sorted(write_stacks_flattered, key=lambda x: int(x['wid'].split(':')[0]))
+
     left_write_stacks = read_write_stacks(dirr, left_base)
     right_write_stacks = read_write_stacks(dirr, right_base)
 
