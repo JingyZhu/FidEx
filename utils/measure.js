@@ -77,19 +77,24 @@ async function maxWidthHeight(dimen) {
     return [width, height];
 }
 
+async function getPageDimension(page) {
+    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    const result = await page.evaluate(() => getPageDimension())
+    return result;
+}
+
 /**
  * Scroll to the bottom of the page.
  * @param {*} page 
  */
 async function scroll(page) {
-    const dimensions = await getDimensions(page);
-    let [_, height] = await maxWidthHeight(dimensions);
+    let { height } = await getPageDimension(page)
     for (let i = 1; i * 1080 < height; i += 1) {
         await page.evaluate(() => window.scrollBy(0, 1080));
         await new Promise(resolve => setTimeout(resolve, 500));
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 500));
 }
 
 /**
@@ -105,8 +110,8 @@ async function collectNaiveInfo(page, dirname,
     options = { html: false }) {
     // // ! TEMP
     // return;
-    const dimensions = await getDimensions(page);
-    let [width, height] = await maxWidthHeight(dimensions);
+    const start = new Date().getTime();
+    const { width, height } = await getPageDimension(page);
     
     if (options.html) {
         const html = await page.evaluate(() => {
@@ -124,14 +129,17 @@ async function collectNaiveInfo(page, dirname,
     // await page.evaluate(() => window.scrollTo(0, 0));
     // await new Promise(resolve => setTimeout(resolve, 2000));
     await page.screenshot({
-        path: `${dirname}/${filename}.png`,
+        path: `${dirname}/${filename}.jpg`,
         clip: {
             x: 0,
             y: 0,
             width: width,
             height: height,
-        }
+        },
+        optimizeForSpeed: true,
     })
+    const end = new Date().getTime();
+    console.log(`Measure: Collect Naive Info, Time: ${(end - start)/1000}s, width: ${width}, height: ${height}`);
 }
 
 
@@ -271,7 +279,9 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
     const childFrames = await iframe.childFrames();
     let childRenderTrees = [];
     for (const childFrame of childFrames){
-        let childFrameIDs = new IframeIDs()
+        let childFrameIDs = new IframeIDs();
+        if (childFrame.isDetached())
+            continue;
         await childFrameIDs.fromCDPFrame(childFrame);
         let htmlIframeIdx = -1;
         for (let i = 0; i < htmlIframes.length; i++){

@@ -6,7 +6,7 @@ import os
 import paramiko
 from scp import SCPClient
 import time
-from subprocess import check_call, call, check_output
+from subprocess import check_call, call, check_output, DEVNULL
 
 # SERVER is from the .ssh/config file
 ssh_config = paramiko.SSHConfig()
@@ -128,7 +128,7 @@ class LocalUploadManager:
         while True:
             stdout = ''
             try:
-                stdout = check_output(f"ln {lock_file} {lock_file}.lock && echo 'locked' || echo 'waiting'", shell=True)
+                stdout = check_output(f"ln {lock_file} {lock_file}.lock && echo 'locked' || echo 'waiting'", shell=True, stderr=DEVNULL)
             except: pass
             if stdout and stdout.decode().strip() == 'locked':
                 break

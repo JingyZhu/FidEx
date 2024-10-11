@@ -43,6 +43,10 @@ async function clickDownload(page, url=null) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     await page.evaluate(archive => firstPageClick(archive), Archive)
     await eventSync.sleep(500);
+    await page.waitForSelector('archive-web-page-app');
+    const elementHandle = await page.$('archive-web-page-app'); // Get the shadow host element
+    const shadowRoot = await elementHandle.evaluateHandle(el => el.shadowRoot); // Get the shadow root
+    await shadowRoot.asElement().waitForSelector('wr-rec-coll');
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     let {recordURL, pageTs} = await page.evaluate((url) => secondPageDownload(url), url);
     await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
