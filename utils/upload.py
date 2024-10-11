@@ -6,7 +6,7 @@ import os
 import paramiko
 from scp import SCPClient
 import time
-from subprocess import call
+from subprocess import check_call, call, check_output
 
 # SERVER is from the .ssh/config file
 ssh_config = paramiko.SSHConfig()
@@ -39,8 +39,6 @@ class SSHClientManager:
     def close(self):
         if self.scp_client:
             self.scp_client.close()
-        if self.ssh_client:
-            self.ssh_client.close()
 
     def ssh_exec(self, cmd, check=True):
         stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
@@ -97,7 +95,7 @@ class SSHClientManager:
             self.scp_copy(warc_path, f'{ARCHIVEDIR}/warcs/{directory}')
             warc_name = warc_path.split('/')[-1]
             command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
-            command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || {command_prefix} && wb-manager init {col_name} && touch {ARCHIVEDIR}/collections/{col_name}/lock"
+            command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
             self.ssh_exec(command_init, check=False)
 
             # First keep waiting until  gather lock
@@ -109,6 +107,72 @@ class SSHClientManager:
             call(f"rm -rf {warc_path}", shell=True)
 
             # Then unlock
+            if lock:
+                self._unlock(col_name)
+        except Exception as e:
+            print("Exception on uploading warc", str(e))
+
+
+class LocalUploadManager:
+    def __init__(self):
+        pass
+
+    def close(self):
+        pass
+
+    def _lock(self, col_name):
+        lock_file = f"{ARCHIVEDIR}/collections/{col_name}/lock"
+        # Try create lock if not exist
+        call(f"touch {lock_file}", shell=True)
+        count = 0
+        while True:
+            stdout = ''
+            try:
+                stdout = check_output(f"ln {lock_file} {lock_file}.lock && echo 'locked' || echo 'waiting'", shell=True)
+            except: pass
+            if stdout and stdout.decode().strip() == 'locked':
+                break
+            else:
+                time.sleep(5)
+                count += 1
+                if count % 2 == 0:
+                    # If waiting for too long, unlock and try again
+                    self._unlock(col_name)
+    
+    def _unlock(self, col_name):
+        lock_file = f"{ARCHIVEDIR}/collections/{col_name}/lock.lock"
+        call(f"rm -f {lock_file}", shell=True)
+
+    def upload_screenshot(self, screenshot_path, directory='default'):
+        try:
+            os.makedirs(f'{ARCHIVEDIR}/screenshots/{directory}', exist_ok=True)
+            check_call(f"mv {screenshot_path} {ARCHIVEDIR}/screenshots/{directory}", shell=True)
+        except Exception as e:
+            print("Exception on uploading screenshots", str(e))
+    
+    def upload_write(self, write_path, directory='default'):
+        try:
+            os.makedirs(f'{ARCHIVEDIR}/writes/{directory}', exist_ok=True)
+            call(f"mv {write_path} {ARCHIVEDIR}/writes/{directory}", shell=True)
+        except Exception as e:
+            print("Exception on uploading writes", str(e))
+    
+    def upload_warc(self, warc_path, col_name, directory='default', lock=True):
+        try:
+            os.makedirs(f'{ARCHIVEDIR}/warcs/{directory}', exist_ok=True)
+            call(f"mv {warc_path} {ARCHIVEDIR}/warcs/{directory}", shell=True)
+            warc_name = warc_path.split('/')[-1]
+            command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
+            command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
+            call(f'bash -c "{command_init}"', shell=True)
+
+            if lock:
+                self._lock(col_name)
+            
+            command_add = f"{command_prefix} && wb-manager add {col_name} {ARCHIVEDIR}/warcs/{directory}/{warc_name}"
+            check_call(f'bash -c "{command_add}"', shell=True)
+            call(f"rm -rf {warc_path}", shell=True)
+
             if lock:
                 self._unlock(col_name)
         except Exception as e:

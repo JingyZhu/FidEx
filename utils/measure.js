@@ -86,10 +86,10 @@ async function scroll(page) {
     let [_, height] = await maxWidthHeight(dimensions);
     for (let i = 1; i * 1080 < height; i += 1) {
         await page.evaluate(() => window.scrollBy(0, 1080));
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 /**

@@ -31,9 +31,9 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-REMOTE = True
-HOST = 'http://pistons.eecs.umich.edu:8080' if REMOTE else 'http://localhost:8080'
-PROXYHOST = 'http://pistons.eecs.umich.edu:8079' if REMOTE else 'http://localhost:8079'
+REMOTE = False
+HOST = 'http://pistons.eecs.umich.edu:8080'
+PROXYHOST = 'http://pistons.eecs.umich.edu:8079'
 HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
@@ -115,9 +115,13 @@ def record_replay(url, archive_name,
     if arguments is None:
         arguments = DEFAULTARGS
     temp_client = False
-    if remote_host and sshclient is None:
-        temp_client = True
-        sshclient = upload.SSHClientManager()
+    client = None
+    if remote_host:
+        if sshclient is None:
+            temp_client = True
+        client = upload.SSHClientManager()
+    else:
+        client = upload.LocalUploadManager()
 
     ts, record_url = record(url, archive_name, 
                 chrome_data=chrome_data, 
@@ -134,11 +138,7 @@ def record_replay(url, archive_name,
     if not os.path.exists(f'{download_path}/{wr_archive}.warc'):
         return '', record_url
     check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_FILEDIR)
-    if remote_host:
-        sshclient.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
-    else:
-        check_call(['wb-manager', 'add', pw_archive, 
-                    f'{download_path}/{archive_name}.warc'], cwd=archive_path)
+    client.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
 
     ts = ts.strip()
     if archive:
@@ -155,8 +155,8 @@ def record_replay(url, archive_name,
                 write_path=write_path, 
                 proxy=True,
                 arguments=proxy_arguments)
-    if remote_host:
-        sshclient.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
+    
+    client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
     if temp_client:
         sshclient.close()
     return ts, record_url
