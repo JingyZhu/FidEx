@@ -146,21 +146,21 @@ class LocalUploadManager:
     def upload_screenshot(self, screenshot_path, directory='default'):
         try:
             os.makedirs(f'{ARCHIVEDIR}/screenshots/{directory}', exist_ok=True)
-            check_call(f"mv {screenshot_path} {ARCHIVEDIR}/screenshots/{directory}", shell=True)
+            check_call(f"mv -f {screenshot_path} {ARCHIVEDIR}/screenshots/{directory}", shell=True)
         except Exception as e:
             print("Exception on uploading screenshots", str(e))
     
     def upload_write(self, write_path, directory='default'):
         try:
             os.makedirs(f'{ARCHIVEDIR}/writes/{directory}', exist_ok=True)
-            call(f"mv {write_path} {ARCHIVEDIR}/writes/{directory}", shell=True)
+            call(f"mv -f {write_path} {ARCHIVEDIR}/writes/{directory}", shell=True)
         except Exception as e:
             print("Exception on uploading writes", str(e))
     
     def upload_warc(self, warc_path, col_name, directory='default', lock=True):
         try:
             os.makedirs(f'{ARCHIVEDIR}/warcs/{directory}', exist_ok=True)
-            call(f"mv {warc_path} {ARCHIVEDIR}/warcs/{directory}", shell=True)
+            call(f"mv -f {warc_path} {ARCHIVEDIR}/warcs/{directory}", shell=True)
             warc_name = warc_path.split('/')[-1]
             command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
             command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
