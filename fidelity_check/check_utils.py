@@ -101,10 +101,10 @@ def xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(left_elements, left_writes, left_writeStacks, right_elements, right_writes, right_writeStacks) -> (list, list):
+def diff(left_info: "fidelity_detect.LoadInfo", right_info: "fidelity_detect.LoadInfo") -> (list, list):
     # Currently we assue left element is always the live page and right element is the archive/proxy page 
-    left_layout = layout_tree.build_layout_tree(left_elements, left_writes, left_writeStacks, True)
-    right_layout = layout_tree.build_layout_tree(right_elements, right_writes,right_writeStacks, False)
+    left_layout = layout_tree.build_layout_tree(left_info.elements, left_info.writes, left_info.write_stacks)
+    right_layout = layout_tree.build_layout_tree(right_info.elements, right_info.writes, right_info.write_stacks)
 
     # print(f"{json.dumps(list(left_write_stacks - right_write_stacks), indent=2)}")
     # print(f"{json.dumps(list(right_write_stacks - left_write_stacks), indent=2)}")

@@ -4,45 +4,13 @@ import time
 import os
 import glob
 
-def dedeup_elements(layout):
-    seen_xpath = set()
-    new_elements = []
-    for element in layout:
-        if element['xpath'] not in seen_xpath:
-            seen_xpath.add(element['xpath'])
-            new_elements.append(element)
-    return new_elements
+class LoadInfo:
+    def __init__(self, dirr, prefix):
+        self.dirr = dirr
+        self.prefix = prefix
+        self.read_info()
 
-
-def find_diff_elements(dirr, left_file, right_file) -> (list, list):
-    """Find the unique elements between live and archive
-    
-    Args:
-        dirr: directory including {left_file}.json and {right}.json
-    
-    Returns:
-        left_unique & right_unique: [[xpaths that share the same prefix (essentially same component)]
-    """
-    left_element = json.load(open(f"{dirr}/{left_file}.json"))
-    right_element = json.load(open(f"{dirr}/{right_file}.json"))
-    left_unique, right_unique = check_utils.diff(left_element, right_element)
-    return left_unique, right_unique
-
-
-def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
-    """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
-    left_base, left_stage = left_prefix.split('_') if '_' in left_prefix else (left_prefix, 'onload')
-    right_base, right_stage = right_prefix.split('_') if '_' in right_prefix else (right_prefix, 'onload')
-    left_element = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
-    left_writes = json.load(open(f"{dirr}/{left_base}_writes.json"))
-    right_element = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
-    right_writes = json.load(open(f"{dirr}/{right_base}_writes.json"))
-    
-    # def read_write_stacks(dirr, base):
-    #     write_stacks = []
-    #     for file in glob.glob(f"{dirr}/{base}_writeStacks_*.json"):
-    #         write_stacks += json.load(open(file))
-    #     return write_stacks
+    @staticmethod
     def read_write_stacks(dirr, base):
         write_stacks = json.load(open(f"{dirr}/{base}_writeStacks.json"))
         write_stacks_flattered = []
@@ -55,9 +23,7 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
                 })
         return sorted(write_stacks_flattered, key=lambda x: int(x['wid'].split(':')[0]))
 
-    left_write_stacks = read_write_stacks(dirr, left_base)
-    right_write_stacks = read_write_stacks(dirr, right_base)
-
+    @staticmethod
     def stage_nolater(s1, s2):
         if s1 == 'onload':
             return True
@@ -66,20 +32,42 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
         s1 = s1.replace('interaction_', '')
         s2 = s2.replace('interaction_', '')
         return int(s1) <= int(s2)
-    # Filter writes based on stages
-    left_writes = [w for w in left_writes if stage_nolater(w['currentStage'], left_stage)]
-    right_writes = [w for w in right_writes if stage_nolater(w['currentStage'], right_stage)]
 
-    left_element, right_element = dedeup_elements(left_element), dedeup_elements(right_element)
-    left_unique, right_unique = check_utils.diff(left_element, left_writes, left_write_stacks, right_element, right_writes, right_write_stacks)
+    @staticmethod
+    def dedeup_elements(layout):
+        seen_xpath = set()
+        new_elements = []
+        for element in layout:
+            if element['xpath'] not in seen_xpath:
+                seen_xpath.add(element['xpath'])
+                new_elements.append(element)
+        return new_elements
+    
+    def read_info(self):
+        base, stage = self.prefix.split('_') if '_' in self.prefix else (self.prefix, 'onload')
+        self.elements = json.load(open(f"{self.dirr}/{self.prefix}_dom.json"))
+        
+        self.elements = LoadInfo.dedeup_elements(self.elements)
+        self.writes = json.load(open(f"{self.dirr}/{base}_writes.json"))
+        # Filter writes based on stages
+        self.writes = [w for w in self.writes if LoadInfo.stage_nolater(w['currentStage'], stage)]
+        self.write_stacks = LoadInfo.read_write_stacks(self.dirr, base)
+
+
+def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
+    """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
+    left_info = LoadInfo(dirr, left_prefix)
+    right_info = LoadInfo(dirr, right_prefix)
+
+    left_unique, right_unique = check_utils.diff(left_info, right_info)
     if meaningful:
-        left_unique, right_unique = check_meaningful.meaningful_diff(left_element, left_unique, right_element, right_unique)
+        left_unique, right_unique = check_meaningful.meaningful_diff(left_info.elements, left_unique, right_info.elements, right_unique)
     # * Same visual part
     if len(left_unique) + len(right_unique) > 0:
         if os.path.exists(f"{dirr}/{left_prefix}.png") and os.path.exists(f"{dirr}/{right_prefix}.png"):
             left_img, right_img = f"{dirr}/{left_prefix}.png", f"{dirr}/{right_prefix}.png"
-            left_unique, right_unique = check_utils.filter_same_visual_part(left_img, left_unique, left_element,
-                                                                            right_img, right_unique, right_element)
+            left_unique, right_unique = check_utils.filter_same_visual_part(left_img, left_unique, left_info.elements,
+                                                                            right_img, right_unique, right_info.elements)
         else:
             print("Warning: diff layout tree but no screenshots found")
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
@@ -184,52 +172,3 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
         'screenshot_diff_stage': s_diff_stage,
         'similarity': s_simi
     }
-
-
-def collect_diff_writes(dirr, left_prefix='live', right_prefix='archive'):
-    left_writes = json.load(open(f'{dirr}/{left_prefix}_writes.json', 'r'))
-    right_writes = json.load(open(f'{dirr}/{right_prefix}_writes.json', 'r'))
-
-    left_unique, right_unique = check_utils.diff_writes(left_writes, right_writes)
-    left_unique_list, right_unique_list = [], []
-    for writes in left_unique.values():
-        left_unique_list += writes
-    for writes in right_unique.values():
-        right_unique_list += writes
-
-    unique = {
-        left_prefix: sorted(left_unique_list, key=lambda x: int(x['wid'].split(':')[0])),
-        right_prefix: sorted(right_unique_list, key=lambda x: int(x['wid'].split(':')[0]))
-    }
-    return unique
-
-
-def locate_key_writes(dirr, left_prefix='live', right_prefix='archive'):
-    left_unique_elements, right_unique_elements = find_diff_elements(dirr, f'{left_prefix}_layout', f'{right_prefix}_layout')
-    unique_writes = collect_diff_writes(dirr, left_prefix, right_prefix)
-    results = {left_prefix: [], right_prefix: []}
-    for unique_elements in left_unique_elements:
-        element_key_writes = {}
-        for element_xpath in unique_elements:
-            related_writes = check_utils.associate_writes(element_xpath, unique_writes[left_prefix])
-            for write in related_writes:
-                if write['wid'] not in related_writes:
-                    element_key_writes[write['wid']] = write
-        element_key_writes = sorted(element_key_writes.values(), key=lambda x: int(x['wid'].split(':')[0]))
-        results[left_prefix].append({
-            'unique_elements': unique_elements,
-            'key_related_writes': element_key_writes
-        })
-    for unique_elements in right_unique_elements:
-        element_key_writes = {}
-        for element_xpath in unique_elements:
-            related_writes = check_utils.associate_writes(element_xpath, unique_writes[right_prefix])
-            for write in related_writes:
-                if write['wid'] not in related_writes:
-                    element_key_writes[write['wid']] = write
-        element_key_writes = sorted(element_key_writes.values(), key=lambda x: int(x['wid'].split(':')[0]))
-        results[right_prefix].append({
-            'unique_elements': unique_elements,
-            'key_related_writes': element_key_writes
-        })
-    return results

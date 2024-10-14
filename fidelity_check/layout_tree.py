@@ -88,11 +88,7 @@ def _collect_dimension(element):
     }
 
 class LayoutElement:
-    def __init__(self, element: dict, stale=False):
-        """
-        stale: If the layout element could be stale. This is used for dynamic comparison
-        """
-        self.stale = stale
+    def __init__(self, element: dict):
         self.depth = element['depth']
         self.xpath = element['xpath']
         self.text = element['text']
@@ -225,7 +221,7 @@ class LayoutElement:
         
         def js_dynamism_self_eq(e1, e2):
             """
-            If one is stale and the other is not, and the stale one has subset of writes of the other. Return True
+            If two elements have the same set of stack traces of writes
             """
             if len(e1.writes) + len(e2.writes) > 0:
                 e1_related_writes, e2_related_writes = [], []
@@ -373,16 +369,18 @@ class LayoutElement:
         return f"{self.xpath} {self.text} {self.dimension}"
 
 
-def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list, stale=False) -> "Optional[LayoutElement]":
+def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list) -> "Optional[LayoutElement]":
     """
     Args:
-        stale: If the tree being built is stale than the other. Used for counting writes.
+        elements (list): List of elements
+        writes (list): List of writes
+        writeStacks (list): List of write stacks
     """
     stack_map = {w['wid']: w for w in writeStacks}
     if len(elements) == 0:
         return
     root_e = elements[0]
-    nodes = {root_e['xpath']: LayoutElement(root_e, stale)} # {xpath: LayoutElement}
+    nodes = {root_e['xpath']: LayoutElement(root_e)} # {xpath: LayoutElement}
 
     def get_parent_xpath(xpath, elements):
         for e in reversed(elements):
@@ -393,7 +391,7 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
     for i in range(1, len(elements)):
         element = elements[i]
         xpath = element['xpath']
-        layout_element = LayoutElement(element, stale)
+        layout_element = LayoutElement(element)
         nodes[xpath] = layout_element
         parent_xpath = get_parent_xpath(xpath, elements[:i])
         parent_node = nodes[parent_xpath]
