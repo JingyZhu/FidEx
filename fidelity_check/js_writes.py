@@ -140,6 +140,19 @@ class JSWrite:
                     # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
                     all_frames.append((frame['functionName']))
         return tuple(all_frames)
+
+    @functools.cached_property
+    def scripts(self) -> "set[str]":
+        """
+        Get the scripts that are related to this write
+        """
+        scripts = set()
+        for call_frames in self.stack:
+            call_frames = call_frames['callFrames']
+            for frame in call_frames:
+                if 'wombat.js' not in frame['url']:
+                    scripts.add(frame['url'])
+        return scripts
     
     def _hash_tuple(self):
         target = _tag_from_xpath(self.xpath)

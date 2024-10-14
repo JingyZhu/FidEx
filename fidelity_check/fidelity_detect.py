@@ -2,12 +2,12 @@ import json
 from . import check_utils, check_meaningful
 import time
 import os
-import glob
 
 class LoadInfo:
     def __init__(self, dirr, prefix):
         self.dirr = dirr
         self.prefix = prefix
+        self.base, self.stage = self.prefix.split('_') if '_' in self.prefix else (self.prefix, 'onload')
         self.read_info()
 
     @staticmethod
@@ -44,14 +44,13 @@ class LoadInfo:
         return new_elements
     
     def read_info(self):
-        base, stage = self.prefix.split('_') if '_' in self.prefix else (self.prefix, 'onload')
         self.elements = json.load(open(f"{self.dirr}/{self.prefix}_dom.json"))
         
         self.elements = LoadInfo.dedeup_elements(self.elements)
-        self.writes = json.load(open(f"{self.dirr}/{base}_writes.json"))
+        self.writes = json.load(open(f"{self.dirr}/{self.base}_writes.json"))
         # Filter writes based on stages
-        self.writes = [w for w in self.writes if LoadInfo.stage_nolater(w['currentStage'], stage)]
-        self.write_stacks = LoadInfo.read_write_stacks(self.dirr, base)
+        self.writes = [w for w in self.writes if LoadInfo.stage_nolater(w['currentStage'], self.stage)]
+        self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
 
 
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
