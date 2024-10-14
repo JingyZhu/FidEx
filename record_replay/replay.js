@@ -59,7 +59,7 @@ loggerizeConsole();
         // * Step 1: Parse and Inject the overriding script
         let excepFF = null, executionStacks = null;
         if (options.exetrace) {
-            excepFF = new measure.excepFFHandler();
+            excepFF = new execution.ExcepFFHandler();
             executionStacks = new execution.ExecutionStacks();
             client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
             client.on('Runtime.consoleAPICalled', params => executionStacks.onWriteStack(params))

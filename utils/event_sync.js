@@ -46,8 +46,9 @@ async function waitFile (filename) {
  * 
  * @param {Puppeteer.Page} page 
  * @param {Object} options {interval: 500, timeout: 3000}
+ * If change timeout, also need to change capture_sync.js and measure.js correspondingly
  */
-async function waitCaptureSync(page, options={interval: 500, timeout: 10000}) {
+async function waitCaptureSync(page, options={interval: 500, timeout: 3000}) {
     let ready = false;
     let totalTime = 0;
     while (totalTime <= options.timeout && !ready) {

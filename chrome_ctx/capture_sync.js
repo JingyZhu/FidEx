@@ -87,7 +87,8 @@ __tasks = new class {
         return this.length() === 0;
     }
 
-    removeTimeouts({promiseDelta=2000, callbackDelta=10000}={}) {
+    // If change timeout, also need to change event_sync.js and measure.js correspondingly
+    removeTimeouts({promiseDelta=2000, callbackDelta=3000}={}) {
         const currentTs = Date.now();
         for (let [task, value] of this.tasks) {
             if (value.promise && currentTs - value.ts > promiseDelta) {

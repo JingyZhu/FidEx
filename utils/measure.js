@@ -181,7 +181,8 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
                 }, {timeout: 2000}, i)
         } catch(e) {}
         try {
-            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 5000);
+            // If change timeout, also need to change capture_sync.js and event_sync.js correspondingly
+            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 3000);
             if (options.manual)
                 await eventSync.waitForReady();
         } catch(e) {
@@ -337,83 +338,6 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
     return returnObj;
 }
 
-/**
- * Collect exceptions and failed fetches during loading the page.
- * TODO: Doesn't fit well with the current file. Might need to move to another file.
- */
-class excepFFHandler {
-    exceptions = [];
-    requestMap = {};
-    failedFetches = [];
-    excepFFDelta = [];
-    excepFFTotal = {
-        exceptions: [],
-        failedFetches: []
-    }
-
-    /**
-     * Append exception details to the array when it is thrown.
-     * @param {object} params from Runtime.exceptionThrown
-     */
-    async onException(params) {
-        let ts = params.timestamp;
-        let detail = params.exceptionDetails;
-        let detailObj = {
-            ts: ts,
-            description: detail.exception.description,
-            // text: detail.text,
-            // script: detail.scriptId,
-            id: detail.exceptionId,
-            scriptURL: detail.url,
-            line: detail.lineNumber,
-            column: detail.columnNumber
-        }
-        // console.log(detailObj);
-        this.exceptions.push(detailObj);
-    }
-
-    async onRequest(params) {
-        this.requestMap[params.requestId] = params.request;
-    }
-
-    /**
-     * Check if the fetch is a failed fetch.
-     * @param {object} params from Network.responseReceived 
-     */
-    async onFetch(params) {
-        let response = params.response;
-        if (response.status / 100 < 4)
-            return
-        let failedObj = {
-            url: response.url,
-            mime: params.type,
-            method: this.requestMap[params.requestId].method,
-            status: response.status,
-        }
-        // console.log(failedObj);
-        this.failedFetches.push(failedObj)
-    }
-
-    /**
-     * Batch all exceptions and failed fetches into a the delta array, and label them with the interaction name.
-     * @param {string/object} interaction Name of the interaction 
-     */
-    afterInteraction(interaction) {
-        const exp_net_obj = {
-            interaction: interaction,
-            exceptions: this.exceptions,
-            failedFetches: this.failedFetches
-        }
-        this.excepFFDelta.push(exp_net_obj);
-        this.excepFFTotal.exceptions = this.excepFFTotal.exceptions
-            .concat(this.exceptions);
-        this.excepFFTotal.failedFetches = this.excepFFTotal.failedFetches
-            .concat(this.failedFetches);
-        this.exceptions = [];
-        this.failedFetches = [];
-    }
-}
-
 
 module.exports = {
     getDimensions,
@@ -421,6 +345,5 @@ module.exports = {
     scroll,
     collectNaiveInfo,
     collectRenderTree,
-    interaction,
-    excepFFHandler
+    interaction
 }
