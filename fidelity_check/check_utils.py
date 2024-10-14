@@ -109,7 +109,7 @@ def diff(left_elements, left_writes, left_writeStacks, right_elements, right_wri
     # print(f"{json.dumps(list(left_write_stacks - right_write_stacks), indent=2)}")
     # print(f"{json.dumps(list(right_write_stacks - left_write_stacks), indent=2)}")
     for layout_order in [False, True]:
-        left_unique, right_unique = layout_tree.diff_layout_tree(left_layout, right_layout, layout_order=layout_order)
+        left_unique, right_unique = layout_tree.diff_layout_tree_xpath(left_layout, right_layout, layout_order=layout_order)
         if len(left_unique) == 0 and len(right_unique) == 0:
             break
     

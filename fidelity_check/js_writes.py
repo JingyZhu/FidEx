@@ -20,6 +20,39 @@ def _tag_from_arg(args):
                 tags.append('text')
     return tags
 
+def writes_stacks_match(writes_1: "List[JSWrite]", writes_2: "List[JSWrite]") -> "bool":
+    """
+    Check if the two writes have the same stack
+    """
+    writes_1_set = set([w.serialized_stack for w in writes_1])
+    writes_2_set = set([w.serialized_stack for w in writes_2])
+    if writes_1_set == writes_2_set:
+        return True
+    # Check unique stack is prefix or including any of the element in the other stack
+    w1_unique = writes_1_set - writes_2_set
+    for w1 in w1_unique:
+        matched = False
+        for w2 in writes_2_set:
+            w1_is_prefix = len(w1) <= len(w2) and w1 == w2[:len(w1)]
+            w1_includes = len(w1) > len(w2) and w1[:len(w2)] == w2
+            if w1_is_prefix or w1_includes:
+                matched = True
+                break
+        if not matched:
+            return False
+    w2_unique = writes_2_set - writes_1_set
+    for w2 in w2_unique:
+        matched = False
+        for w1 in writes_1_set:
+            w2_is_prefix = len(w2) <= len(w1) and w2 == w1[:len(w2)]
+            w2_includes = len(w2) > len(w1) and w2[:len(w1)] == w1
+            if w2_is_prefix or w2_includes:
+                matched = True
+                break
+        if not matched:
+            return False
+    return True
+
 class JSWrite:
     def __init__(self, write: dict, stack: list = None):
         self.wid = write['wid']

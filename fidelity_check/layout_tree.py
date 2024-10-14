@@ -9,6 +9,7 @@ from fidex.fidelity_check import js_writes
 from fidex.utils import url_utils
 
 CSS_ANIMATION_STYLES = [
+    'clip-path',
     'transform.*',
     'translate.*',
     'transition.*',
@@ -36,7 +37,7 @@ def _filter_style(style, filter_keys=FILTERED_STYLES):
     style = re.sub(r';\s+', ';', style.strip(';'))
     new_style = []
     filter_keys = [re.compile(k) for k in filter_keys]
-    for s in style.split(';'):
+    for s in sorted(style.split(';')):
         # Replace all :\s+ with :
         s = re.sub(r':\s+', ':', s)
         to_filter = False
@@ -46,6 +47,8 @@ def _filter_style(style, filter_keys=FILTERED_STYLES):
                 to_filter = True
                 break
         if not to_filter:
+            if len(s_split) > 1:
+                s_split[1] = ' '.join(sorted(s_split[1].split()))
             new_style.append(': '.join(s_split))
     return ';'.join(new_style)
 
@@ -132,20 +135,16 @@ class LayoutElement:
             return f'rgb({rgb[:3]})'
         return color
 
-    def _get_src(self, img):
+    def _get_src(self, img) -> set:
         src_terms = [re.compile('^src$'), re.compile('.*lazy.+src')]
-        src = None
+        srcs = []
         for attr in img.attrs:
             for term in src_terms:
                 if term.match(attr):
                     src = img.attrs[attr]
-                    break
-            if src is not None:
-                break
-        if src is None:
-            return None
-        src = url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True)
-        return src
+                    srcs.append(src)
+        srcs = set([url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True) for src in srcs])
+        return srcs
     
     def _get_tag(self):
         """Extract tag name from the text"""
@@ -162,7 +161,7 @@ class LayoutElement:
         return
 
     @functools.cached_property
-    def features(self) -> tuple:
+    def features(self) -> list:
         """Collect tag name and other important attributes that matters to the rendering"""
         all_rules = [] # List of lambda func to get the attribute
         tag_rules = {
@@ -172,7 +171,7 @@ class LayoutElement:
                 lambda a: self._norm_href(a.attrs.get('href'))],
         }
         if isinstance(self.tag, str):
-            return tuple([self.tag])
+            return [self.tag]
         tag = self.tag
         tagname = tag.name
         features = [tagname]
@@ -185,11 +184,18 @@ class LayoutElement:
             style = _filter_style(tag.attrs['style'])
             if len(style) > 0:
                 features.append(style)
-        return tuple(features)
+        return features
     
     def __eq__(self, other):
         if self.tagname != other.tagname:
             return False
+        
+        def full_stack_eq(e1, e2):
+            e1_elements = [e1] + e1.descendants
+            e2_elements = [e2] + e2.descendants
+            e1_write_stacks = [w for e in e1_elements for w in e.writes]
+            e2_write_stacks = [w for e in e2_elements for w in e.writes]
+            return len(e1_write_stacks) > 0 and js_writes.writes_stacks_match(e1_write_stacks, e2_write_stacks)
 
         def dimension_eq(d1, d2):
             d1w, d1h = d1.get('width', 1), d1.get('height', 1)
@@ -211,16 +217,32 @@ class LayoutElement:
                 return identical
             elif e1.features[0].lower() == '#text' and e2.features[0].lower() == '#text':
                 return e1.text == e2.text
+            elif e1.features[0].lower() == 'img' and e2.features[0].lower() == 'img':
+                src_match = len(set(e1.features[1]).intersection(set(e2.features[1]))) > 0
+                return src_match and tuple(e1.features[2:]) == tuple(e2.features[2:])
             else:
-                return e1.features == e2.features
+                return tuple(e1.features) == tuple(e2.features)
         
         def js_dynamism_self_eq(e1, e2):
             """
             If one is stale and the other is not, and the stale one has subset of writes of the other. Return True
             """
             if len(e1.writes) + len(e2.writes) > 0:
-                e1_subset = set(e1.writes).issubset(set(e2.writes))
-                e2_subset = set(e2.writes).issubset(set(e1.writes))
+                e1_related_writes, e2_related_writes = [], []
+                if e1.parent:
+                    e1_related_writes = [w for e in e1.parent.children for w in e.writes]
+                else:
+                    e1_related_writes = e1.writes
+                if e2.parent:
+                    e2_related_writes = [w for e in e2.parent.children for w in e.writes]
+                else:
+                    e2_related_writes = e2.writes
+                
+                # e1_related_writes = e1.writes
+                # e2_related_writes = e2.writes
+
+                e1_subset = set(e1_related_writes).issubset(set(e2_related_writes))
+                e2_subset = set(e2_related_writes).issubset(set(e1_related_writes))
                 if e1_subset and e2_subset:
                     return True
             return False
@@ -243,6 +265,14 @@ class LayoutElement:
                     return True
             return False
         
+        # # Full stack matching
+        # # If matched, the whole branch will be considered as matched
+        # # And descendants matches will be passed
+        # if full_stack_eq(self, other):
+        #     self.full_matched = True
+        #     other.full_matched = True
+        #     return True
+
         # Static matching
         if features_eq(self, other) and dimension_eq(self.dimension, other.dimension):
             return True
@@ -263,7 +293,7 @@ class LayoutElement:
             historical (bool): If True, check if the element is visible historically
         """
         if self.tag == '#text':
-            return self.parent.visible(check_viewport=check_viewport, historical=historical)
+            return self.parent.visible(check_viewport=check_viewport, historical=historical, check_visibility=check_visibility)
         has_dimension = self.dimension.get('width', 0) > 0 and self.dimension.get('height', 0) > 0
         if check_viewport:
             in_viewport = self.dimension.get('left', 0) + self.dimension.get('width', 0) > 0 and self.dimension.get('top', 0) + self.dimension.get('height', 0) > 0
@@ -281,6 +311,14 @@ class LayoutElement:
             ancestors.append(cur_node.parent)
             cur_node = cur_node.parent
         return ancestors
+    
+    @functools.cached_property
+    def descendants(self):
+        descendants = []
+        for child in self.children:
+            descendants.append(child)
+            descendants += child.descendants
+        return descendants
 
     def tag_new_writes(self, other):
         """tag unique writes for both self and others"""
@@ -320,7 +358,10 @@ class LayoutElement:
                 tree_list.append(self)
         else:
             tree_list.append(self)
-        children = sorted(self.children, key=lambda x: (x.dimension.get('top', 0)+x.dimension.get('height', 0), x.dimension.get('left', 0)+x.dimension.get('width', 0))) if layout_order else self.children
+        if layout_order:
+            children = sorted(self.children, key=lambda x: (x.dimension.get('top', 0), x.dimension.get('left', 0), x.text)) 
+        else:
+            children = self.children
         for child in children:
             tree_list += child.list_tree(layout=layout)
         return tree_list
@@ -337,7 +378,7 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
     Args:
         stale: If the tree being built is stale than the other. Used for counting writes.
     """
-    stack_map = {w['writeID']: w for w in writeStacks}
+    stack_map = {w['wid']: w for w in writeStacks}
     if len(elements) == 0:
         return
     root_e = elements[0]
@@ -417,11 +458,11 @@ def _myers_diff(left_seq, right_seq):
     myers algorithm borrowed from https://gist.github.com/adamnew123456/37923cf53f51d6b9af32a539cdfa7cc4
     """
     # See frontier in myers_diff
-    Frontier = namedtuple('Frontier', ['x', 'left_diff', 'right_diff', 'common_seq'])
+    Frontier = namedtuple('Frontier', ['x', 'left_diff', 'right_diff', 'left_common', 'right_common'])
 
     # This marks the farthest-right point along each diagonal in the edit
     # graph, along with the history that got it there
-    frontier = {1: Frontier(0, [], [], [])}
+    frontier = {1: Frontier(0, [], [], [], [])}
 
     L = len(left_seq)
     R = len(right_seq)
@@ -445,14 +486,15 @@ def _myers_diff(left_seq, right_seq):
             # down, your diagonal is lower, and if you're going right, your
             # diagonal is higher.
             if go_down:
-                x, left_diff, right_diff, common_seq = frontier[k + 1]
+                x, left_diff, right_diff, left_common, right_common = frontier[k + 1]
             else:
-                x, left_diff, right_diff, common_seq = frontier[k - 1]
+                x, left_diff, right_diff, left_common, right_common = frontier[k - 1]
                 x += 1
 
             # We want to avoid modifying the old history, since some other step
             # may decide to use it.
-            left_diff, right_diff, common_seq = left_diff.copy(), right_diff.copy(), common_seq.copy()
+            left_diff, right_diff= left_diff.copy(), right_diff.copy()
+            left_common, right_common = left_common.copy(), right_common.copy()
             y = x - k
 
             # We start at the invalid point (0, 0) - we should only start building
@@ -466,28 +508,37 @@ def _myers_diff(left_seq, right_seq):
             # and they're considered "free" by the algorithm because we want to maximize
             # the number of these in the output.
             while x < L and y < R and left_seq[x] == right_seq[y]:
-                common_seq.append((left_seq[x], right_seq[y]))
-                left_seq[x].tag_new_writes(right_seq[y])
+                left_e, right_e = left_seq[x], right_seq[y]
+                left_common.append(left_e)
+                right_common.append(right_e)
                 x += 1
                 y += 1
+                if getattr(left_e, 'full_matched', False):
+                    while x < L and left_seq[x].xpath.startswith(left_e.xpath):
+                        left_common.append(left_seq[x])
+                        x += 1
+                if getattr(right_e, 'full_matched', False):
+                    while y < R and right_seq[y].xpath.startswith(right_e.xpath):
+                        right_common.append(right_seq[y])
+                        y += 1
 
             if x >= L and y >= R:
                 # If we're here, then we've traversed through the bottom-left corner,
                 # and are done.
-                # print(json.dumps([e[0].xpath for e in common_seq], indent=2))
-                # print(json.dumps([e[1].xpath for e in common_seq], indent=2))
+                # print(json.dumps([e.xpath for e in left_common], indent=2))
+                # print(json.dumps([e.xpath for e in right_common], indent=2))
                 return left_diff, right_diff
             else:
-                frontier[k] = Frontier(x, left_diff, right_diff, common_seq)
+                frontier[k] = Frontier(x, left_diff, right_diff, left_common, right_common)
 
     assert False, 'Could not find edit script'
 
-def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement", layout_order=False) -> "tuple[list[str], list[str]]":
+def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement", layout_order=False) -> "tuple[list[LayoutElement], list[LayoutElement]]":
     """
     Compute the diff between left_tree and right_tree by computing the longest common subsequence
-    
+        
     Returns:
-        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
+        (List[LayoutElement], List[LayoutElement]): List of elements that are different, for live and archive respectively.
     """
     left_write_stacks = set([w.serialized_stack for w in left_layout.all_writes])
     right_write_stacks = set([w.serialized_stack for w in right_layout.all_writes])
@@ -512,9 +563,19 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
 
     # left_diff, right_diff = _lcs_diff(left_layout_list, right_layout_list)
     left_diff, right_diff = _myers_diff(left_layout_list, right_layout_list)
-    left_diff = [e.xpath for e in left_diff if post_diff_element(e)]
-    right_diff = [e.xpath for e in right_diff if post_diff_element(e)]
+    left_diff = [e for e in left_diff if post_diff_element(e)]
+    right_diff = [e for e in right_diff if post_diff_element(e)]
     return left_diff, right_diff
+
+def diff_layout_tree_xpath(left_layout: "LayoutElement", right_layout: "LayoutElement", layout_order=False) -> "tuple[list[str], list[str]]":
+    """
+    Wrapper for diff_layout_tree that returns the xpaths only
+    
+    Returns:
+        (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
+    """
+    left_diff, right_diff = diff_layout_tree(left_layout, right_layout, layout_order=layout_order)
+    return [e.xpath for e in left_diff], [e.xpath for e in right_diff]
     
 
 def post_diff_element(element: "LayoutElement") -> bool:
@@ -522,8 +583,6 @@ def post_diff_element(element: "LayoutElement") -> bool:
     Post process the diff result to filter out the elements that are wrongly added.
     """
     if not element.visible(check_viewport=True, check_visibility=True):
-        return False
-    if element.made_by_new_writes():
         return False
     # * Check if the diff could be caused by dynamic ancestors
     # * Since some writes may only change parents, but all descendants are affected
