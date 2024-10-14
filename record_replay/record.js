@@ -177,10 +177,12 @@ async function getActivePage(browser) {
 
         await preventNavigation(recordPage);
         await preventWindowPopup(recordPage);
-        const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
-        const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
-        await recordPage.evaluateOnNewDocument(nwoScript);
-        await recordPage.evaluateOnNewDocument(csScript);
+        if (!options.minimal) {
+            const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+            const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
+            await recordPage.evaluateOnNewDocument(nwoScript);
+            await recordPage.evaluateOnNewDocument(csScript);
+        }
         if (options.exetrace)
             await recordPage.evaluateOnNewDocument("__trace_enabled = true");
         // // Seen clearCache Cookie not working, can pause here to manually clear them
@@ -204,6 +206,19 @@ async function getActivePage(browser) {
             })
             await eventSync.waitTimeout(networkIdle, TIMEOUT); 
         } catch {}
+        if (options.minimal) {
+            const finalURL = recordPage.url();
+            // * Step 10: Download recorded archive
+            await page.goto(
+                "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/index.html",
+                {waitUntil: 'load'}
+            )
+            await eventSync.sleep(500);
+            let {recordURL, ts} = await clickDownload(page, finalURL);
+            // ! Signal of the end of the program
+            console.log("recorded page:", JSON.stringify({ts: ts, url: recordURL}));
+            return;
+        }
         if (scroll)
             await measure.scroll(recordPage);
 

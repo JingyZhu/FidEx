@@ -73,10 +73,12 @@ loggerizeConsole();
         
         await preventNavigation(page);
         await preventWindowPopup(page);
-        const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
-        const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
-        await page.evaluateOnNewDocument(nwoScript);
-        await page.evaluateOnNewDocument(csScript);
+        if (!options.minimal) {
+            const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+            const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
+            await page.evaluateOnNewDocument(nwoScript);
+            await page.evaluateOnNewDocument(csScript);
+        }
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");
         Error.stackTraceLimit = Infinity;
@@ -89,6 +91,8 @@ loggerizeConsole();
             })
             await eventSync.waitTimeout(networkIdle, timeout); 
         } catch {}
+        if (options.minimal)
+            return;
         if (scroll)
             await measure.scroll(page);
         

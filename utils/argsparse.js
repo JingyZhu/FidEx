@@ -17,6 +17,7 @@ function recordReplayArgs() {
         .option('--headless', "If run in headless mode")
         .option('-p --proxy <proxy>', "Proxy server to use. Note that is chrome is installed with extensions that controls proxy, this could not work.")
         .option('-e --exetrace', "Enable execution trace for both js run and network fetches")
+        .option('--minimal', "Minimal mode for record and replay")
     return program
 }
 

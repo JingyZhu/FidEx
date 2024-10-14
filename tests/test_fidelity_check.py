@@ -44,49 +44,56 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             # 'https://www.nit.pt/', # Order of interaction
             
             # 'https://mojohost.com/',
-            'https://www.hinet.net/',
-            'https://q10.com/Colombia',
-            'https://mrjack.bet/',
-            'https://www.efortuna.pl/',
-            'https://www.yellowshop.es/',
-            'https://www.eldestapeweb.com/',
+            # 'https://www.hinet.net/',
+            # 'https://q10.com/Colombia',
+            # 'https://mrjack.bet/',
+            # 'https://www.efortuna.pl/',
+            # 'https://www.yellowshop.es/',
+            # 'https://www.eldestapeweb.com/',
             # 'https://www.radtouren.at/',
 
             # * Need to resolve
-            'https://www.nist.gov/',
-            'https://confluent.cloud/',
-            'https://www.trustpilot.com/',
+            # 'https://www.nist.gov/',
+            # 'https://confluent.cloud/',
+            # 'https://www.trustpilot.com/',
             
             # ? Fail to load somtime
-            'https://www.smartrecruiters.com/',
+            # 'https://www.smartrecruiters.com/',
             
             # ? Observed non-determinism across loads but should have not issue
-            'https://www.gsa.gov/', # svg 404 without redirection
-            'https://www.tado.com/all-en', # Messenger seems only appears in live
+            # 'https://www.gsa.gov/', # svg 404 without redirection
+            # 'https://www.tado.com/all-en', # Messenger seems only appears in live
+            # 'https://www.pinterest.com/',
 
             # ! Unable to fix now
-            # 'https://www.instagram.com/', # ! Can be wrong sometime because of long onload
+            'https://www.instagram.com/', # ! Can be wrong sometime because of long onload
             # 'https://videojs.com/', #! Long carousel that always trigger timeouts
             # 'https://bigsport.today/', # ! (Non-determinisitically) blocked by adblocker
         ],
 
     'archive': [
-            'https://web.mit.edu/', # set:textContent writes to text
-            'https://www.princeton.edu/', # 1x1 extra span in text   
-            'https://www.inkfrog.com/',
+            # * Should be solved
+            # 'https://web.mit.edu/', # set:textContent writes to text
+            # 'https://www.princeton.edu/', # 1x1 extra span in text   
+            # 'https://www.inkfrog.com/',
+            # 'https://www.klaviyo.com/', # hidden different dimensions in archive
+            # 'https://www.skype.com/en/', # Long waiting before fully loaded
+            # 'https://miniclip.com/',
+            # 'https://www.mysql.com/',
+            # 'https://www.tado.com/all-en', # Messenger seems only appears in live
+            # 'https://oenergetice.cz/', # Spotify player
 
-            # ? Double check
-            'https://ht-web.com/', # Interaction 2
-            'https://lipighor.com/',
-
-            # ? Need to solve
-            'https://miniclip.com/',
-            'https://www.warnerrecords.com/',
-            'https://www.klaviyo.com/', # hidden different dimensions in archive
-            'https://www.skype.com/en/', # Long waiting before fully loaded
+            # ? Double check or need to resolve
+            # 'https://ht-web.com/', # Interaction 2
+            'https://www.instagram.com/',
+            # 'https://www.efortuna.pl/',
+            # 'https://www.trustpilot.com/',
+            # 'https://www.camara.leg.br/',
+            # 'https://tarhely.eu/',
 
             # ! Unable to fix now
-            'https://lipighor.com/', # Lazy loading?
+            # 'https://www.warnerrecords.com/',
+            # 'https://lipighor.com/', # Lazy loading?
             
         ]
 
@@ -94,7 +101,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
     urls = urls[tocmp]
     if record:
         urls_copy = urls.copy()
-        arguments = ['-w', '-s', '--scroll', '-i', '--headless', '-e']
+        arguments = ['-w', '-t', '-s', '--scroll', '-i', '--headless', '-e']
         metadata = autorun.record_replay_all_urls_multi(urls_copy, min(16, len(urls_copy)), 
                                     chrome_data_dir=chrome_data_dir,
                                     metadata_prefix='metadata/test',
@@ -139,14 +146,15 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
             'https://egihosting.com/', # Page keeps loading (fail to register serviceworker)
         ],
         'archive': [
-            'https://www.bootstrapcdn.com/', # Missing twitter button
-            'https://voxeu.org', # Browser incompatibility
+            # 'https://www.bootstrapcdn.com/', # Missing twitter button
+            # 'https://voxeu.org', # Browser incompatibility
+            'https://oenergetice.cz/', # Spotify player
         ]
     }
     urls = urls[tocmp]
     if record:
         urls_copy = urls.copy()
-        arguments = ['-w', '-s', '--scroll', '-i', '--headless', '-e']
+        arguments = ['-w', '-t', '-s', '--scroll', '-i', '--headless', '-e']
         metadata = autorun.record_replay_all_urls_multi(urls_copy, min(16, len(urls_copy)), 
                                     chrome_data_dir=chrome_data_dir,
                                     metadata_prefix='metadata/test',
@@ -179,5 +187,5 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
     print(test_results)
 
 
-test_fidelity_detect_no_issue(tocmp='archive', record=False)
-# test_fidelity_detect_with_issue(record=True)
+# test_fidelity_detect_no_issue(tocmp='proxy', record=True)
+test_fidelity_detect_with_issue(tocmp='archive', record=True)
