@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html lang="en"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta name="copyright" content="(C) Copyright IBM Corporation and its licensors 2001, 2014."/>
+<meta name="trademark" content="IBM, the IBM logo, and Cognos are trademarks of IBM Corp., registered in many jurisdictions worldwide."/>
+<meta http-equiv="MSThemeCompatible" content="no"/>
+<meta http-equiv="X-UA-Compatible" content="IE=5"/>
+<title>IBM Cognos Viewer</title><script type="text/javascript" src="/c10/prompting/prmt_core.js"></script>
+<script type="text/javascript" src="/c10/prompting/prompting.js"></script>
+<script type="text/javascript" src="/c10/rv/res/viewer_en.js"></script>
+<link rel="stylesheet" type="text/css" href="/c10/skins/corporate/portal/default.css"/>
+<link rel="stylesheet" type="text/css" href="/c10/skins/corporate/viewer/RVReport.css"/>
+<link rel="stylesheet" type="text/css" href="/c10/skins/corporate/viewer/QSRVCommonUI.css"/>
+<link rel="stylesheet" type="text/css" href="/c10/skins/corporate/viewer/QSRVall.css"/>
+<link rel="stylesheet" type="text/css" href="/c10/skins/corporate/viewer/CRN.css"/>
+<script type="text/javascript" src="/c10/cognoslaunch.js"></script>
+<script type="text/javascript" src="/c10/cr1/caf.js"></script>
+<script type="text/javascript" src="/c10/drill/CSelectionContextBuilder.js"></script>
+<script type="text/javascript" src="/c10/rv/viewer.standalone.core.js"></script>
+<script type="text/javascript" src="/c10/rv/serverrequest/requests/standalone/ViewerDispatcherEntry.js"></script>
+<script type="text/javascript" src="/c10/mdsrv/lineage.js"></script>
+<script language="javascript">
+//<![CDATA[
+function getFormWarpRequest()
+{
+return document.getElementById('formWarpRequest_NS_');
+}
+
+//]]>
+</script>
+<script language="javascript">
+//<![CDATA[
+oCV_NS_ = new CCognosViewer("_NS_", "/c10/cgi-bin/cognosisapi.dll");
+window.oCV_NS_.sBrowser = "moz";
+window.oCV_NS_.sGateway = "https://hznhhsvcogwprd.dhhs.state.nh.us:443/c10/cgi-bin/cognosisapi.dll";
+window.oCV_NS_.setCAFContext("CAFW000000a0Q0FGQTYwMDAwMDAwMDlBaFFBQUFDRHlFLWx5SmdKKmFUSUpUUFg2UW1VS2p4OG1nY0FBQUJUU0VFdE1qVTJJQUFBQUd0a0cyNTR2NVhhUlR5Qld0eDhZdSpFbjlnQ2pEdDRCN0dTd2ZsOVhCaUY0NDUwNDZ8cnY_");
+window.oCV_NS_.bIsSavedReport = false;
+window.oCV_NS_.sWebContentRoot = "/c10";
+window.oCV_NS_.sSkin = "/c10/skins/corporate";
+window.oCV_NS_.sBrandImages = "/c10/skins/corporate/branding/";
+window.oCV_NS_.sProductLocale = "en";
+window.oCV_NS_.sDirection = "ltr";
+window.oCV_NS_.bIsBidiEnabled = false;
+window.oCV_NS_.envParams = { "CV_jsID": "window.oCV_NS_", "b_action": "cognosViewer", "ui.primaryAction": "", "encoding": "UTF-8", "metadataInformationURI": "/lineageUIService", "cv.id": "_NS_", "run.outputFormat": "", "reportTitle": "IBM Cognos Viewer", "viewerTitle": "IBM Cognos Viewer" };
+window.oCV_NS_.oNavLinks = {oFirst:{sText:'Top',sImg:'/viewer/images/top.gif',sImgDisabled:'/viewer/images/top_dis.gif'},oPrevious:{sText:'Page up',sImg:'/viewer/images/pageup.gif',sImgDisabled:'/viewer/images/pageup_dis.gif'},oNext:{sText:'Page down',sImg:'/viewer/images/pagedown.gif',sImgDisabled:'/viewer/images/pagedown_dis.gif'},oLast:{sText:'Bottom',sImg:'/viewer/images/bottom.gif',sImgDisabled:'/viewer/images/bottom_dis.gif'}};
+window.oCV_NS_.bEnableToolbar = true;
+window.oCV_NS_.bEnableContextMenu = true;
+window.oCV_NS_.bShowHeaderWithPrompts = false;
+window.oCV_NS_.bCanUseCognosViewerContextMenu = true;
+window.oCV_NS_.bCanUseCognosViewerRunWithOptions = true;
+window.oCV_NS_.bCanUseCognosViewerIndexSearch = false;
+window.oCV_NS_.bCanUseCognosViewerSelection = true;
+window.oCV_NS_.bCanUseCognosViewerToolbar = true;
+window.oCV_NS_.bCanUseCognosViewerConditionalSubscriptions = false;
+window.oCV_NS_.bCanUseLineage = false;
+window.oCV_NS_.bCanUseGlossary = true;
+window.oCV_NS_.UIBlacklist = "  RV_TOOLBAR_BUTTONS_XLS_SINGLEXLS  RV_TOOLBAR_BUTTONS_XLS_XLS  ";
+window.oCV_NS_.addCallback("cancel",function(){ var sCVId = "_NS_"; executeBackURL(sCVId);},false);
+window.oCV_NS_.addCallback("wait",function(){window.oCV_NS_.wait();},false);
+oCVSC_NS_ = new CSelectionController("_NS_",window.oCV_NS_);
+window.oCV_NS_.rvMainWnd = new CMainWnd(window.oCV_NS_);
+window.oCV_NS_.rvMainWnd.setToolbar({"namespace":"_NS_","divId":"CVToolbar_NS_","style":"toolbar","S":[{"P":{"Y":"vertical_line"}},{"I":{"N":"keepThisVersion","E":"Keep this version","C":"/c10/rv/images/action_keep_report.gif","M":{"id":"keepThisVersionwindow.oCV_NS_","Y":"dropDown","IS":[{"I":{"N":"emailReport","E":"Email Report...","C":"/c10/rv/images/action_send_report.gif","A":"window.oCV_NS_.getRV().SendReport(false);"}},{"I":{"N":"saveReport","E":"Save Report","C":"/c10/rv/images/action_save_report_output.gif","A":"window.oCV_NS_.getRV().SaveReport(false);"}},{"I":{"N":"saveAsReportView","E":"Save as Report View...","C":"/c10/rv/images/action_save_report_view.gif","A":"window.oCV_NS_.getRV().SaveAsReportView(false);"}}]}}},{"P":{"Y":"vertical_line"}},{"P":{"Y":"vertical_line"}},{"B":{"N":"runReport","A":"window.oCV_NS_.getRV().RunReport();","O":"Run Report","C":"/c10/rv/images/action_run.gif"}},{"P":{"Y":"vertical_line"}},{"B":{"N":"drillDown","A":"window.oCV_NS_.getDrillMgr().rvDrillDown();","O":"Drill Down","C":"/c10/rv/images/action_drill_down.gif","D":"true"}},{"B":{"N":"drillUp","A":"window.oCV_NS_.getDrillMgr().rvDrillUp();","O":"Drill Up","C":"/c10/rv/images/action_drill_up.gif","D":"true"}},{"B":{"N":"goto","A":"window.oCV_NS_.getDrillMgr().launchGoToPage(null, true);","O":"Go To","C":"/c10/rv/images/action_go_to.gif","M":{"id":"gotowindow.oCV_NS_","Y":"dropDown","A":"window.oCV_NS_.getDrillMgr().getDrillThroughParameters();"}}},{"P":{"Y":"vertical_line"}},{"B":{"N":"runIn","ALT":"Change report format","M":{"id":"runInwindow.oCV_NS_","Y":"dropDown","IS":[{"I":{"N":"viewInHTML","A":"window.oCV_NS_.getRV().viewReport(\'HTML\');","E":"View in HTML Format","C":"/c10/rv/images/action_view_html.gif"}},{"I":{"N":"viewInPDF","A":"window.oCV_NS_.getRV().viewReport(\'PDF\');","E":"View in PDF Format","C":"/c10/rv/images/action_view_pdf.gif"}},{"I":{"N":"viewInXML","A":"window.oCV_NS_.getRV().viewReport(\'XML\');","E":"View in XML Format","C":"/c10/rv/images/action_view_xml.gif"}},{"I":{"N":"viewInExcel","E":"View in Excel Options","C":"/c10/rv/images/action_view_excel_options.gif","M":{"id":"viewInExcelwindow.oCV_NS_","Y":"cascaded","IS":[{"I":{"N":"viewInspreadsheetMLData","A":"window.oCV_NS_.getRV().viewReport(\'xlsxData\');","E":"View in Excel 2007 Data","C":"/c10/rv/images/action_view_excel_2007.gif"}},{"I":{"N":"viewInspreadsheetML","A":"window.oCV_NS_.getRV().viewReport(\'spreadsheetML\');","E":"View in Excel 2007 Format","C":"/c10/rv/images/action_view_excel_2007.gif"}},{"I":{"N":"viewInXLWA","A":"window.oCV_NS_.getRV().viewReport(\'XLWA\');","E":"View in Excel 2002 Format","C":"/c10/rv/images/action_view_excel_2002.gif"}},{"I":{"N":"viewInCSV","A":"window.oCV_NS_.getRV().viewReport(\'CSV\');","E":"View in CSV Format","C":"/c10/rv/images/action_view_csv.gif"}}]}}}]}}},{"I":{"N":"addThisReport","E":"Add this report","C":"/c10/rv/images/action_add_report.gif","M":{"id":"addThisReportwindow.oCV_NS_","Y":"dropDown","IS":[{"I":{"N":"addToMyFolders","A":"window.oCV_NS_.getRV().launchNewGeneral(\"shortcut\", \"~/folder\");","E":"Add to My Folders","C":"/c10/rv/images/action_add_Myfolder.gif"}}]}}},{"P":{"Y":"vertical_line"}}]});
+window.oCV_NS_.rvMainWnd.setBannerToolbar({"namespace":"_NS_","divId":"CVBanner_NS_","style":"banner","S":[{"T":{"N":"userName","ALT":"User name:","E":""}},{"I":{"N":"logOnOff","M":{"id":"logOnOffwindow.oCV_NS_","Y":"dropDown","H":"true","IS":[{"I":{"N":"logOn","E":"Log On","C":"/c10/skins/corporate/branding/tools_logon.gif","A":"window.oCV_NS_.getRV().authenticate(\"logon\", \"/c10/cgi-bin/cognosisapi.dll?b_action=xts.run&m=portal/main.xts\");"}}]}}},{"P":{"Y":"vertical_line"}},{"B":{"N":"home","O":"Home","C":"/c10/skins/corporate/shared/images/action_home.gif","A":"window.oCV_NS_.getRV().returnHome(\"/c10/cgi-bin/cognosisapi.dll?b_action=xts.run&m=portal/main.xts\");"}},{"L":{"N":"about","E":"About","A":"window.oCV_NS_.getRV().about();"}}]});
+window.oCV_NS_.rvMainWnd.init();
+window.oCVSC_NS_.attachObserver(window.oCV_NS_.rvMainWnd);
+
+caf_tpXSSCheckingUsed = false;
+caf_tpXSSChars = "<'>";
+
+//]]>
+</script>
+</head>
+<body role="application" aria-label="IBM Cognos Viewer" topmargin="3" bottommargin="0" marginheight="3" rightmargin="5" leftmargin="5" marginwidth="3" onclick="if (typeof window.oCV_NS_ != 'undefined'){window.oCV_NS_.rvMainWnd.hideOpenMenus();}" style="overflow:auto" class="viewer">
+<div id="cvSkipToReport_NS_" style="display:none;" class="skip"><a accesskey="2" href="#RVContent_NS_">Skip to report. Ctrl + Shift + 2 link.</a></div>
+<div id="cvSkipToNavigation_NS_" style="display:none;" class="skip"><a accesskey="n" href="#CVNavLinks_NS_">Skip to page navigation. Ctrl + Shift + n link.</a></div>
+<form action="/c10/cgi-bin/cognosisapi.dll" name="formWarpRequest_NS_" id="formWarpRequest_NS_" method="post" style="height:100%;margin:0px"><input type="hidden" name="ui.action" value=""/>
+<input type="hidden" name="ui.backURL" value="javascript:window.close();"/>
+<input type="hidden" name="cv.id" value="_NS_"/>
+<input type="hidden" name="run.outputFormat" value=""/>
+<input type="hidden" name="promptOnRerun" value=""/>
+<input type="hidden" name="ui.object" value=""/>
+<input type="hidden" name="modelPath" value=""/>
+<input type="hidden" name="packageBase" value=""/>
+<input type="hidden" name="cv.contextInfo" value=""/>
+<table class="mainViewerTable" id="mainViewerTable_NS_" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" height="100%"><tr><td class="topRow" id="CVHeader_NS_" valign="top"><div id="headerBack"><table border="0" cellpadding="0" cellspacing="0" style="width: 100%" class="mainHeader1" role="banner"><tr><td class="logoContainer"><div class="logo"></div></td><td class="headerTitle" nowrap="nowrap">IBM Cognos Viewer</td><td class="mainHeader1Middle" style="text-align: right;" id="CVBanner_NS_"></td><td id="ibmLogo"></td></tr></table><div class="headerBannerLip"></div></div></td></tr><tr><td class="topRow"><table border="0" cellpadding="0" cellspacing="0" style="width: 100%" role="presentation"><tr><td class="mainViewerHeader3" style="width: 100%"><img height="1" alt="" src="/c10/ps/images/space.gif"/></td><td id="CVToolbar_NS_" style="text-align: right;" role="toolbar" aria-label="Cognos Viewer Toolbar"></td></tr></table></td></tr><tr height="100%" id="mainViewerTR_NS_"><td class="mainViewerTD" height="100%" width="100%"><div id="RVContent_NS_" name="RVContent_NS_" style="position:relative; left:0; top:0; width:100%; height:100%; border:0px;" class="RVContent"><div id="CVReport_NS_" class="RVReport" style="width:100%; height: 100%;display: none;" role="main"></div></div></td></tr><tr id="CVNavLinks_Container_NS_"><td role="navigation" id="CVNavLinks_NS_" aria-labelledby="CVNavLinks_label_NS_" width="100%" align="left" valign="bottom" class="portlet-table-text" style="display:none; height: 15px"><span id="CVNavLinks_label_NS_" style="display:none; visibility:hidden">Navigation links</span></td></tr></table></form><form name="formBackJax_NS_" id="formBackJax_NS_" style="display:none;"><input type="hidden" name="state" value=""></input><input type="hidden" name="result" value=""></input><input type="hidden" name="working" value=""></input></form><script language="javascript">
+//<![CDATA[
+(function(oCV, sNamespace){
+var sOldOnLoad=sNamespace+'originalOnLoad';function _onLoad() {if (oCV) {oCV.initViewer({ "m_sStatus": "complete", "m_sTracking": "", "m_sCAFContext": "CAFW000000a0Q0FGQTYwMDAwMDAwMDlBaFFBQUFDRHlFLWx5SmdKKmFUSUpUUFg2UW1VS2p4OG1nY0FBQUJUU0VFdE1qVTJJQUFBQUd0a0cyNTR2NVhhUlR5Qld0eDhZdSpFbjlnQ2pEdDRCN0dTd2ZsOVhCaUY0NDUwNDZ8cnY_", "outputFormat": "", "m_sParameters": "", "m_sActionState": "", "envParams": { "ui.primaryAction": "" } });oCV.checkForHighContrast();}if (typeof window[sOldOnLoad] == 'function') {window[sOldOnLoad]();}}
+if (typeof require == 'function') {require(['dojo/ready'], function(ready){_onLoad();});} else if (typeof dojo != 'undefined' && typeof dojo != null && dojo.addOnLoad) {dojo.addOnLoad(_onLoad);} else {window[sOldOnLoad] = window.onload;window.onload = _onLoad;}
+})(window.oCV_NS_, '_NS_');
+//]]>
+</script>
+</body></html>
