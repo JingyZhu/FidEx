@@ -5,7 +5,7 @@ class JSException:
     def __init__(self, excep: dict):
         self.ts = excep['ts']
         self.description = excep['description']
-        self.scriptURL = excep['scriptURL']
+        self.scriptURL = excep.get('scriptURL')
         self.line = excep['line']
         self.column = excep['column']
         self._hash = None

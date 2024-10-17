@@ -13,7 +13,7 @@ import os
 HOME = os.path.expanduser("~")
 
 PROXY = 'http://pistons.eecs.umich.edu:8078'
-PREFIX = 'test' if os.environ.get('PREFIX') is None else os.environ.get['PREFIX']
+PREFIX = 'test' if os.environ.get('PREFIX') is None else os.environ.get('PREFIX')
 autorun.PROXYHOST = PROXY
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
@@ -148,7 +148,9 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
         'archive': [
             # 'https://www.bootstrapcdn.com/', # Missing twitter button
             # 'https://voxeu.org', # Browser incompatibility
-            'https://oenergetice.cz/', # Spotify player
+            # 'https://oenergetice.cz/', # Spotify player
+            # 'https://www.telstra.com.au/', # Phone recommendation and carousel not flashing
+            'https://www.nih.gov/',
         ]
     }
     urls = urls[tocmp]
