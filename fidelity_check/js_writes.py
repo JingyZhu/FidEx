@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 import functools
+from fidex.utils import execution
 
 def _tag_from_xpath(xpath):
     return xpath.split('/')[-1].split('[')[0]
@@ -60,7 +61,7 @@ class JSWrite:
         self.xpath = write['xpath']
         self.args = write['args']
         self.currentDS = write.get('currentDS', {})
-        self.stack = stack
+        self.stack = execution.Stack(stack) if stack else None
         self.write = write
         self._hash = None
 
@@ -132,27 +133,11 @@ class JSWrite:
     
     @functools.cached_property
     def serialized_stack(self) -> "tuple(tuple)":
-        all_frames = []
-        for call_frames in self.stack[:1]:
-            call_frames = call_frames['callFrames']
-            for frame in call_frames:
-                if 'wombat.js' not in frame['url']:
-                    # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
-                    all_frames.append((frame['functionName']))
-        return tuple(all_frames)
+        return self.stack.serialized
 
     @functools.cached_property
     def scripts(self) -> "set[str]":
-        """
-        Get the scripts that are related to this write
-        """
-        scripts = set()
-        for call_frames in self.stack:
-            call_frames = call_frames['callFrames']
-            for frame in call_frames:
-                if 'wombat.js' not in frame['url']:
-                    scripts.add(frame['url'])
-        return scripts
+        return self.stack.scripts
     
     def _hash_tuple(self):
         target = _tag_from_xpath(self.xpath)

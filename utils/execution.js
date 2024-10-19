@@ -189,6 +189,8 @@ class ExcepFFHandler {
             line: detail.lineNumber,
             column: detail.columnNumber
         }
+        if (detail.stackTrace)
+            detailObj.stack = parseStack(detail.stackTrace);
         // console.log(detailObj);
         this.exceptions.push(detailObj);
     }
