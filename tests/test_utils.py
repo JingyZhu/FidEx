@@ -1,5 +1,6 @@
 from subprocess import call
 import os
+from fidex.utils import execution
 
 WB_PATH = f'{os.path.expanduser("~")}/fidelity-files'
 PYWB_PATH = '/x/jingyz/pywb/env/bin/activate'
@@ -17,3 +18,67 @@ def init_test():
     call('mkdir -p determinism', shell=True)
     call('mkdir -p metadata', shell=True)
     call(f'/bin/bash -c "source {PYWB_PATH} && wb-manager init test"', cwd=WB_PATH, shell=True)
+
+
+def test_same_scope():
+    program = """
+    function foo() {
+        var a = 1;
+        function bar() {
+            var b = 2;
+            b.toString();
+        }
+        function baz() {
+            try {
+                var c = 3;
+            } catch (e) {
+                var d = 4;
+            }
+        }
+    }
+    """
+    parser = execution.JSTextParser(program)
+    ast_node = parser.get_ast_node()
+    p1 = execution.ASTNode.linecol_2_pos(2, 8, parser.text) # var a = 1;
+    c1 = ast_node.find_child(p1)
+    p2 = execution.ASTNode.linecol_2_pos(4, 12, parser.text) # var b = 2;
+    c2 = ast_node.find_child(p2)
+    assert(not c1.same_scope(c2))
+    p3 = execution.ASTNode.linecol_2_pos(5, 12, parser.text) # b.toString();
+    c3 = ast_node.find_child(p3)
+    assert(c2.same_scope(c3))
+    
+    p4 = execution.ASTNode.linecol_2_pos(9, 16, parser.text) # var c = 3;
+    c4 = ast_node.find_child(p4)
+    assert(not c2.same_scope(c4))
+    p5 = execution.ASTNode.linecol_2_pos(11, 16, parser.text) # var d = 4;
+    c5 = ast_node.find_child(p5)
+    assert(not c4.same_scope(c5))
+
+    program_2 = """
+    (function (){
+        let a = (() => {return b.toString()});
+    })();
+    """
+    parser = execution.JSTextParser(program_2)
+    ast_node = parser.get_ast_node()
+    p_21 = execution.ASTNode.linecol_2_pos(2, 8, program_2) # let a = () => {
+    c_21 = ast_node.find_child(p_21)
+    p_22 = execution.ASTNode.linecol_2_pos(2, 23, program_2) # let b = 2;
+    c_22 = ast_node.find_child(p_22)
+    assert(not c_21.same_scope(c_22))
+    
+    program_3 = """
+    originFn.call(this, ()=>b.toString());
+    """
+    parser = execution.JSTextParser(program_3)
+    ast_node = parser.get_ast_node()
+    p_31 = execution.ASTNode.linecol_2_pos(1, 18, program_3) # this
+    c_31 = ast_node.find_child(p_31)
+    p_32 = execution.ASTNode.linecol_2_pos(1, 28, program_3) # return b.toString();
+    c_32 = ast_node.find_child(p_32)
+    assert(not c_31.same_scope(c_32))
+
+
+if __name__ == '__main__':
+    test_same_scope()
