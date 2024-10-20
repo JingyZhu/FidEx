@@ -2,6 +2,7 @@
 import functools
 import sys
 import esprima
+import requests
 sys.setrecursionlimit(3000)
 
 # Python implementation of js-parse for abling to multiprocess
@@ -89,8 +90,33 @@ class ASTNode:
             child_index += 1
     
     def filter_wayback(self):
-        # TODO: Implement this function
-        pass
+        # * First, strip all the headers and block added by rewriting tools
+        actual_root = self.children[2].children[9]
+        
+        # * Second, traverse through the tree and skip all the nodes that follows the rewriting pattern
+        def skip_node(node, skip):
+            node.parent.children = [skip if c is not node else c for c in node.parent.children]
+            skip.parent = node.parent
+        def choose_skip_node(node):
+            # * Skip "_____WB$wombat$check$this$function_____(this)"
+            if node.type == 'CallExpression' \
+               and node.text.startswith('_____WB$wombat$check$this$function_____') \
+               and node.info['arguments'][0] == 'this':
+                skip_node(node, node.children[1])
+            # * Skip ".__WB_pmw(self)" (CallExpression)
+            if node.type == 'CallExpression' \
+               and '__WB_pmw(self)' in node.text \
+               and len(node.info['arguments']) and node.info['arguments'][0] == 'self':
+                skip_node(node, node.children[0])
+            # * Skip ".__WB_pmw(self)" (PropertyAccessExpression)
+            if node.type == 'PropertyAccessExpression' \
+               and node.info['property'] == '__WB_pmw':
+                skip_node(node, node.children[0])
+            for child in node.children:
+                choose_skip_node(child)
+        choose_skip_node(actual_root)
+        
+        return actual_root        
 
     def __hash__(self) -> int:
         """Hash the node based on merkle tree method"""
@@ -144,6 +170,12 @@ class JSTextParser:
         info = {
             'text': full_text,
         }
+        if node.type == 'CallExpression':
+            info['arguments'] = []
+            for arg in node.arguments:
+                info['arguments'].append(self.get_text(arg.range[0], arg.range[1]))
+        if node.type == 'PropertyAccessExpression':
+            info['property'] = node.name
         return info
 
     def is_node(self, node):
@@ -201,9 +233,11 @@ class Stack:
           ]
         """
         self.stack = stack
+        self.script_code = {}
     
     @functools.cached_property
     def serialized(self) -> "tuple(tuple)":
+        """Used for matching"""
         all_frames = []
         for call_frames in self.stack[:1]:
             call_frames = call_frames['callFrames']
@@ -212,6 +246,17 @@ class Stack:
                     # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
                     all_frames.append((frame['functionName']))
         return tuple(all_frames)
+    
+    @functools.cached_property
+    def serialized_detail(self) -> "list[tuple]":
+        """Used for matching"""
+        all_frames = []
+        for call_frames in self.stack[:1]:
+            call_frames = call_frames['callFrames']
+            for frame in call_frames:
+                if 'wombat.js' not in frame['url']:
+                    all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
+        return all_frames
 
     @functools.cached_property
     def scripts(self) -> "set[str]":
@@ -225,3 +270,31 @@ class Stack:
                 if 'wombat.js' not in frame['url']:
                     scripts.add(frame['url'])
         return scripts
+    
+    def get_code(self, url):
+        if url in self.script_code:
+            return self.script_code[url]
+        response = requests.get(url)
+        self.script_code[url] = response.text
+        return response.text
+
+    def overlap(self, other: "Stack") -> list:
+        """Return a list of common callframes between two stacks"""
+        a_frames = self.serialized_detail
+        b_frames = other.serialized_detail
+        common_frames = []
+        min_depth = min(len(a_frames), len(b_frames))
+        for i in range(min_depth):
+            if a_frames[i] == b_frames[i]:
+                common_frames.append(a_frames[i])
+            else:
+                break
+        return common_frames
+    
+    def after(self, other: "Stack") -> bool:
+        """Check if this stack is after the other stack"""
+        common_frames = self.overlap(other)
+        if len(common_frames) == 0:
+            return False
+        a_divergent = self.serialized_detail[len(common_frames)]
+        b_divergent = other.serialized_detail[len(common_frames)]
