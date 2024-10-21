@@ -263,7 +263,11 @@ unsafeWindow.collect_writes = function (){
 
         let currentDS = new DimensionSets();
         currentDS.recordDimension(record.target, record.args);
-        const effective = !record.beforeDS.isDimensionMatch(record.afterDS);
+        let effective = false;
+        if (record.method == 'addEventListener')
+            effective = currentDS.getSelfDimension() && currentDS.getSelfDimension().width * currentDS.getSelfDimension().height > 0;
+        else
+            effective = !record.beforeDS.isDimensionMatch(record.afterDS);
         unsafeWindow.__write_log_processed.push({
             wid: record.id,
             xpath: getDomXPath(record.target),
