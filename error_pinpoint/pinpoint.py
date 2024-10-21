@@ -41,6 +41,8 @@ def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exc
     for writes in diff_writes:
         for write in writes:
             for excep in syntax_exceptions:
+                if excep in matched_exceptions:
+                    continue
                 if url_utils.filter_archive(excep.scriptURL) in write.scripts:
                     matched_exceptions.add(excep)
     return list(matched_exceptions)
@@ -53,6 +55,8 @@ def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_except
     for writes in diff_writes:
         for write in writes:
             for excep in exception_errors:
+                if excep in matched_exceptions:
+                    continue
                 if write.stack.after(excep.stack):
                     matched_exceptions.add(excep)
     return list(matched_exceptions)

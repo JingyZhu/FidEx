@@ -1,9 +1,9 @@
 """Python library for parsing execution traces dumped by nodeJS"""
-import functools
 import sys
 import esprima
 import requests
 from dataclasses import dataclass, asdict
+from functools import cached_property
 from fidex.config import CONFIG
 from fidex.utils import url_utils
 sys.setrecursionlimit(3000)
@@ -23,6 +23,21 @@ class Frame:
     url: str
     lineNumber: int
     columnNumber: int
+
+    @cached_property
+    def associated_ast(self):
+        if self.url not in ALL_ASTS:
+            parser = JSTextParser(get_code(self.url))
+            ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
+            ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
+        ast_info = ALL_ASTS[self.url]
+        ast_node = ast_info.ast
+        node = ast_node.find_child(ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text))
+        return node
+
+    @cached_property
+    def within_loop(self):
+        return self.associated_ast.within_loop
 
 
 def get_code(url):
@@ -123,6 +138,36 @@ class ASTNode:
             if s1 != s2:
                 return False
         return True
+    
+    @cached_property
+    def within_loop(self):
+        """Check if the node is within a loop"""
+        cur_parent = self.parent
+        while cur_parent:
+            if cur_parent.type in ['ForStatement', 'WhileStatement', 'DoWhileStatement']:
+                return True
+            cur_parent = cur_parent.parent
+        return False
+    
+    def after(self, other):
+        def path_to_root(node):
+            path = []
+            cur, cur_parent = node, node.parent
+            while cur_parent:
+                idx = 0
+                for idx, child in enumerate(cur_parent.children):
+                    if child is cur:
+                        break
+                path.insert(0, idx)
+                cur = cur.parent
+                cur_parent = cur_parent.parent
+            return path
+        a_path_to_root = path_to_root(self)
+        b_path_to_root = path_to_root(other)
+        for i in range(min(len(a_path_to_root), len(b_path_to_root))):
+            if a_path_to_root[i] != b_path_to_root[i]:
+                return a_path_to_root[i] > b_path_to_root[i]
+        return len(a_path_to_root) > len(b_path_to_root)
 
     def __str__(self):
         return f'type: {self.type} '           \
@@ -285,7 +330,7 @@ class Stack:
         """
         self.stack = stack
     
-    @functools.cached_property
+    @cached_property
     def serialized(self) -> "list[list[Frame]]":
         all_frames = []
         for call_frames in self.stack:
@@ -297,11 +342,11 @@ class Stack:
             all_frames.append(sync_frames)
         return all_frames
 
-    @functools.cached_property
-    def serialized_flat(self) -> "list[Frame]":
-        return [frame for frames in self.serialized for frame in frames]
+    @cached_property
+    def serialized_flat_reverse(self) -> "list[Frame]":
+        return list(reversed([frame for frames in self.serialized for frame in frames]))
 
-    @functools.cached_property
+    @cached_property
     def scripts(self) -> "set[str]":
         """
         Get the scripts that are related to this write
@@ -316,8 +361,8 @@ class Stack:
 
     def overlap(self, other: "Stack") -> list:
         """Return a list of common callframes between two stacks"""
-        a_frames = list(reversed(self.serialized_flat))
-        b_frames = list(reversed(other.serialized_flat))
+        a_frames = self.serialized_flat_reverse
+        b_frames = other.serialized_flat_reverse
         common_frames = []
         min_depth = min(len(a_frames), len(b_frames))
         for i in range(min_depth):
@@ -332,13 +377,14 @@ class Stack:
     def after(self, other: "Stack") -> bool:
         """Check if this stack is after the other stack"""
         common_frames = self.overlap(other)
-        import json
-        # print("Self", json.dumps([asdict(f) for f in self.serialized_flat], indent=2))
-        # print("Other", json.dumps([asdict(f) for f in other.serialized_flat], indent=2))
-        print("Common", json.dumps([asdict(f) for f in common_frames], indent=2))
         if len(common_frames) == 0:
             return False
-        a_divergent = self.serialized_flat[len(common_frames)]
-        b_divergent = other.serialized_flat[len(common_frames)]
-        return a_divergent.lineNumber < b_divergent.lineNumber or \
-                (a_divergent.lineNumber == b_divergent.lineNumber and a_divergent.columnNumber <= b_divergent.columnNumber)
+        # * If the last common frame is within a loop, then with static analysis it is impossible to determine
+        # * we always assume self is after 
+        if self.serialized_flat_reverse[len(common_frames)-1].within_loop:
+            return True
+        a_divergent = self.serialized_flat_reverse[len(common_frames)]
+        b_divergent = other.serialized_flat_reverse[len(common_frames)]
+        location_after =  a_divergent.associated_ast.after(b_divergent.associated_ast)
+        same_scope = a_divergent.associated_ast.same_scope(b_divergent.associated_ast)
+        return location_after and same_scope
