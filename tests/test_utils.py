@@ -92,10 +92,10 @@ def test_same_scope():
     assert(not c_31.same_scope(c_32))
 
 
-def test_ast_filter_archive():
-    live_program = open('examples/filter_archive_live.js').read()
+def test_ast_filter_archive_0():
+    live_program = open('examples/ast_filter_archive_l0.js').read()
     parser_live = execution.JSTextParser(live_program)
-    archive_program = open('examples/filter_archive_archive.js').read()
+    archive_program = open('examples/ast_filter_archive_a0.js').read()
     parser_archive = execution.JSTextParser(archive_program)
     
     ast_node_live = parser_live.get_ast_node()
@@ -112,5 +112,25 @@ def test_ast_filter_archive():
     path_archive = [{'idx': p['idx'], 'node': p['node'].type} for p in path_archive]
     assert(path_live == path_archive)
 
+def test_ast_filter_archive_1():
+    live_program = open('examples/ast_filter_archive_l1.js').read()
+    parser_live = execution.JSTextParser(live_program)
+    archive_program = open('examples/ast_filter_archive_a1.js').read()
+    parser_archive = execution.JSTextParser(archive_program)
+    
+    ast_node_live = parser_live.get_ast_node()
+    ast_node_archive = parser_archive.get_ast_node()
+    ast_node_archive = ast_node_archive.filter_archive()
+    
+    # * Test on last matches of "id: t.data.id,"
+    p_live = execution.ASTNode.linecol_2_pos(1, 27913, live_program)
+    path_live = ast_node_live.find_path(p_live)
+    p_archive = execution.ASTNode.linecol_2_pos(15, 28779, archive_program)
+    path_archive = ast_node_archive.find_path(p_archive)
+    
+    path_live = [{'idx': p['idx'], 'node': p['node'].type} for p in path_live]
+    path_archive = [{'idx': p['idx'], 'node': p['node'].type} for p in path_archive]
+    assert(path_live == path_archive)
+
 if __name__ == '__main__':
-    test_archive_url()
+    test_ast_filter_archive_1()

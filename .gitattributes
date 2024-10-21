@@ -1,3 +1,4 @@
 *.ipynb linguist-generated
 archived_code/** linguist-documentation
 src_changed/**/*.js linguist-generated
+tests/*.js linguist-generated
