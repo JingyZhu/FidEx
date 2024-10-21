@@ -27,8 +27,11 @@ class Frame:
     @cached_property
     def associated_ast(self):
         if self.url not in ALL_ASTS:
-            parser = JSTextParser(get_code(self.url))
-            ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
+            try:
+                parser = JSTextParser(get_code(self.url))
+                ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
+            except:
+                return None
             ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
         ast_info = ALL_ASTS[self.url]
         ast_node = ast_info.ast
@@ -44,7 +47,10 @@ def get_code(url):
     if url not in ALL_SCRIPTS:
         if url_utils.is_archive(url):
             url = url_utils.replace_archive_host(url, CONFIG.host)
-        response = requests.get(url)
+        try:
+            response = requests.get(url, timeout=5)
+        except:
+            return None
         ALL_SCRIPTS[url] = response.text
     return ALL_SCRIPTS[url]
 
@@ -338,7 +344,7 @@ class Stack:
             sync_frames = []
             call_frames = call_frames['callFrames']
             for frame in call_frames:
-                if 'wombat.js' not in frame['url']:
+                if 'wombat.js' not in frame['url'] and frame['url'] != '':
                     sync_frames.append(Frame(frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
             all_frames.append(sync_frames)
         return all_frames
@@ -356,7 +362,7 @@ class Stack:
         for call_frames in self.stack:
             call_frames = call_frames['callFrames']
             for frame in call_frames:
-                if 'wombat.js' not in frame['url']:
+                if 'wombat.js' not in frame['url'] and frame['url'] != '':
                     scripts.add(frame['url'])
         return scripts
 

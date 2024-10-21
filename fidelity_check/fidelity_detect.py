@@ -51,6 +51,10 @@ class LoadInfo:
         # Filter writes based on stages
         self.writes = [w for w in self.writes if LoadInfo.stage_nolater(w['currentStage'], self.stage)]
         self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
+        self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
+    
+    def gen_xpath_map(self):
+        self.elements_map = {e['xpath']: e for e in self.elements}
 
 
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
@@ -113,24 +117,17 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             'screenshot_diff_stage': s_diff_stage,
             'similarity': s_simi
         }
-    
-    # * Check for number of interaction
-    left_events = json.load(open(f"{dirr}/{left_prefix}_events.json"))
-    left_elements = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
-    left_elements_map = {e['xpath']: e for e in left_elements}
-    right_events = json.load(open(f"{dirr}/{right_prefix}_events.json"))
-    right_elements = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
-    right_elements_map = {e['xpath']: e for e in right_elements}
-    
     print(dirr, 'onload elasped:', time.time()-start)
-    left_idx, right_idx = [], []
-    for event in left_events:
-        if check_meaningful.meaningful_interaction(event, elements_map=left_elements_map) and os.path.exists(f'{dirr}/{left_prefix}_{event["idx"]}_dom.json'):
-            left_idx.append(event['idx'])
-    for event in right_events:
-        if check_meaningful.meaningful_interaction(event, elements_map=right_elements_map) and os.path.exists(f'{dirr}/{right_prefix}_{event["idx"]}_dom.json'):
-            right_idx.append(event['idx'])
-    if len(left_idx) > len(right_idx):
+    
+    # * Check extraInteraction
+    left_info = LoadInfo(dirr, left_prefix)
+    right_info = LoadInfo(dirr, right_prefix)
+    left_info.gen_xpath_map(), right_info.gen_xpath_map()
+    left_unique_events, right_unique_events, left_common_events, right_common_events = check_utils.diff_interaction(left_info, right_info)
+    left_unique_events = [e for e in left_unique_events if check_meaningful.meaningful_interaction(e, elements_map=left_info.elements_map)]
+    # right_unique_events = [e for e in right_unique_events if check_meaningful.meaningful_interaction(e, elements_map=right_info.elements_map)]
+
+    if len(left_unique_events) > 0:
         return {
             'hostname': dirr,
             'diff': True,
@@ -140,8 +137,10 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
         }
     
     # * Check for each interaction
-    for k in range(len(left_idx)):
-        i, j = left_idx[k], right_idx[k]
+    for left_e, right_e in zip(left_common_events, right_common_events):
+        i, j = left_e.idx, right_e.idx
+        if not os.path.eixsts(f"{dirr}/{left_prefix}_{i}_dom.json") or not os.path.exists(f"{dirr}/{right_prefix}_{j}_dom.json"):
+            continue
         i_diff, _ = fidelity_issue(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}', meaningful=True)
         i_s_diff, i_s_simi = None, None
         if screenshot:
@@ -153,7 +152,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             s_diff = True
             s_diff_stage = f'interaction_{i}'
             s_simi = i_s_simi
-        print(dirr, f'{k+1}/{len(left_idx)}', 'elasped:', time.time()-start)
+        print(dirr, f'{i+1}/{len(left_common_events)}', 'elasped:', time.time()-start)
         if diff_stage and (not screenshot or s_diff_stage):
             return {
                 'hostname': dirr,

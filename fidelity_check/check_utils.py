@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 from fidex.utils import url_utils
-from fidex.fidelity_check import layout_tree as layout_tree
+from fidex.fidelity_check import layout_tree, events
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
@@ -106,20 +106,24 @@ def diff(left_info: "fidelity_detect.LoadInfo", right_info: "fidelity_detect.Loa
     left_layout = layout_tree.build_layout_tree(left_info.elements, left_info.writes, left_info.write_stacks)
     right_layout = layout_tree.build_layout_tree(right_info.elements, right_info.writes, right_info.write_stacks)
 
-    # print(f"{json.dumps(list(left_write_stacks - right_write_stacks), indent=2)}")
-    # print(f"{json.dumps(list(right_write_stacks - left_write_stacks), indent=2)}")
     for layout_order in [False, True]:
         left_unique, right_unique = layout_tree.diff_layout_tree_xpath(left_layout, right_layout, layout_order=layout_order)
         if len(left_unique) == 0 and len(right_unique) == 0:
             break
     
     left_unique = _merge_xpaths(left_unique)
-    # print("left_unique number", [len(xpaths) for xpaths in left_unique])
-    
     right_unique = _merge_xpaths(right_unique)
-    # print("right_unique number", [len(xpaths) for xpaths in right_unique])
     return left_unique, right_unique
 
+def diff_interaction(left_info: "fidelity_detect.LoadInfo", right_info: "fidelity_detect.LoadInfo") -> (list, list, list, list):
+    """Compare events from left and right'
+    Returns:
+        (list, list, list, list): left_unique (xpath), right_unique (xpath), left_common (Event), right_common (Event)
+    """
+    left_events = events.load_events(left_info.events)
+    right_events = events.load_events(right_info.events)
+    left_unique, right_unique, left_common, right_common = events.diff_events(left_events, right_events)
+    return left_unique, right_unique, left_common, right_common
 
 def generate_sig(write, live=False):
     sig = []

@@ -124,18 +124,21 @@ def meaningful_branch(branch, elements_map: dict=None) -> bool:
     return branch_meaningful
 
 
-def meaningful_interaction(event, elements: list=None, elements_map: dict=None) -> bool:
+def meaningful_interaction(event: "events.Event", elements: list=None, elements_map: dict=None) -> bool:
     assert elements is not None or elements_map is not None, 'Either elements or elements_map should be provided'
     xpath_map = elements_map if elements_map is not None else {e['xpath']: e for e in elements}
     non_meaningful = set([('a', 'click')])
-    xpath = event['path']
+    xpath = event.xpath
     tag = xpath.split('/')[-1].split('[')[0]
-    event_types = [t for t in event['events']]
+    event_types = [t for t in event.events]
     # All event types and tag combination is in non_meaningful
     event_types_not_meaningful = [(tag, t) in non_meaningful for t in event_types]
     if all(event_types_not_meaningful):
         return False
     if xpath not in xpath_map:
+        return False
+    dimen = xpath_map[xpath].get('dimension', {'width': 0, 'height': 0})
+    if dimen['width'] <= 1 or dimen['height'] <= 1:
         return False
     return meaningful_branch([xpath], elements_map=xpath_map)
 
