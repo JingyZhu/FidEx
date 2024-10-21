@@ -30,10 +30,10 @@ def extra_writes(dirr, diffs: "list[list]", left_prefix='live', right_prefix='ar
 
 def read_exceptions(dirr, base, stage):
     exceptions = json.load(open(f"{dirr}/{base}_exception_failfetch.json"))
-    exceptions = [e for e in exceptions if e['interaction'] == stage][0]['exceptions']
+    exceptions = [e for e in exceptions if e['stage'] == stage][0]['exceptions']
     return [js_exceptions.JSException(e) for e in exceptions]
 
-def match_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "list[js_exceptions.JSExcep]":
+def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "list[js_exceptions.JSExcep]":
     syntax_exceptions = [excep for excep in exceptions if excep.is_syntax_error]
     matched_exceptions = set()
     if len(syntax_exceptions) == 0:
@@ -42,5 +42,17 @@ def match_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_except
         for write in writes:
             for excep in syntax_exceptions:
                 if url_utils.filter_archive(excep.scriptURL) in write.scripts:
+                    matched_exceptions.add(excep)
+    return list(matched_exceptions)
+
+def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "list[js_exceptions.JSExcep]":
+    exception_errors = [excep for excep in exceptions if excep.has_stack]
+    matched_exceptions = set()
+    if len(exception_errors) == 0:
+        return None
+    for writes in diff_writes:
+        for write in writes:
+            for excep in exception_errors:
+                if write.stack.after(excep.stack):
                     matched_exceptions.add(excep)
     return list(matched_exceptions)

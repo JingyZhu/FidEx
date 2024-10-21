@@ -133,7 +133,8 @@ class JSWrite:
     
     @functools.cached_property
     def serialized_stack(self) -> "tuple(tuple)":
-        return self.stack.serialized
+        serialized_stack = self.stack.serialized[0]
+        return tuple([tuple([s.functionName]) for s in serialized_stack])
 
     @functools.cached_property
     def scripts(self) -> "set[str]":

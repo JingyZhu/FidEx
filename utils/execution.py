@@ -3,7 +3,58 @@ import functools
 import sys
 import esprima
 import requests
+from dataclasses import dataclass, asdict
+from fidex.config import CONFIG
+from fidex.utils import url_utils
 sys.setrecursionlimit(3000)
+
+ALL_ASTS = {} # Cache for all the ASTs {url: ASTInfo}
+ALL_SCRIPTS = {} # Cache for all the code {url: code}
+
+@dataclass
+class ASTInfo:
+    ast: "ASTNode"
+    parser: "JSTextParser"
+
+
+@dataclass
+class Frame:
+    functionName: str
+    url: str
+    lineNumber: int
+    columnNumber: int
+
+
+def get_code(url):
+    if url not in ALL_SCRIPTS:
+        if url_utils.is_archive(url):
+            url = url_utils.replace_archive_host(url, CONFIG.host)
+        response = requests.get(url)
+        ALL_SCRIPTS[url] = response.text
+    return ALL_SCRIPTS[url]
+
+# * frame: (functionName, url, lineNumber, columnNumber)
+def frame_ast_path(frame: Frame) -> "list[dict]":
+    url = frame.url
+    archive = url_utils.is_archive(url)
+    if url not in ALL_ASTS:
+        parser = JSTextParser(get_code(url))
+        ast_node = parser.get_ast_node(archive=archive)
+        ALL_ASTS[url] = ASTInfo(ast=ast_node, parser=parser)
+    ast_info = ALL_ASTS[url]
+    ast_node = ast_info.ast
+    pos = ASTNode.linecol_2_pos(frame.lineNumber, frame.columnNumber, ast_info.parser.text)
+    path = ast_node.find_path(pos)
+    return [{'idx': p['idx'], 'type': p['node'].type} for p in path]
+
+def same_frame(a_frame: Frame, b_frame: Frame) -> bool:
+    if a_frame.functionName != b_frame.functionName:
+        return False
+    if not a_frame.url == b_frame.url and not url_utils.url_match(a_frame.url, b_frame.url):
+        return False
+    a_path = frame_ast_path(a_frame)
+    b_path = frame_ast_path(b_frame)
+    return a_path == b_path
 
 # Python implementation of js-parse for abling to multiprocess
 class ASTNode:
@@ -89,20 +140,20 @@ class ASTNode:
             child.print_all(depth+1, child_index)
             child_index += 1
     
-    def filter_wayback(self):
+    def filter_archive(self):
         # * First, strip all the headers and block added by rewriting tools
         actual_root = self.children[2].children[9]
         
         # * Second, traverse through the tree and skip all the nodes that follows the rewriting pattern
         def skip_node(node, skip):
-            node.parent.children = [skip if c is not node else c for c in node.parent.children]
+            node.parent.children = [skip if c is node else c for c in node.parent.children]
             skip.parent = node.parent
         def choose_skip_node(node):
             # * Skip "_____WB$wombat$check$this$function_____(this)"
             if node.type == 'CallExpression' \
                and node.text.startswith('_____WB$wombat$check$this$function_____') \
-               and node.info['arguments'][0] == 'this':
-                skip_node(node, node.children[1])
+               and len(node.info['arguments']) and node.info['arguments'][0] == 'this':
+                    skip_node(node, node.children[1])
             # * Skip ".__WB_pmw(self)" (CallExpression)
             if node.type == 'CallExpression' \
                and '__WB_pmw(self)' in node.text \
@@ -210,7 +261,7 @@ class JSTextParser:
 
         self.ast_node = traverse_helper(self.source_file)
         if archive:
-            self.ast_node = self.ast_node.filter_wayback()
+            self.ast_node = self.ast_node.filter_archive()
         return self.ast_node
 
 
@@ -224,8 +275,8 @@ class Stack:
                 {
                   url: str,
                   functionName: str,
-                  lineNumber: int,
-                  columnNumber: int
+                  lineNumber: int (0-indexed),
+                  columnNumber: int (0-indexed)
                 }
               ],
               description: str
@@ -233,30 +284,22 @@ class Stack:
           ]
         """
         self.stack = stack
-        self.script_code = {}
     
     @functools.cached_property
-    def serialized(self) -> "tuple(tuple)":
-        """Used for matching"""
+    def serialized(self) -> "list[list[Frame]]":
         all_frames = []
-        for call_frames in self.stack[:1]:
+        for call_frames in self.stack:
+            sync_frames = []
             call_frames = call_frames['callFrames']
             for frame in call_frames:
                 if 'wombat.js' not in frame['url']:
-                    # all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
-                    all_frames.append((frame['functionName']))
-        return tuple(all_frames)
-    
-    @functools.cached_property
-    def serialized_detail(self) -> "list[tuple]":
-        """Used for matching"""
-        all_frames = []
-        for call_frames in self.stack[:1]:
-            call_frames = call_frames['callFrames']
-            for frame in call_frames:
-                if 'wombat.js' not in frame['url']:
-                    all_frames.append((frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
+                    sync_frames.append(Frame(frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
+            all_frames.append(sync_frames)
         return all_frames
+
+    @functools.cached_property
+    def serialized_flat(self) -> "list[Frame]":
+        return [frame for frames in self.serialized for frame in frames]
 
     @functools.cached_property
     def scripts(self) -> "set[str]":
@@ -270,22 +313,17 @@ class Stack:
                 if 'wombat.js' not in frame['url']:
                     scripts.add(frame['url'])
         return scripts
-    
-    def get_code(self, url):
-        if url in self.script_code:
-            return self.script_code[url]
-        response = requests.get(url)
-        self.script_code[url] = response.text
-        return response.text
 
     def overlap(self, other: "Stack") -> list:
         """Return a list of common callframes between two stacks"""
-        a_frames = self.serialized_detail
-        b_frames = other.serialized_detail
+        a_frames = list(reversed(self.serialized_flat))
+        b_frames = list(reversed(other.serialized_flat))
         common_frames = []
         min_depth = min(len(a_frames), len(b_frames))
         for i in range(min_depth):
             if a_frames[i] == b_frames[i]:
+                common_frames.append(a_frames[i])
+            elif same_frame(a_frames[i], b_frames[i]):
                 common_frames.append(a_frames[i])
             else:
                 break
@@ -294,7 +332,13 @@ class Stack:
     def after(self, other: "Stack") -> bool:
         """Check if this stack is after the other stack"""
         common_frames = self.overlap(other)
+        import json
+        # print("Self", json.dumps([asdict(f) for f in self.serialized_flat], indent=2))
+        # print("Other", json.dumps([asdict(f) for f in other.serialized_flat], indent=2))
+        print("Common", json.dumps([asdict(f) for f in common_frames], indent=2))
         if len(common_frames) == 0:
             return False
-        a_divergent = self.serialized_detail[len(common_frames)]
-        b_divergent = other.serialized_detail[len(common_frames)]
+        a_divergent = self.serialized_flat[len(common_frames)]
+        b_divergent = other.serialized_flat[len(common_frames)]
+        return a_divergent.lineNumber < b_divergent.lineNumber or \
+                (a_divergent.lineNumber == b_divergent.lineNumber and a_divergent.columnNumber <= b_divergent.columnNumber)
