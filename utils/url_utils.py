@@ -24,6 +24,10 @@ def filter_archive(archive_url):
 def is_archive(url):
     return re.search(ARCHIVE_PATTERN, url) is not None
 
+def replace_archive_host(url, new_host):
+    us = urlsplit(url)
+    return urlunsplit(us._replace(netloc=new_host))
+
 def url_match(url1, url2, archive=True, case=False):
     """
     Compare whether two urls are identical on filepath and query

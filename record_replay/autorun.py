@@ -24,6 +24,7 @@ _FILEDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(_FILEDIR))
 _CURDIR = os.getcwd()
 from fidex.utils import upload, url_utils
+from fidex.config import CONFIG
 
 # Configure the logger
 logging.basicConfig(
@@ -33,8 +34,8 @@ logging.basicConfig(
 )
 
 REMOTE = False
-HOST = 'http://pistons.eecs.umich.edu:8080'
-PROXYHOST = 'http://pistons.eecs.umich.edu:8079'
+HOST = f'http://{CONFIG.host}'
+PROXYHOST = f'http://{CONFIG.host_proxy}'
 HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
