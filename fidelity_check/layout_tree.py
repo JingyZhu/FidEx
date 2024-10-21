@@ -402,8 +402,10 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
         for xpath in w.associated_xpaths:
             if xpath in nodes:
                 nodes[xpath].add_writes([w])
-    nodes[root_e['xpath']].all_writes = [w for w in writes_obj if w.currentDS.get('width', 0) > 0 and w.currentDS.get('height', 0) > 0]
-    return nodes[root_e['xpath']]
+    root_node = nodes[root_e['xpath']]
+    root_node.all_writes = [w for w in writes_obj if w.currentDS.get('width', 0) > 0 and w.currentDS.get('height', 0) > 0]
+    root_node.all_nodes = nodes
+    return root_node
 
 def _lcs_diff(left_seq, right_seq):
     """Impl 1 based on lcs"""

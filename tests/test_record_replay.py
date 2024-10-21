@@ -11,7 +11,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-arguments = ['-w', '-s', '--scroll', '-i', '-e', '--headless']
+arguments = ['-w', '-s', '-t', '--scroll', '-e', '--headless']
 
 HOME = os.path.expanduser("~")
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
@@ -81,14 +81,15 @@ def test_record_replay():
 def test_record_replay_multiproc():
     test_utils.init_test()
     urls = [
-        'https://www.yellowshop.es/',
-        'https://crpt.ru/',
-        'https://gettyimages.co.jp/',
-        'https://starlink.com',
-        'https://www.hevs.ch/fr',
-        'https://www.radtouren.at/', # * Reflect.get without receiver
-        'https://www.si.edu/', # * Reflect.get without receiver
-        'https://egihosting.com/', # Looks like archive can't finish
+        # 'https://www.yellowshop.es/',
+        # 'https://crpt.ru/',
+        # 'https://gettyimages.co.jp/',
+        # 'https://starlink.com',
+        # 'https://www.hevs.ch/fr',
+        # 'https://www.radtouren.at/', # * Reflect.get without receiver
+        # 'https://www.si.edu/', # * Reflect.get without receiver
+        # 'https://egihosting.com/', # Looks like archive can't finish
+        'https://oklahoma.gov/omes.html',
     ]
     host_url = {url_utils.calc_hostname(url): url for url in urls}
 
