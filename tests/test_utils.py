@@ -1,6 +1,6 @@
 from subprocess import call
 import os
-from fidex.utils import execution
+from fidex.utils import execution, url_utils
 
 WB_PATH = f'{os.path.expanduser("~")}/fidelity-files'
 PYWB_PATH = '/x/jingyz/pywb/env/bin/activate'
@@ -19,6 +19,18 @@ def init_test():
     call('mkdir -p metadata', shell=True)
     call(f'/bin/bash -c "source {PYWB_PATH} && wb-manager init test"', cwd=WB_PATH, shell=True)
 
+def test_archive_url():
+    archive_url1 = 'http://pistons.eecs.umich.edu:38119/test/20241021000407js_///ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4'
+    assert(url_utils.is_archive(archive_url1))
+    assert(url_utils.filter_archive(archive_url1) == 'https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4')
+
+    archive_url2 = 'http://pistons.eecs.umich.edu:38119/test/20241021000407js_/ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4'
+    assert(url_utils.is_archive(archive_url2))
+    assert(url_utils.filter_archive(archive_url2) == 'https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4')
+
+    archive_url3 = 'http://pistons.eecs.umich.edu:38119/test/20241021000407js_/http://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4'
+    assert(url_utils.is_archive(archive_url3))
+    assert(url_utils.filter_archive(archive_url3) == 'http://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4')
 
 def test_same_scope():
     program = """
@@ -80,7 +92,7 @@ def test_same_scope():
     assert(not c_31.same_scope(c_32))
 
 
-def test_filter_archive():
+def test_ast_filter_archive():
     live_program = open('examples/filter_archive_live.js').read()
     parser_live = execution.JSTextParser(live_program)
     archive_program = open('examples/filter_archive_archive.js').read()
@@ -101,4 +113,4 @@ def test_filter_archive():
     assert(path_live == path_archive)
 
 if __name__ == '__main__':
-    test_filter_archive()
+    test_archive_url()

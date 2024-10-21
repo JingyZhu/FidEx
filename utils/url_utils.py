@@ -1,4 +1,4 @@
-import re
+import re, os
 from urllib.parse import urlsplit, parse_qsl, urlunsplit, urljoin
 from publicsuffixlist import PublicSuffixList
 import hashlib
@@ -6,18 +6,59 @@ import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
+ARCHIVE_PATTERN = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(((https?:)?//)?.+)'
 
 def filter_archive(archive_url):
-    pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
-    match = re.search(pattern, archive_url)
+    match = re.search(ARCHIVE_PATTERN, archive_url)
     if match:
-        return match.group(2)
+        url = match.group(2)
+        if url.startswith('http'):
+            return url
+        if url.startswith('//'):
+            return 'https:' + url
+        else:
+            return 'https://' + url
     else:
         return None
 
 def is_archive(url):
-    pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
-    return re.search(pattern, url) is not None
+    return re.search(ARCHIVE_PATTERN, url) is not None
+
+def url_match(url1, url2, archive=True, case=False):
+    """
+    Compare whether two urls are identical on filepath and query
+    If archive is set to True, will first try to filter out archive's prefix
+
+    case: whether token comparison is token sensitive
+    """
+    if archive:
+        url1 = filter_archive(url1) if is_archive(url1) else url1
+        url2 = filter_archive(url2) if is_archive(url2) else url2
+    up1, up2 = urlsplit(url1), urlsplit(url2)
+    netloc1, path1, query1 = up1.netloc.split(':')[0], up1.path, up1.query
+    netloc2, path2, query2 = up2.netloc.split(':')[0], up2.path, up2.query
+    if not case:
+        netloc1, path1, query1 = netloc1.lower(), path1.lower(), query1.lower()
+        netloc2, path2, query2 = netloc2.lower(), path2.lower(), query2.lower()
+    netloc1, netloc2 = netloc1.split('.'), netloc2.split('.')
+    if netloc1[0] == 'www': netloc1 = netloc1[1:]
+    if netloc2[0] == 'www': netloc2 = netloc2[1:]
+    if '.'.join(netloc1) != '.'.join(netloc2):
+        return False
+    if path1 == '': path1 = '/'
+    if path2 == '': path2 = '/'
+    if path1 != '/' and path1[-1] == '/': path1 = path1[:-1]
+    if path2 != '/' and path2[-1] == '/': path2 = path2[:-1]
+    dir1, file1 = os.path.split(path1)
+    dir2, file2 = os.path.split(path2)
+    if re.compile('^index').match(file1): path1 = dir1
+    if re.compile('^index').match(file2): path2 = dir2
+    if path1 != path2:
+        return False
+    if query1 == query2:
+        return True
+    qsl1, qsl2 = sorted(parse_qsl(query1), key=lambda kv: (kv[0], kv[1])), sorted(parse_qsl(query2), key=lambda kv: (kv[0], kv[1]))
+    return len(qsl1) > 0 and qsl1 == qsl2
 
 class HostExtractor:
     def __init__(self):
