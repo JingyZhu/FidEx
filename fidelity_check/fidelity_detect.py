@@ -4,11 +4,11 @@ import time
 import os
 
 class LoadInfo:
-    def __init__(self, dirr, prefix):
+    def __init__(self, dirr, prefix, read_events=False):
         self.dirr = dirr
         self.prefix = prefix
         self.base, self.stage = self.prefix.split('_') if '_' in self.prefix else (self.prefix, 'onload')
-        self.read_info()
+        self.read_info(read_events)
 
     @staticmethod
     def read_write_stacks(dirr, base):
@@ -43,7 +43,7 @@ class LoadInfo:
                 new_elements.append(element)
         return new_elements
     
-    def read_info(self):
+    def read_info(self, read_events):
         self.elements = json.load(open(f"{self.dirr}/{self.prefix}_dom.json"))
         
         self.elements = LoadInfo.dedeup_elements(self.elements)
@@ -51,7 +51,8 @@ class LoadInfo:
         # Filter writes based on stages
         self.writes = [w for w in self.writes if LoadInfo.stage_nolater(w['currentStage'], self.stage)]
         self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
-        self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
+        if read_events:
+            self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
     
     def gen_xpath_map(self):
         self.elements_map = {e['xpath']: e for e in self.elements}
@@ -120,8 +121,8 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
     print(dirr, 'onload elasped:', time.time()-start)
     
     # * Check extraInteraction
-    left_info = LoadInfo(dirr, left_prefix)
-    right_info = LoadInfo(dirr, right_prefix)
+    left_info = LoadInfo(dirr, left_prefix, read_events=True)
+    right_info = LoadInfo(dirr, right_prefix, read_events=True)
     left_info.gen_xpath_map(), right_info.gen_xpath_map()
     left_unique_events, right_unique_events, left_common_events, right_common_events = check_utils.diff_interaction(left_info, right_info)
     left_unique_events = [e for e in left_unique_events if check_meaningful.meaningful_interaction(e, elements_map=left_info.elements_map)]
