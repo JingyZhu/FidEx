@@ -80,15 +80,15 @@ def test_same_scope():
     assert(not c_31.same_scope(c_32))
 
 
-def test_filter_wayback():
-    live_program = open('examples/filter_wayback_live.js').read()
+def test_filter_archive():
+    live_program = open('examples/filter_archive_live.js').read()
     parser_live = execution.JSTextParser(live_program)
-    archive_program = open('examples/filter_wayback_archive.js').read()
+    archive_program = open('examples/filter_archive_archive.js').read()
     parser_archive = execution.JSTextParser(archive_program)
     
     ast_node_live = parser_live.get_ast_node()
     ast_node_archive = parser_archive.get_ast_node()
-    ast_node_archive = ast_node_archive.filter_wayback()
+    ast_node_archive = ast_node_archive.filter_archive()
     
     # * Test on last matches of "id: t.data.id,"
     p_live = execution.ASTNode.linecol_2_pos(3952, 56, live_program)
@@ -101,4 +101,4 @@ def test_filter_wayback():
     assert(path_live == path_archive)
 
 if __name__ == '__main__':
-    test_filter_wayback()
+    test_filter_archive()

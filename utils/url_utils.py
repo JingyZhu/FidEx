@@ -15,6 +15,10 @@ def filter_archive(archive_url):
     else:
         return None
 
+def is_archive(url):
+    pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
+    return re.search(pattern, url) is not None
+
 class HostExtractor:
     def __init__(self):
         self.psl = PublicSuffixList()
