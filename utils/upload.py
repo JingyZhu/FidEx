@@ -27,13 +27,13 @@ class PYWBServer:
         self.proxy = proxy
 
     def _start_server(self):
-        print(f"Starting server {self.port}")
         if self.proxy:
             cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && wayback --proxy {self.archive} -p {self.port} > /dev/null 2>&1 & echo $!'
         else:
             cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && wayback -p {self.port} > /dev/null 2>&1 & echo $!'
         server = Popen(cmd, shell=True, stdout=PIPE)
         self.server = server.communicate()[0].decode().strip()
+        print(f"Started pywb server port:{self.port} process:{self.server}")
 
     def start(self) -> int:
         # Get free port
