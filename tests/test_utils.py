@@ -31,6 +31,14 @@ def test_archive_url():
     archive_url3 = 'http://pistons.eecs.umich.edu:38119/test/20241021000407js_/http://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4'
     assert(url_utils.is_archive(archive_url3))
     assert(url_utils.filter_archive(archive_url3) == 'http://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4')
+    assert(url_utils.url_match(archive_url3, 'http://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js?ver=2.2.4'))
+
+    archive_url4 = 'http://pistons.eecs.umich.edu:37111/test/20241021203631js_/https://cdn.userway.org/widgetapp/2024-10-08-15-28-17/widget_app_base_1728401297040.js'
+    assert(url_utils.is_archive(archive_url4))
+    assert(url_utils.filter_archive(archive_url4) == 'https://cdn.userway.org/widgetapp/2024-10-08-15-28-17/widget_app_base_1728401297040.js')
+
+    live_url1 = 'https://cdn.userway.org/widgetapp/2024-10-08-15-28-17/widget_app_base_1728401297040.js'
+    assert(not url_utils.is_archive(live_url1))
 
 def test_same_scope():
     program = """
@@ -132,5 +140,27 @@ def test_ast_filter_archive_1():
     path_archive = [{'idx': p['idx'], 'node': p['node'].type} for p in path_archive]
     assert(path_live == path_archive)
 
+
+def test_ast_filter_archive_2():
+    live_program = open('examples/ast_filter_archive_l2.js').read()
+    parser_live = execution.JSTextParser(live_program)
+    archive_program = open('examples/ast_filter_archive_a2.js').read()
+    parser_archive = execution.JSTextParser(archive_program)
+    
+    ast_node_live = parser_live.get_ast_node()
+    ast_node_archive = parser_archive.get_ast_node()
+    ast_node_archive = ast_node_archive.filter_archive()
+    
+    # * Test on last matches of "id: t.data.id,"
+    p_live = execution.ASTNode.linecol_2_pos(2, 13744, live_program)
+    path_live = ast_node_live.find_path(p_live)
+    p_archive = execution.ASTNode.linecol_2_pos(16, 13945, archive_program)
+    path_archive = ast_node_archive.find_path(p_archive)
+    
+    path_live = [{'idx': p['idx'], 'node': p['node'].type} for p in path_live]
+    path_archive = [{'idx': p['idx'], 'node': p['node'].type} for p in path_archive]
+    assert(path_live != path_archive)
+
 if __name__ == '__main__':
-    test_ast_filter_archive_1()
+    # test_archive_url()
+    test_ast_filter_archive_2()

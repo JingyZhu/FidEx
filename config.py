@@ -22,4 +22,5 @@ class Config:
     def host_proxy_test(self):
         return self.config.get('host_proxy_test')
 
-CONFIG = Config(os.path.join(_FILEDIR, 'config.json'))
+config_path = os.path.join(_FILEDIR, 'config.json') if not os.environ.get('FIDEX_CONFIG') else os.environ.get('FIDEX_CONFIG')
+CONFIG = Config(config_path)

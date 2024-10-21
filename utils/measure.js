@@ -222,7 +222,7 @@ function _origURL(url){
  * Collect the render tree from the page
  * @param {iframe} iframe 
  * @param {object} parentInfo 
- * @param {boolean} replay Whether the render tree is collected on replay
+ * @param {boolean} visibleOnly If only visible elements are collected
  * @returns {object} renderTree {renderTree: [], renderHTML: string}
  */
 async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
