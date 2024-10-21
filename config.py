@@ -17,5 +17,9 @@ class Config:
     @cached_property
     def host_proxy(self):
         return self.config.get('host_proxy')
+    
+    @cached_property
+    def host_proxy_test(self):
+        return self.config.get('host_proxy_test')
 
 CONFIG = Config(os.path.join(_FILEDIR, 'config.json'))

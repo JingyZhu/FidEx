@@ -4,6 +4,7 @@ from subprocess import call
 import os
 
 import test_utils
+from fidex.config import CONFIG
 from fidex.fidelity_check import fidelity_detect
 from fidex.utils import url_utils
 from fidex.record_replay import autorun
@@ -12,7 +13,7 @@ from fidex.record_replay import autorun
 import os
 HOME = os.path.expanduser("~")
 
-PROXY = 'http://pistons.eecs.umich.edu:8078'
+PROXY = f'http://{CONFIG.host_proxy_test}'
 PREFIX = 'test' if os.environ.get('PREFIX') is None else os.environ.get('PREFIX')
 autorun.PROXYHOST = PROXY
 chrome_data_dir = os.path.join(HOME, 'chrome_data')

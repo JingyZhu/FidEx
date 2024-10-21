@@ -135,7 +135,7 @@ class ASTNode:
         if len(self.scopes) != len(other.scopes):
             return False
         for s1, s2 in zip(self.scopes, other.scopes):
-            if s1 != s2:
+            if s1.type != s2.type:
                 return False
         return True
     
@@ -194,6 +194,7 @@ class ASTNode:
             node.parent.children = [skip if c is node else c for c in node.parent.children]
             skip.parent = node.parent
         def choose_skip_node(node):
+            node.scopes = [node.scopes[0]] + node.scopes[3:]
             # * Skip "_____WB$wombat$check$this$function_____(this)"
             if node.type == 'CallExpression' \
                and node.text.startswith('_____WB$wombat$check$this$function_____') \

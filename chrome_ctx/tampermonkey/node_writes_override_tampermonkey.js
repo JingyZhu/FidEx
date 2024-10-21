@@ -212,6 +212,8 @@ function newWriteMethod(originalFn, method, contextNode=null) {
         if (thisNode == null) {
             thisNode = this;
         }
+        if (method == 'addEventListener' && !(thisNode instanceof Node))
+            return originalFn.apply(this, args);
         const wid = _get_wid();
         let beforeDS = new DimensionSets();
         let record = null;
@@ -276,6 +278,10 @@ function newWriteMethod(originalFn, method, contextNode=null) {
         return retVal;
     };
 }
+
+// Override addEventListener
+const originalAddEventListener = EventTarget.prototype.addEventListener;
+EventTarget.prototype.addEventListener = newWriteMethod(originalAddEventListener, 'addEventListener');
 
 // Override Node write methods
 node_write_methods = [
