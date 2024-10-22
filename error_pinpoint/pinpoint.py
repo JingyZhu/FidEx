@@ -1,9 +1,10 @@
 import json
+import time
 from dataclasses import dataclass
 
 from fidex.fidelity_check import fidelity_detect, layout_tree, js_writes
 from fidex.utils import url_utils
-from fidex.error_pinpoint import js_exceptions
+from fidex.error_pinpoint import js_exceptions, js_initiators
 
 
 def extra_writes(dirr, diffs: "list[list]", left_prefix='live', right_prefix='archive') -> "list[js_writes.JSWrite]":
@@ -29,24 +30,46 @@ def extra_writes(dirr, diffs: "list[list]", left_prefix='live', right_prefix='ar
     diff_writes.sort(key=lambda x: int(x[0].wid.split(':')[0]))
     return diff_writes
 
+def _search_dependencies_error(start_scripts: "List[str]",
+                               target_exceps: "List[js_exceptions.JSException]", 
+                               initiators: "Dict[str, js_initiators.JSIntiator]") -> "js_exceptions.JSException | None":
+    """Given a set of scripts, check if any of the 1.scripts 2.initiator for scripts are in the stack
+    Args:
+        start_scripts: List of scripts to start with
+        target_exceps: List of exceptions to search for
+        initiators: map of script to initiator
+    """
+    url_exception = {url_utils.filter_archive(excep.scriptURL): excep for excep in target_exceps}
+    dfs_stack = start_scripts.copy()
+    visited = set()
+    while len(dfs_stack) > 0:
+        script = dfs_stack.pop()
+        if script in visited:
+            continue
+        visited.add(script)
+        if script in url_exception:
+            return url_exception[script]
+        if script in initiators:
+            for initiator in initiators[script].initiators:
+                dfs_stack.append(initiator.url)
+    return None
+        
 
-def read_exceptions(dirr, base, stage):
-    exceptions = json.load(open(f"{dirr}/{base}_exception_failfetch.json"))
-    exceptions = [e for e in exceptions if e['stage'] == stage][0]['exceptions']
-    return [js_exceptions.JSException(e) for e in exceptions]
-
-def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "List[js_exceptions.JSExcep]":
+def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite",
+                           exceptions: "List[js_exceptions.JSException]",
+                           initiators: "Dict[str, js_initiators.JSIntiator]") -> "List[js_exceptions.JSExcep]":
     syntax_exceptions = [excep for excep in exceptions if excep.is_syntax_error]
     matched_exceptions = set()
     if len(syntax_exceptions) == 0:
         return []
     for writes in diff_writes:
         for write in writes:
-            for excep in syntax_exceptions:
-                if excep in matched_exceptions:
-                    continue
-                if url_utils.filter_archive(excep.scriptURL) in write.scripts:
-                    matched_exceptions.add(excep)
+            remain_exceps = [excep for excep in syntax_exceptions if excep not in matched_exceptions]
+            if len(remain_exceps) == 0:
+                break
+            error = _search_dependencies_error(list(write.stack.scripts), remain_exceps, initiators)
+            if error is not None:
+                matched_exceptions.add(error)
     return list(matched_exceptions)
 
 def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "List[js_exceptions.JSExcep]":
@@ -76,17 +99,22 @@ class PinpointResult:
 def pinpoint_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> PinpointResult:
     fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix, screenshot=False, meaningful=meaningful)
     if not fidelity_result.info['diff']:
-        return []
+        return PinpointResult(fidelity_result, [], [])
+    start = time.time()
     diff_stage = fidelity_result.info['diff_stage']
     diff_stage = diff_stage if diff_stage != 'extraInteraction' else 'onload'
     left = left_prefix if diff_stage =='onload' else f'{left_prefix}_{diff_stage.split("_")[1]}'
     right = right_prefix if diff_stage == 'onload' else f'{right_prefix}_{diff_stage.split("_")[1]}'
     diff_writes = extra_writes(dirr, fidelity_result.live_unique, left, right)
-    exceptions = read_exceptions(dirr, right_prefix, diff_stage)
-    syntax_errors = pinpoint_syntax_errors(diff_writes, exceptions)
+    exceptions = js_exceptions.read_exceptions(dirr, right_prefix, diff_stage)
+    initiators = js_initiators.read_initiators(dirr, left_prefix)
+    print(dirr, 'finished pinpoint preparation', time.time()-start)
+    syntax_errors = pinpoint_syntax_errors(diff_writes, exceptions, initiators)
     if len(syntax_errors) > 0:
         return PinpointResult(fidelity_result, diff_writes, syntax_errors)
+    print(dirr, 'finished syntax error pinpoint', time.time()-start)
     exceptions = pinpoint_exceptions(diff_writes, exceptions)
     if len(exceptions) > 0:
         return PinpointResult(fidelity_result, diff_writes, exceptions)
-    return PinpointResult(fidelity_result, diff_writes, None)
+    print(dirr, 'finished exception pinpoint', time.time()-start)
+    return PinpointResult(fidelity_result, diff_writes, [])

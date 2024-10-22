@@ -58,7 +58,18 @@ class ExecutionStacks {
     onRequestStack(params){
         const url = params.request.url;
         let stack = params.initiator.stack;
-        const stackInfo = parseStack(stack);
+        let stackInfo = parseStack(stack);
+        if (params.initiator.url) {
+            stackInfo.unshift({
+                description: 'initiator',
+                callFrames: [{
+                    functionName: '',
+                    url: params.initiator.url,
+                    lineNumber: params.initiator.lineNumber || 0,
+                    columnNumber: params.initiator.columnNumber || 0,
+                }]
+            })
+        }
         const stackStr = JSON.stringify(stackInfo);
         if (!this.requestStacks.has(stackStr))
             this.requestStacks.set(stackStr, []);
