@@ -54,9 +54,13 @@ def test_syntax_error(record=False):
         print(host)
         dirr = f'{write_dir}/{host}'
         if os.path.exists(f'{dirr}/live_writes.json') and os.path.exists(f'{dirr}/archive_writes.json'):
-            _, (live_unique, _) = fidelity_detect.fidelity_issue(dirr, 'live', 'archive', meaningful=True)
-            diff_writes = pinpoint.extra_writes(dirr, live_unique, 'live','archive')
-            exceptions = pinpoint.read_exceptions(dirr, 'archive', 'onload')
+            fidelity_result = fidelity_detect.fidelity_issue_all(dirr, 'live', 'archive', screenshot=False, meaningful=True)
+            diff_stage = fidelity_result.info['diff_stage']
+            diff_stage = diff_stage if diff_stage != 'extraInteraction' else 'onload'
+            live = 'live' if diff_stage =='onload' else f'live_{diff_stage.split("_")[1]}'
+            archive = 'archive' if diff_stage == 'onload' else f'archive_{diff_stage.split("_")[1]}'
+            diff_writes = pinpoint.extra_writes(dirr, fidelity_result.live_unique, live, archive)
+            exceptions = pinpoint.read_exceptions(dirr, 'archive', diff_stage)
             syntax_errors = pinpoint.pinpoint_syntax_errors(diff_writes, exceptions)
             test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct' if len(syntax_errors) > 0 else 'Wrong'}
             positive_reason.append({'host': host, 'syntax_errors': [e.description for e in syntax_errors]})
@@ -98,10 +102,14 @@ def test_exception_error(record=False):
         print(host)
         dirr = f'{write_dir}/{host}'
         if os.path.exists(f'{dirr}/live_writes.json') and os.path.exists(f'{dirr}/archive_writes.json'):
-            _, (live_unique, _) = fidelity_detect.fidelity_issue(dirr, 'live', 'archive', meaningful=True)
-            diff_writes = pinpoint.extra_writes(dirr, live_unique, 'live','archive')
-            exceptions = pinpoint.read_exceptions(dirr, 'archive', 'onload')
-            exception_errors = pinpoint.pinpoint_syntax_errors(diff_writes, exceptions)
+            fidelity_result = fidelity_detect.fidelity_issue_all(dirr, 'live', 'archive', screenshot=False, meaningful=True)
+            diff_stage = fidelity_result.info['diff_stage']
+            diff_stage = diff_stage if diff_stage != 'extraInteraction' else 'onload'
+            live = 'live' if diff_stage =='onload' else f'live_{diff_stage.split("_")[1]}'
+            archive = 'archive' if diff_stage == 'onload' else f'archive_{diff_stage.split("_")[1]}'
+            diff_writes = pinpoint.extra_writes(dirr, fidelity_result.live_unique, live, archive)
+            exceptions = pinpoint.read_exceptions(dirr, 'archive', diff_stage)
+            exception_errors = pinpoint.pinpoint_exceptions(diff_writes, exceptions)
             test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Correct' if len(exception_errors) > 0 else 'Wrong'}
             positive_reason.append({'host': host, 'exception_errors': [e.description for e in exception_errors]})
         else:
@@ -112,4 +120,4 @@ def test_exception_error(record=False):
 
 
 # test_syntax_error(record=True)
-test_exception_error(record=True)
+test_exception_error(record=False)

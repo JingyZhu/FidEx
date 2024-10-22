@@ -1,8 +1,10 @@
+import json
+from dataclasses import dataclass
+
 from fidex.fidelity_check import fidelity_detect, layout_tree, js_writes
 from fidex.utils import url_utils
 from fidex.error_pinpoint import js_exceptions
 
-import json
 
 def extra_writes(dirr, diffs: "list[list]", left_prefix='live', right_prefix='archive') -> "list[js_writes.JSWrite]":
     """Get extra writes from left to right"""
@@ -33,11 +35,11 @@ def read_exceptions(dirr, base, stage):
     exceptions = [e for e in exceptions if e['stage'] == stage][0]['exceptions']
     return [js_exceptions.JSException(e) for e in exceptions]
 
-def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "list[js_exceptions.JSExcep]":
+def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "List[js_exceptions.JSExcep]":
     syntax_exceptions = [excep for excep in exceptions if excep.is_syntax_error]
     matched_exceptions = set()
     if len(syntax_exceptions) == 0:
-        return None
+        return []
     for writes in diff_writes:
         for write in writes:
             for excep in syntax_exceptions:
@@ -47,11 +49,11 @@ def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite", exceptions: "js_exc
                     matched_exceptions.add(excep)
     return list(matched_exceptions)
 
-def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "list[js_exceptions.JSExcep]":
+def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "List[js_exceptions.JSExcep]":
     exception_errors = [excep for excep in exceptions if excep.has_stack]
     matched_exceptions = set()
     if len(exception_errors) == 0:
-        return None
+        return []
     for writes in diff_writes:
         for write in writes:
             for excep in exception_errors:
@@ -60,3 +62,31 @@ def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_except
                 if write.stack.after(excep.stack):
                     matched_exceptions.add(excep)
     return list(matched_exceptions)
+
+@dataclass
+class PinpointResult:
+    fidelity_result: fidelity_detect.FidelityResult
+    diff_writes: "List[js_writes.JSWrite]"
+    pinpointed_errors: "List[js_exceptions.JSExcep]"
+
+    def errors_to_dict(self):
+        return [e.to_dict() for e in self.pinpointed_errors]
+
+
+def pinpoint_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> PinpointResult:
+    fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix, screenshot=False, meaningful=meaningful)
+    if not fidelity_result.info['diff']:
+        return []
+    diff_stage = fidelity_result.info['diff_stage']
+    diff_stage = diff_stage if diff_stage != 'extraInteraction' else 'onload'
+    left = left_prefix if diff_stage =='onload' else f'{left_prefix}_{diff_stage.split("_")[1]}'
+    right = right_prefix if diff_stage == 'onload' else f'{right_prefix}_{diff_stage.split("_")[1]}'
+    diff_writes = extra_writes(dirr, fidelity_result.live_unique, left, right)
+    exceptions = read_exceptions(dirr, right_prefix, diff_stage)
+    syntax_errors = pinpoint_syntax_errors(diff_writes, exceptions)
+    if len(syntax_errors) > 0:
+        return PinpointResult(fidelity_result, diff_writes, syntax_errors)
+    exceptions = pinpoint_exceptions(diff_writes, exceptions)
+    if len(exceptions) > 0:
+        return PinpointResult(fidelity_result, diff_writes, exceptions)
+    return PinpointResult(fidelity_result, diff_writes, None)

@@ -2,6 +2,7 @@ import json
 from . import check_utils, check_meaningful
 import time
 import os
+from dataclasses import dataclass
 
 class LoadInfo:
     def __init__(self, dirr, prefix, read_events=False):
@@ -68,8 +69,8 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
         left_unique, right_unique = check_meaningful.meaningful_diff(left_info.elements, left_unique, right_info.elements, right_unique)
     # * Same visual part
     if len(left_unique) + len(right_unique) > 0:
-        if os.path.exists(f"{dirr}/{left_prefix}.png") and os.path.exists(f"{dirr}/{right_prefix}.png"):
-            left_img, right_img = f"{dirr}/{left_prefix}.png", f"{dirr}/{right_prefix}.png"
+        if os.path.exists(f"{dirr}/{left_prefix}.jpg") and os.path.exists(f"{dirr}/{right_prefix}.jpg"):
+            left_img, right_img = f"{dirr}/{left_prefix}.jpg", f"{dirr}/{right_prefix}.jpg"
             left_unique, right_unique = check_utils.filter_same_visual_part(left_img, left_unique, left_info.elements,
                                                                             right_img, right_unique, right_info.elements)
         else:
@@ -83,13 +84,18 @@ def fidelity_issue_screenshot(dirr, left_file='live', right_file='archive') -> (
     Returns:
         (if fidelity issue, similarity score between left and right screenshots)
     """
-    left_screenshot = f"{dirr}/{left_file}.png"
-    right_screenshot = f"{dirr}/{right_file}.png"
+    left_screenshot = f"{dirr}/{left_file}.jpg"
+    right_screenshot = f"{dirr}/{right_file}.jpg"
     simi = check_utils.compare_screenshot(left_screenshot, right_screenshot)
     return simi < 1, simi
 
+@dataclass
+class FidelityResult:
+    info: dict
+    live_unique: list
+    archive_unique: list
 
-def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screenshot=False, meaningful=True) -> dict:
+def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screenshot=False, meaningful=True) -> FidelityResult:
     """
     Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
     """
@@ -99,7 +105,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
     # * If any stage is different, which one
     diff_stage, s_diff_stage, s_simi = None, None, None
     # * Checking onload
-    ol_diff, _ = fidelity_issue(dirr, left_prefix, right_prefix, meaningful=meaningful)
+    ol_diff, (left_unique, right_unique) = fidelity_issue(dirr, left_prefix, right_prefix, meaningful=meaningful)
     ol_s_diff = None
     if screenshot:
         ol_s_diff, s_simi = fidelity_issue_screenshot(dirr, left_prefix, right_prefix)
@@ -110,14 +116,14 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
         s_diff = True
         s_diff_stage = 'onload'
     if diff_stage and (not screenshot or s_diff_stage):
-        return {
+        return FidelityResult({
             'hostname': dirr,
             'diff': diff,
             'screenshot_diff': s_diff,
             'diff_stage': diff_stage,
             'screenshot_diff_stage': s_diff_stage,
             'similarity': s_simi
-        }
+        }, left_unique, right_unique)
     print(dirr, 'onload elasped:', time.time()-start)
     
     # * Check extraInteraction
@@ -126,23 +132,23 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
     left_info.gen_xpath_map(), right_info.gen_xpath_map()
     left_unique_events, right_unique_events, left_common_events, right_common_events = check_utils.diff_interaction(left_info, right_info)
     left_unique_events = [e for e in left_unique_events if check_meaningful.meaningful_interaction(e, elements_map=left_info.elements_map)]
-    # right_unique_events = [e for e in right_unique_events if check_meaningful.meaningful_interaction(e, elements_map=right_info.elements_map)]
+    right_unique_events = [e for e in right_unique_events if check_meaningful.meaningful_interaction(e, elements_map=right_info.elements_map)]
 
     if len(left_unique_events) > 0:
-        return {
+        return FidelityResult({
             'hostname': dirr,
             'diff': True,
             'screenshot_diff': True,
             'diff_stage': 'extraInteraction',
             'screenshot_diff_stage': 'extraInteraction'
-        }
+        }, [[e.xpath] for e in left_unique_events], [[e.xpath] for e in right_unique_events])
     
     # * Check for each interaction
     for left_e, right_e in zip(left_common_events, right_common_events):
         i, j = left_e.idx, right_e.idx
-        if not os.path.eixsts(f"{dirr}/{left_prefix}_{i}_dom.json") or not os.path.exists(f"{dirr}/{right_prefix}_{j}_dom.json"):
+        if not os.path.exists(f"{dirr}/{left_prefix}_{i}_dom.json") or not os.path.exists(f"{dirr}/{right_prefix}_{j}_dom.json"):
             continue
-        i_diff, _ = fidelity_issue(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}', meaningful=True)
+        i_diff, (left_unique, right_unique) = fidelity_issue(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}', meaningful=True)
         i_s_diff, i_s_simi = None, None
         if screenshot:
             i_s_diff, i_s_simi = fidelity_issue_screenshot(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}')
@@ -155,19 +161,19 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             s_simi = i_s_simi
         print(dirr, f'{i+1}/{len(left_common_events)}', 'elasped:', time.time()-start)
         if diff_stage and (not screenshot or s_diff_stage):
-            return {
+            return FidelityResult({
                 'hostname': dirr,
                 'diff': diff,
                 'screenshot_diff': s_diff,
                 'diff_stage': diff_stage,
                 'screenshot_diff_stage': s_diff_stage,
                 'similarity': s_simi
-            }
-    return {
+            }, left_unique, right_unique)
+    return FidelityResult({
         'hostname': dirr,
         'diff': diff,
         'screenshot_diff': s_diff,
         'diff_stage': diff_stage,
         'screenshot_diff_stage': s_diff_stage,
         'similarity': s_simi
-    }
+    }, [], [])

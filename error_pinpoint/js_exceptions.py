@@ -29,3 +29,11 @@ class JSException:
     
     def __repr__(self):
         return f"{self.description} at {self.scriptURL}:{self.line}:{self.column}"
+    
+    def to_dict(self):
+        return {
+            'description': self.description,
+            'scriptURL': self.scriptURL,
+            'line': self.line,
+            'column': self.column,
+        }
