@@ -5,7 +5,8 @@ import requests
 from dataclasses import dataclass, asdict
 from functools import cached_property
 from fidex.config import CONFIG
-from fidex.utils import url_utils
+from fidex.utils import url_utils, logger
+import logging
 sys.setrecursionlimit(3000)
 
 ALL_ASTS = {} # Cache for all the ASTs {url: ASTInfo}
@@ -30,12 +31,14 @@ class Frame:
             try:
                 parser = JSTextParser(get_code(self.url))
                 ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
-            except:
+            except Exception as e:
+                logging.error(f"Error in parsing {self.url}: {e}")
                 return None
             ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
         ast_info = ALL_ASTS[self.url]
         ast_node = ast_info.ast
         if not ast_node:
+            logging.error(f"AST not found for {self.url}")
             return None
         node = ast_node.find_child(ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text))
         return node
@@ -269,7 +272,8 @@ class JSTextParser:
         """
         try:
             self.source_file = esprima.parseScript(js_file, {'loc': True, 'range': True, 'tolerant': True})
-        except:
+        except Exception as e:
+            logging.error(f"Error in parsing js: {e}")
             self.source_file = None
         self.text = js_file
         self.ast_node = None
@@ -347,6 +351,9 @@ class Stack:
           ]
         """
         self.stack = stack
+    
+    def __reduce__(self):
+        return (Stack, (self.stack,))
     
     @cached_property
     def serialized(self) -> "list[list[Frame]]":

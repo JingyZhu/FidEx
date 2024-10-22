@@ -163,3 +163,6 @@ class JSWrite:
 
     def __str__(self) -> str:
         return self.__repr__()
+    
+    def __reduce__(self):
+        return (self.__class__, (self.write, self.stack.stack))

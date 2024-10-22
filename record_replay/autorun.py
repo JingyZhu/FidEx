@@ -23,15 +23,8 @@ import logging
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(_FILEDIR))
 _CURDIR = os.getcwd()
-from fidex.utils import upload, url_utils
+from fidex.utils import upload, url_utils, logger
 from fidex.config import CONFIG
-
-# Configure the logger
-logging.basicConfig(
-    format='[%(asctime)s %(levelname)s] %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 
 REMOTE = False
 HOST = f'http://{CONFIG.host}'

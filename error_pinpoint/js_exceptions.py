@@ -7,12 +7,23 @@ from fidex.utils import execution
 class JSException:
     def __init__(self, excep: dict):
         self.ts = excep['ts']
-        self.description = excep['description']
+        self.description = excep.get('description', '')
         self.scriptURL = excep.get('scriptURL')
         self.line = excep['line']
         self.column = excep['column']
         self.stack = execution.Stack(excep.get('stack')) if excep.get('stack') else None
         self._hash = None
+    
+    def __reduce__(self):
+        excep = {
+            'ts': self.ts,
+            'description': self.description,
+            'scriptURL': self.scriptURL,
+            'line': self.line,
+            'column': self.column,
+            'stack': self.stack.stack if self.stack else None,
+        }
+        return (self.__class__, (excep,))
     
     @functools.cached_property
     def is_syntax_error(self):
