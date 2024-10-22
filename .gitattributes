@@ -1,4 +1,4 @@
 *.ipynb linguist-generated
-archived_code/* linguist-vendored
-src_changed/*.js linguist-documentation
+archived_code/** linguist-vendored
+src_changed/** linguist-documentation
 tests/**/*.js linguist-vendored
