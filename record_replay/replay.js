@@ -102,7 +102,7 @@ loggerizeConsole();
         else
             await eventSync.waitCaptureSync(page);
         if (options.exetrace)
-            excepFF.afterInteraction('onload');
+            excepFF.afterInteraction('onload', {});
 
         // * Step 4: Collect the screenshot and other measurements
         if (options.rendertree){

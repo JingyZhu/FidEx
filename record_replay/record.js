@@ -227,7 +227,7 @@ async function getActivePage(browser) {
         else
             await eventSync.waitCaptureSync(recordPage);
         if (options.exetrace)
-            excepFF.afterInteraction('onload');
+            excepFF.afterInteraction('onload', {});
 
 
         // * Step 6: Collect the screenshots and all other measurement for checking fidelity

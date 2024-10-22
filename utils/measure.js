@@ -201,7 +201,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
             await collectNaiveInfo(page, dirname, `${filename}_${i}`)
         let t2 = new Date().getTime();
         if (options.exetrace)
-            excepFF.afterInteraction(allEvents[i]);
+            excepFF.afterInteraction(`interaction_${allEvents[i].idx}`, allEvents[i]);
         console.log(`Interaction: Triggered interaction ${i}, Total: ${(t1 - startTime)/1000}s, URL: ${url}`);
     }
     return allEvents;

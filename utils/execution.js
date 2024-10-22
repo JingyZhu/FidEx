@@ -219,11 +219,13 @@ class ExcepFFHandler {
 
     /**
      * Batch all exceptions and failed fetches into a the delta array, and label them with the interaction name.
-     * @param {string/object} interaction Name of the interaction 
+     * @param {string} stage Name of the interaction.
+     * @param {object} interaction Info of the interaction.
      */
-    afterInteraction(interaction) {
+    afterInteraction(stage, interaction) {
         const exp_net_obj = {
-            stage: interaction,
+            stage: stage,
+            interaction: interaction,
             exceptions: this.exceptions,
             failedFetches: this.failedFetches
         }
