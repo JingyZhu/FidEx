@@ -94,6 +94,10 @@ function isNodeInDocument(node) {
     return node.isConnected;
 }
 
+function isNodeInDocumentNotRoot(node) {
+    return isNodeInDocument(node) && node !== document && node !== document.documentElement;
+}
+
 // Light version of chrome_ctx/render_tree_collect.js
 function getNodeTextLight(node) {
     if (node.nodeType === Node.ELEMENT_NODE){
@@ -212,7 +216,7 @@ function newWriteMethod(originalFn, method, contextNode=null) {
         if (thisNode == null) {
             thisNode = this;
         }
-        if (method == 'addEventListener' && !(thisNode instanceof Node))
+        if (method == 'addEventListener' && (!(thisNode instanceof Node) || !isNodeInDocumentNotRoot(thisNode)))
             return originalFn.apply(this, args);
         const wid = _get_wid();
         let beforeDS = new DimensionSets();
@@ -233,6 +237,10 @@ function newWriteMethod(originalFn, method, contextNode=null) {
                 for (const child of children) {
                     viable_args[viable_args.length - 1].push(child);
                 }
+            }
+            else if (arg instanceof Function) {
+                const funcString = arg.toString();
+                viable_args.push(funcString.slice(0, Math.min(100, funcString.length)));
             }
             else
                 viable_args.push(arg);

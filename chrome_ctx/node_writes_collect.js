@@ -70,7 +70,7 @@ function collect_writes(){
                 }
             }
             else { // Assme it is a string
-                arg_info.html = arg;
+                arg_info.html = arg.toString();
             }
             args.push(arg_info);
         }

@@ -227,7 +227,7 @@ unsafeWindow.collect_writes = function (){
                 }
             }
             else { // Assme it is a string
-                arg_info.html = arg;
+                arg_info.html = arg.toString();
             }
             args.push(arg_info);
         }

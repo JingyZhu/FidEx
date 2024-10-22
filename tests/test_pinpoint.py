@@ -76,6 +76,7 @@ def test_exception_error(record=False):
     urls = [
         'https://www.nit.pt/', # No reference error
         'https://www.passwordboss.com/', # Userway extra interaction
+        'https://www.billabong.com/'
     ]
     if record:
         urls_copy = urls.copy()
