@@ -37,6 +37,10 @@ def test_archive_url():
     assert(url_utils.is_archive(archive_url4))
     assert(url_utils.filter_archive(archive_url4) == 'https://cdn.userway.org/widgetapp/2024-10-08-15-28-17/widget_app_base_1728401297040.js')
 
+    archive_url5 = 'http://pistons.eecs.umich.edu:50355/gt_tranco/20241022064653/https://www.wireshark.org/_astro/client.6ea6e353.js'
+    assert(url_utils.is_archive(archive_url5))
+    assert(url_utils.filter_archive(archive_url5) == 'https://www.wireshark.org/_astro/client.6ea6e353.js')
+
     live_url1 = 'https://cdn.userway.org/widgetapp/2024-10-08-15-28-17/widget_app_base_1728401297040.js'
     assert(not url_utils.is_archive(live_url1))
 
@@ -162,5 +166,5 @@ def test_ast_filter_archive_2():
     assert(path_live != path_archive)
 
 if __name__ == '__main__':
-    # test_archive_url()
-    test_ast_filter_archive_2()
+    test_archive_url()
+    # test_ast_filter_archive_2()
