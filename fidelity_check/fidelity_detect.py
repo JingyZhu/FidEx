@@ -54,9 +54,18 @@ class LoadInfo:
         self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
         if read_events:
             self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
+            self.available_events()
     
     def gen_xpath_map(self):
         self.elements_map = {e['xpath']: e for e in self.elements}
+    
+    def available_events(self):
+        events = []
+        for e in self.events:
+            if not os.path.exists(f"{self.dirr}/{self.base}_{e['idx']}_dom.json"):
+                continue
+            events.append(e)
+        self.events = events
 
 
 def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
@@ -146,8 +155,8 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
     # * Check for each interaction
     for left_e, right_e in zip(left_common_events, right_common_events):
         i, j = left_e.idx, right_e.idx
-        if not os.path.exists(f"{dirr}/{left_prefix}_{i}_dom.json") or not os.path.exists(f"{dirr}/{right_prefix}_{j}_dom.json"):
-            continue
+        # if not os.path.exists(f"{dirr}/{left_prefix}_{i}_dom.json") or not os.path.exists(f"{dirr}/{right_prefix}_{j}_dom.json"):
+        #     continue
         i_diff, (left_unique, right_unique) = fidelity_issue(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}', meaningful=True)
         i_s_diff, i_s_simi = None, None
         if screenshot:

@@ -35,11 +35,15 @@ class Frame:
             ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
         ast_info = ALL_ASTS[self.url]
         ast_node = ast_info.ast
+        if not ast_node:
+            return None
         node = ast_node.find_child(ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text))
         return node
 
     @cached_property
     def within_loop(self):
+        if not self.associated_ast:
+            return False
         return self.associated_ast.within_loop
 
 
@@ -64,6 +68,8 @@ def frame_ast_path(frame: Frame) -> "list[dict]":
         ALL_ASTS[url] = ASTInfo(ast=ast_node, parser=parser)
     ast_info = ALL_ASTS[url]
     ast_node = ast_info.ast
+    if not ast_node:
+        return []
     pos = ASTNode.linecol_2_pos(frame.lineNumber, frame.columnNumber, ast_info.parser.text)
     path = ast_node.find_path(pos)
     return [{'idx': p['idx'], 'type': p['node'].type} for p in path]
@@ -261,7 +267,10 @@ class JSTextParser:
           parser = JSTextParser(program)
           ast_node = parser.get_ast_node()
         """
-        self.source_file = esprima.parseScript(js_file, {'loc': True, 'range': True, 'tolerant': True})
+        try:
+            self.source_file = esprima.parseScript(js_file, {'loc': True, 'range': True, 'tolerant': True})
+        except:
+            self.source_file = None
         self.text = js_file
         self.ast_node = None
 
@@ -287,6 +296,8 @@ class JSTextParser:
     def get_ast_node(self, archive=False):
         if self.ast_node:
             return self.ast_node
+        if not self.source_file:
+            return None
         scopes = []
         def traverse_helper(node, depth=0):
             info = self.collect_node_info(node)
@@ -392,6 +403,8 @@ class Stack:
             return True
         a_divergent = self.serialized_flat_reverse[len(common_frames)]
         b_divergent = other.serialized_flat_reverse[len(common_frames)]
+        if not a_divergent.associated_ast or not b_divergent.associated_ast:
+            return False
         location_after =  a_divergent.associated_ast.after(b_divergent.associated_ast)
         same_scope = a_divergent.associated_ast.same_scope(b_divergent.associated_ast)
         return location_after and same_scope
