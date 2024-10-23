@@ -1,6 +1,7 @@
 """Python library for parsing execution traces dumped by nodeJS"""
 import sys
 import esprima
+import re
 import requests
 from dataclasses import dataclass, asdict
 from functools import cached_property
@@ -17,74 +18,6 @@ class ASTInfo:
     ast: "ASTNode"
     parser: "JSTextParser"
 
-
-@dataclass
-class Frame:
-    functionName: str
-    url: str
-    lineNumber: int
-    columnNumber: int
-
-    @cached_property
-    def associated_ast(self):
-        if self.url not in ALL_ASTS:
-            try:
-                parser = JSTextParser(get_code(self.url))
-                ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
-            except Exception as e:
-                logging.error(f"Error in parsing {self.url}: {e}")
-                return None
-            ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
-        ast_info = ALL_ASTS[self.url]
-        ast_node = ast_info.ast
-        if not ast_node:
-            logging.error(f"AST not found for {self.url}")
-            return None
-        node = ast_node.find_child(ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text))
-        return node
-
-    @cached_property
-    def within_loop(self):
-        if not self.associated_ast:
-            return False
-        return self.associated_ast.within_loop
-
-
-def get_code(url):
-    if url not in ALL_SCRIPTS:
-        if url_utils.is_archive(url):
-            url = url_utils.replace_archive_host(url, CONFIG.host)
-        try:
-            response = requests.get(url, timeout=5)
-        except:
-            return None
-        ALL_SCRIPTS[url] = response.text
-    return ALL_SCRIPTS[url]
-
-# * frame: (functionName, url, lineNumber, columnNumber)
-def frame_ast_path(frame: Frame) -> "list[dict]":
-    url = frame.url
-    archive = url_utils.is_archive(url)
-    if url not in ALL_ASTS:
-        parser = JSTextParser(get_code(url))
-        ast_node = parser.get_ast_node(archive=archive)
-        ALL_ASTS[url] = ASTInfo(ast=ast_node, parser=parser)
-    ast_info = ALL_ASTS[url]
-    ast_node = ast_info.ast
-    if not ast_node:
-        return []
-    pos = ASTNode.linecol_2_pos(frame.lineNumber, frame.columnNumber, ast_info.parser.text)
-    path = ast_node.find_path(pos)
-    return [{'idx': p['idx'], 'type': p['node'].type} for p in path]
-
-def same_frame(a_frame: Frame, b_frame: Frame) -> bool:
-    if a_frame.functionName != b_frame.functionName:
-        return False
-    if not a_frame.url == b_frame.url and not url_utils.url_match(a_frame.url, b_frame.url):
-        return False
-    a_path = frame_ast_path(a_frame)
-    b_path = frame_ast_path(b_frame)
-    return a_path == b_path
 
 # Python implementation of js-parse for abling to multiprocess
 class ASTNode:
@@ -261,6 +194,83 @@ class ASTNode:
             pos += len(lines[i]) + 1
         return pos
 
+    @staticmethod
+    def pos_2_linecol(pos, text):
+        """Transform position to line column"""
+        lines = text.split('\n')
+        line = 0
+        for i in range(len(lines)):
+            if pos < len(lines[i]):
+                return (line, pos)
+            pos -= len(lines[i]) + 1
+            line += 1
+        return (line, pos)
+
+
+def filter_archive(text):
+    replace_ruls = {
+            '_____WB$wombat$check$this$function_____(this)': 'this',
+            '.__WB_pmw(self)': '',
+            '.__WB_pmw': '',
+            '__WB_pmw': '',
+        }
+    for key, value in replace_ruls.items():
+        text = text.replace(key, value)
+    return text
+
+class TextMatcher:
+    """If ASTNode is not available, use this to match text"""
+    def __init__(self, code):
+        self.code = code
+    
+    def find_unique_text(self, pos):
+        """Starting from the given position, keep expanding until a unique text is found"""
+        t_len = 1
+        while pos + t_len < len(self.code):
+            text = self.code[pos:pos+t_len]
+            matches = [m.start() for m in re.finditer(re.escape(text), self.code)]
+            if len(matches) == 1:
+                return filter_archive(text)
+            t_len += 1
+        t_len = 1
+        while pos - t_len >= 0:
+            text = self.code[pos-t_len:pos]
+            matches = [m.start() for m in re.finditer(re.escape(text), self.code)]
+            if len(matches) == 1:
+                return filter_archive(text)
+            t_len += 1
+        # Non ideal, use the character at the position for now
+        return self.code[pos]
+
+    def within_loop(self, pos, scope_name):
+        """Check if the position is within a loop"""
+        loop_keywords = ['for', 'while']
+        t_len = 1
+        while pos - t_len >= 0:
+            text = self.code[pos-t_len:pos]
+            if scope_name and scope_name in text:
+                return False
+            for keyword in loop_keywords:
+                if keyword in text:
+                    return True
+            t_len += 1
+        return False
+    
+    def archive_pos_2_live(self, pos):
+        """Convert archive position to live position"""
+        # Assume the header added to the code is fixed
+        line, col = ASTNode.pos_2_linecol(pos, self.code)
+        lines = self.code.split('\n')
+        lines[14] = lines[14][1:]
+        if line == 14:
+            col -= 1
+        new_pos = 0
+        for i in range(14, line):
+            new_pos += len(filter_archive(lines[i])) + 1
+        final_line = filter_archive(lines[line][:col])
+        new_pos += len(final_line)
+        return new_pos
+
 
 class JSTextParser:
     def __init__(self, js_file):
@@ -330,7 +340,99 @@ class JSTextParser:
         if archive:
             self.ast_node = self.ast_node.filter_archive()
         return self.ast_node
+    
+    def get_text_matcher(self):
+        return TextMatcher(self.text)
 
+
+@dataclass
+class Frame:
+    functionName: str
+    url: str
+    lineNumber: int
+    columnNumber: int
+
+    @staticmethod
+    def get_code(url):
+        if url not in ALL_SCRIPTS:
+            if url_utils.is_archive(url):
+                url = url_utils.replace_archive_host(url, CONFIG.host)
+            try:
+                response = requests.get(url, timeout=5)
+            except:
+                return None
+            ALL_SCRIPTS[url] = response.text
+        return ALL_SCRIPTS[url]
+    
+    def get_ASTInfo(self):
+        if self.url not in ALL_ASTS:
+            try:
+                parser = JSTextParser(Frame.get_code(self.url))
+                ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
+            except Exception as e:
+                logging.error(f"Error in parsing {self.url}: {e}")
+            ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
+        return ALL_ASTS[self.url]
+
+    @cached_property
+    def associated_ast(self):
+        ast_info = self.get_ASTInfo()
+        ast_node = ast_info.ast
+        if not ast_node:
+            logging.error(f"AST not found for {self.url}")
+            return None
+        node = ast_node.find_child(ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text))
+        return node
+    
+    @cached_property
+    def text_matcher(self):
+        return self.get_ASTInfo().parser.get_text_matcher()
+
+    @cached_property
+    def ast_path(self) -> "list[dict]":
+        assert self.associated_ast, f"AST not found for {self.url}"
+        ast_info = self.get_ASTInfo()
+        ast_node = ast_info.ast
+        pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text)
+        path = ast_node.find_path(pos)
+        return [{'idx': p['idx'], 'type': p['node'].type} for p in path]
+
+    @cached_property
+    def within_loop(self):
+        if self.associated_ast:
+            self.associated_ast.within_loop
+        self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
+        return self.text_matcher.within_loop(self_pos, self.functionName)
+
+    def same_frame(self, other: "Frame") -> bool:
+        if self.functionName != other.functionName:
+            return False
+        if not self.url == other.url and not url_utils.url_match(self.url, other.url):
+            return False
+        if self.associated_ast and other.associated_ast:
+            return self.ast_path == other.ast_path
+        self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
+        other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
+        if self.text_matcher.find_unique_text(self_pos) == other.text_matcher.find_unique_text(other_pos):
+            return True
+        return False
+    
+    def same_scope(self, other: "Frame") -> bool:
+        if self.associated_ast and other.associated_ast:
+            return self.associated_ast.same_scope(other.associated_ast)
+        return self.functionName == other.functionName and url_utils.url_match(self.url, other.url)
+
+    def after(self, other: "Frame") -> bool:
+        if self.associated_ast and other.associated_ast:
+            return self.associated_ast.after(other.associated_ast)
+        self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
+        other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
+        if url_utils.is_archive(self.url):
+            self_pos = self.text_matcher.archive_pos_2_live(self_pos)
+        if url_utils.is_archive(other.url):
+            other_pos = other.text_matcher.archive_pos_2_live(other_pos)
+        # Taking into consideration of some error in the position
+        return self_pos >= other_pos - len('_____WB$wombat$check$this$function_____(this)')
 
 class Stack:
     def __init__(self, stack: list):
@@ -393,7 +495,7 @@ class Stack:
         for i in range(min_depth):
             if a_frames[i] == b_frames[i]:
                 common_frames.append(a_frames[i])
-            elif same_frame(a_frames[i], b_frames[i]):
+            elif a_frames[i].same_frame(b_frames[i]):
                 common_frames.append(a_frames[i])
             else:
                 break
@@ -410,8 +512,6 @@ class Stack:
             return True
         a_divergent = self.serialized_flat_reverse[len(common_frames)]
         b_divergent = other.serialized_flat_reverse[len(common_frames)]
-        if not a_divergent.associated_ast or not b_divergent.associated_ast:
-            return False
-        location_after =  a_divergent.associated_ast.after(b_divergent.associated_ast)
-        same_scope = a_divergent.associated_ast.same_scope(b_divergent.associated_ast)
+        location_after =  a_divergent.after(b_divergent)
+        same_scope = a_divergent.same_scope(b_divergent)
         return location_after and same_scope

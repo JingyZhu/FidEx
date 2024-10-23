@@ -134,7 +134,6 @@ def test_ast_filter_archive_1():
     ast_node_archive = parser_archive.get_ast_node()
     ast_node_archive = ast_node_archive.filter_archive()
     
-    # * Test on last matches of "id: t.data.id,"
     p_live = execution.ASTNode.linecol_2_pos(1, 27913, live_program)
     path_live = ast_node_live.find_path(p_live)
     p_archive = execution.ASTNode.linecol_2_pos(15, 28779, archive_program)
@@ -155,7 +154,6 @@ def test_ast_filter_archive_2():
     ast_node_archive = parser_archive.get_ast_node()
     ast_node_archive = ast_node_archive.filter_archive()
     
-    # * Test on last matches of "id: t.data.id,"
     p_live = execution.ASTNode.linecol_2_pos(2, 13744, live_program)
     path_live = ast_node_live.find_path(p_live)
     p_archive = execution.ASTNode.linecol_2_pos(16, 13945, archive_program)
@@ -165,6 +163,18 @@ def test_ast_filter_archive_2():
     path_archive = [{'idx': p['idx'], 'node': p['node'].type} for p in path_archive]
     assert(path_live != path_archive)
 
+def test_text_matcher_archive():
+    live_program = open('examples/ast_filter_archive_l2.js').read()
+    archive_program = open('examples/ast_filter_archive_a2.js').read()
+    parser_archive = execution.JSTextParser(archive_program)
+    text_matcher = parser_archive.get_text_matcher()
+    pos = execution.ASTNode.linecol_2_pos(16, 13949, archive_program)
+    live_pos_trans = text_matcher.archive_pos_2_live(pos)
+    live_pos_actual = execution.ASTNode.linecol_2_pos(2, 13744, live_program)
+    assert(live_pos_trans == live_pos_actual)
+
+
 if __name__ == '__main__':
-    test_archive_url()
+    # test_archive_url()
+    test_text_matcher_archive()
     # test_ast_filter_archive_2()
