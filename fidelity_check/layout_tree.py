@@ -132,7 +132,7 @@ class LayoutElement:
         return color
 
     def _get_src(self, img) -> set:
-        src_terms = [re.compile('^src$'), re.compile('.*lazy.+src')]
+        src_terms = [re.compile('^src$'), re.compile('.*lazy.+src'), re.compile('.*data.+src')]
         srcs = []
         for attr in img.attrs:
             for term in src_terms:

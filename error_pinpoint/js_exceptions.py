@@ -2,7 +2,7 @@ import functools
 import re
 import json
 
-from fidex.utils import execution
+from fidex.utils import execution, common
 
 class JSException:
     def __init__(self, excep: dict):
@@ -50,17 +50,7 @@ class JSException:
             'column': self.column,
         }
 
-def stage_nolater(s1, s2):
-    """s1 is nolater than s2"""
-    if s1 == 'onload':
-        return True
-    if s2 == 'onload':
-        return False
-    s1 = s1.replace('interaction_', '')
-    s2 = s2.replace('interaction_', '')
-    return int(s1) <= int(s2)
-
 def read_exceptions(dirr, base, stage):
     exceptions = json.load(open(f"{dirr}/{base}_exception_failfetch.json"))
-    exceptions = [e for e in exceptions if stage_nolater(stage, e['stage'])]
+    exceptions = [e for e in exceptions if common.stage_nolater(stage, e['stage'])]
     return [JSException(e) for exceps in exceptions for e in exceps['exceptions']]

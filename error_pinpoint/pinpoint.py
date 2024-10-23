@@ -17,16 +17,16 @@ def extra_writes(dirr, diffs: "list[list]", left_prefix='live', right_prefix='ar
 
     diff_writes = []
     for branch in diffs:
-        writes = []
+        writes = set()
         for xpath in branch:
             element = left_layout.all_nodes[xpath]
             element_writes = element.writes
             for w in element_writes:
                 if w.serialized_stack not in right_stacks:
-                    writes.append(w)
+                    writes.add(w)
                     break
         if len(writes) > 0:
-            diff_writes.append(sorted(writes, key=lambda x: int(x.wid.split(':')[0])))
+            diff_writes.append(sorted(list(writes), key=lambda x: int(x.wid.split(':')[0])))
     diff_writes.sort(key=lambda x: int(x[0].wid.split(':')[0]))
     return diff_writes
 

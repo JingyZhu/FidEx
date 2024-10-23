@@ -1,8 +1,10 @@
 import json
-from . import check_utils, check_meaningful
 import time
 import os
 from dataclasses import dataclass
+
+from fidex.fidelity_check import check_utils, check_meaningful
+from fidex.utils import common
 
 class LoadInfo:
     def __init__(self, dirr, prefix, read_events=False):
@@ -25,16 +27,6 @@ class LoadInfo:
         return sorted(write_stacks_flattered, key=lambda x: int(x['wid'].split(':')[0]))
 
     @staticmethod
-    def stage_nolater(s1, s2):
-        if s1 == 'onload':
-            return True
-        if s2 == 'onload':
-            return False
-        s1 = s1.replace('interaction_', '')
-        s2 = s2.replace('interaction_', '')
-        return int(s1) <= int(s2)
-
-    @staticmethod
     def dedeup_elements(layout):
         seen_xpath = set()
         new_elements = []
@@ -50,7 +42,7 @@ class LoadInfo:
         self.elements = LoadInfo.dedeup_elements(self.elements)
         self.writes = json.load(open(f"{self.dirr}/{self.base}_writes.json"))
         # Filter writes based on stages
-        self.writes = [w for w in self.writes if LoadInfo.stage_nolater(w['currentStage'], self.stage)]
+        self.writes = [w for w in self.writes if common.stage_nolater(w['currentStage'], self.stage)]
         self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
         if read_events:
             self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))

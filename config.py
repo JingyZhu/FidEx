@@ -21,6 +21,10 @@ class Config:
     @cached_property
     def host_proxy_test(self):
         return self.config.get('host_proxy_test')
+    
+    @cached_property
+    def pywb_env(self):
+        return self.config.get('pywb_env', ':')
 
 config_path = os.path.join(_FILEDIR, 'config.json') if not os.environ.get('FIDEX_CONFIG') else os.environ.get('FIDEX_CONFIG')
 CONFIG = Config(config_path)

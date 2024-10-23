@@ -83,14 +83,16 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             # 'https://www.mysql.com/',
             # 'https://www.tado.com/all-en', # Messenger seems only appears in live
             # 'https://oenergetice.cz/', # Spotify player
+            'https://equativ.com:443/', # Lazy loading image
 
             # ? Double check or need to resolve
             # 'https://ht-web.com/', # Interaction 2
-            'https://www.instagram.com/',
+            # 'https://www.instagram.com/',
             # 'https://www.efortuna.pl/',
             # 'https://www.trustpilot.com/',
             # 'https://www.camara.leg.br/',
             # 'https://tarhely.eu/',
+            'https://www.pinterest.com/', # interaction_0 popping "i" timing
 
             # ! Unable to fix now
             # 'https://www.warnerrecords.com/',

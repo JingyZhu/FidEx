@@ -9,6 +9,7 @@ import time
 import socket, threading
 from subprocess import check_call, call, check_output, Popen, DEVNULL, PIPE
 
+from fidex.config import CONFIG
 
 # SERVER is from the .ssh/config file
 ssh_config = paramiko.SSHConfig()
@@ -16,7 +17,7 @@ ssh_alias = 'pistons'
 with open(os.path.expanduser('~/.ssh/config')) as f:
     ssh_config.parse(f)
 ARCHIVEDIR = os.path.join(os.path.expanduser("~"), 'fidelity-files')
-PYWBENV = '. /x/jingyz/pywb/env/bin/activate'
+PYWBENV = CONFIG.pywb_env
 
 class PYWBServer:
     def __init__(self, proxy=False, archive='test'):
