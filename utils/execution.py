@@ -359,7 +359,8 @@ class Frame:
                 url = url_utils.replace_archive_host(url, CONFIG.host)
             try:
                 response = requests.get(url, timeout=5)
-            except:
+            except Exception as e:
+                logging.error(f"Fail to fetch {url}: {e}")
                 return None
             ALL_SCRIPTS[url] = response.text
         return ALL_SCRIPTS[url]
@@ -411,10 +412,11 @@ class Frame:
             return False
         if self.associated_ast and other.associated_ast:
             return self.ast_path == other.ast_path
-        self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
-        other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
-        if self.text_matcher.find_unique_text(self_pos) == other.text_matcher.find_unique_text(other_pos):
-            return True
+        if Frame.get_code(self.url) and Frame.get_code(other.url):
+            self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
+            other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
+            if self.text_matcher.find_unique_text(self_pos) == other.text_matcher.find_unique_text(other_pos):
+                return True
         return False
     
     def same_scope(self, other: "Frame") -> bool:
