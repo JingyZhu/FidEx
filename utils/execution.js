@@ -228,6 +228,21 @@ class ExcepFFHandler {
         this.failedFetches.push(failedObj)
     }
 
+    async onFailFetch(params) {
+        const url = this.requestMap[params.requestId].url;
+        let failedObj = {
+            url: url,
+            mime: params.type,
+            method: this.requestMap[params.requestId].method,
+            errorText: params.errorText,
+            canceled: params.canceled,
+            blockedReason: params.blockedReason,
+            corsErrorStatus: params.corsErrorStatus && params.corsErrorStatus.corsError,
+        }
+        // console.log(failedObj);
+        this.failedFetches.push(failedObj)
+    }
+
     /**
      * Batch all exceptions and failed fetches into a the delta array, and label them with the interaction name.
      * @param {string} stage Name of the interaction.

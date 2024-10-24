@@ -171,6 +171,7 @@ async function getActivePage(browser) {
                 executionStacks.onRequestStack(params);
             })
             client.on('Network.responseReceived', params => excepFF.onFetch(params))
+            client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
         }
         // recordPage.on('response', async response => executableResources.onResponse(response));
         await eventSync.sleep(1000);

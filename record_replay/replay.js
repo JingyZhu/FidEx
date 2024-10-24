@@ -68,6 +68,7 @@ loggerizeConsole();
                 executionStacks.onRequestStack(params);
             })
             client.on('Network.responseReceived', params => excepFF.onFetch(params))
+            client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
         }
         const timeout = 30*1000;
         
