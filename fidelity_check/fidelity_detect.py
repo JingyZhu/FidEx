@@ -1,10 +1,11 @@
 import json
 import time
 import os
+import logging
 from dataclasses import dataclass
 
 from fidex.fidelity_check import check_utils, check_meaningful
-from fidex.utils import common
+from fidex.utils import common, logger
 
 class LoadInfo:
     def __init__(self, dirr, prefix, read_events=False):
@@ -75,7 +76,7 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
             left_unique, right_unique = check_utils.filter_same_visual_part(left_img, left_unique, left_info.elements,
                                                                             right_img, right_unique, right_info.elements)
         else:
-            print("Warning: diff layout tree but no screenshots found")
+            logging.warning("Warning: diff layout tree but no screenshots found")
     return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
 
 
@@ -125,7 +126,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             'screenshot_diff_stage': s_diff_stage,
             'similarity': s_simi
         }, left_unique, right_unique)
-    print(dirr, 'onload elasped:', time.time()-start)
+    logging.info(f'{dirr.split("/")[-1]} onload elasped: {time.time()-start}')
     
     # * Check extraInteraction
     left_info = LoadInfo(dirr, left_prefix, read_events=True)
@@ -160,7 +161,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screens
             s_diff = True
             s_diff_stage = f'interaction_{i}'
             s_simi = i_s_simi
-        print(dirr, f'{i+1}/{len(left_common_events)}', 'elasped:', time.time()-start)
+        logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(left_common_events)} elasped: {time.time()-start}')
         if diff_stage and (not screenshot or s_diff_stage):
             return FidelityResult({
                 'hostname': dirr,

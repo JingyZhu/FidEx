@@ -245,15 +245,19 @@ class LayoutElement:
 
         def css_dynamism_self_eq(e1, e2):
             """Check if css dynamic elements can be matched"""
-            if not isinstance(e1.tag, Tag) or not isinstance(e2.tag, Tag):
-                return False
             if e1.tagname != e2.tagname:
                 return False
+            # SVG cases
+            if e1.parent.tagname == 'svg' and e2.parent.tagname == 'svg':
+                if e1.tagname == '#text' and e2.tagname == '#text':
+                    return True
             # svg related, depend on parent dimension could change from time to time
             if e1.tagname in ['path', 'g'] and e1.text == e2.text:
                 return True
             if e1.extraAttr.get('animation') and e2.extraAttr.get('animation'):
                 return True
+            if not isinstance(e1.tag, Tag) or not isinstance(e2.tag, Tag):
+                return False
             if 'style' in e1.tag.attrs and 'style' in e2.tag.attrs:
                 s1 = _filter_style(e1.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
                 s2 = _filter_style(e2.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
@@ -300,7 +304,7 @@ class LayoutElement:
             has_dimension = has_dimension or len(self.writes) > 0
         return has_dimension and (not check_viewport or in_viewport) and (not check_visibility or has_visibility)
 
-    def ancestors(self):
+    def ancestors(self) -> "list[LayoutElement]":
         ancestors = []
         cur_node = self
         while cur_node.parent:

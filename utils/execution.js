@@ -229,7 +229,9 @@ class ExcepFFHandler {
     }
 
     async onFailFetch(params) {
-        const url = this.requestMap[params.requestId].url;
+        const url = this.requestMap[params.requestId] && this.requestMap[params.requestId].url;
+        if (!url)
+            return;
         let failedObj = {
             url: url,
             mime: params.type,
