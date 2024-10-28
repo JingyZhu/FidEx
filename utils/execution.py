@@ -355,10 +355,13 @@ class Frame:
     @staticmethod
     def get_code(url):
         if url not in ALL_SCRIPTS:
+            args = {}
             if url_utils.is_archive(url):
                 url = url_utils.replace_archive_host(url, CONFIG.host)
+            else:
+                args['proxies'] = {'http': f'http://{CONFIG.host_proxy}', 'https': f'https://{CONFIG.host_proxy}'}
             try:
-                response = requests.get(url, timeout=5)
+                response = requests.get(url, timeout=5, verify=False, **args)
             except Exception as e:
                 logging.error(f"Fail to fetch {url}: {e}")
                 return None

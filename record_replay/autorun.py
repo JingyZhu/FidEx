@@ -160,7 +160,7 @@ def record_replay(url, archive_name,
             'ts': ts,
             'url': record_url,
             'req_url': url,
-            'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
+            'archive_url': f'{HOST}/{pw_archive}/{ts}/{record_url}',
             'directory': archive_name,
         }, open(f'{write_path}/{archive_name}/metadata.json', 'w+'), indent=2)
     
