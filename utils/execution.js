@@ -215,6 +215,9 @@ class ExcepFFHandler {
      * @param {object} params from Network.responseReceived 
      */
     async onFetch(params) {
+        const method = this.requestMap[params.requestId] && this.requestMap[params.requestId].method;
+        if (!method)
+            return;
         let response = params.response;
         if (response.status / 100 < 4)
             return

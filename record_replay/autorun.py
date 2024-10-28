@@ -154,6 +154,16 @@ def record_replay(url, archive_name,
                 proxy=True,
                 arguments=proxy_arguments)
     
+    # The metadata will also be merged and dump together later. Here just leave a copy at the directory
+    if os.path.exists(f'{write_path}/{archive_name}'):
+        json.dump({
+            'ts': ts,
+            'url': record_url,
+            'req_url': url,
+            'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
+            'directory': archive_name,
+        }, open(f'{write_path}/{archive_name}/metadata.json', 'w+'), indent=2)
+    
     client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
     if temp_client:
         sshclient.close()
@@ -357,17 +367,3 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         metadata.update(metadata_worker)
     json.dump(metadata, open(f'{metadata_prefix}.json', 'w+'), indent=2)
     return metadata
-
-
-# ! Below deprecated for now
-def test_single_url():
-    # * Test single URL
-    test_url = "https://www.google.com"
-    test_req_url = url_utils.request_live_url(test_url)
-    test_archive = url_utils.calc_hostname(test_req_url)
-    print(test_req_url, test_archive)
-    wr_archive = 'test'
-    pw_archive = 'test'
-    ts, test_url = record_replay(test_url, test_archive, 
-                                wr_archive=wr_archive, pw_archive=pw_archive)
-    print(f'{HOST}/{pw_archive}/{ts}/{test_url}')

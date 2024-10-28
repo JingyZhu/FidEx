@@ -170,8 +170,9 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     });
     const numEvents = allEvents.length;
     console.log("Interaction:", "Number of events", numEvents);
+    let numInteractions = typeof options.interaction === 'number' ? Math.min(options.interaction, 20) : 20;
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
-    for (let i = 0; i < numEvents && i < 20; i++) {
+    for (let i = 0; i < numEvents && i < numInteractions; i++) {
         let startTime = new Date().getTime();
         try {
             await page.waitForFunction(async (idx) => {
