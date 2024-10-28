@@ -12,7 +12,8 @@ NON_IMPORTANT_KEYWORDS = [
     'gstatic.com',
     'connect.facebook.net',
     'analytics.min.js',
-    'ads-twitter.com'
+    'ads-twitter.com',
+    # 'google.com/recaptcha',
 ]
 
 class FailFetchDetector:
@@ -36,7 +37,7 @@ class FailFetchDetector:
 
     @staticmethod
     def meaningful_failfetch(ff) -> bool:
-        if ff['status'] != 404:
+        if ff.get('status') != 404:
             return False
         if ff['method'] != 'GET':
             return False

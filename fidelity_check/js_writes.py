@@ -121,8 +121,15 @@ class JSWrite:
         """
         xpaths = [self.xpath]
         for arg in self.args:
-            arg = [arg] if not isinstance(arg, list) else arg
+            arg_flat = []
+            if not isinstance(arg, list):
+                arg_flat.append(arg)
             for a in arg:
+                if isinstance(a, dict):
+                    arg_flat.append(a)
+                elif isinstance(a, list):
+                    arg_flat += a
+            for a in arg_flat:
                 if a['html'] in ['#comment']:
                     continue
                 if 'xpath' in a:

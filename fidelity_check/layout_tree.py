@@ -131,15 +131,18 @@ class LayoutElement:
             return f'rgb({rgb[:3]})'
         return color
 
-    def _get_src(self, img) -> set:
+    def _get_src(self) -> set:
         src_terms = [re.compile('^src$'), re.compile('.*lazy.+src'), re.compile('.*data.+src')]
         srcs = []
+        img = self.tag
         for attr in img.attrs:
             for term in src_terms:
                 if term.match(attr):
                     src = img.attrs[attr]
                     srcs.append(src)
-        srcs = set([url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True) for src in srcs])
+        srcs = set([url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True, archive=True) for src in srcs])
+        if 'currentSrc' in self.extraAttr:
+            srcs.add(url_utils.url_norm(self.extraAttr['currentSrc'], ignore_scheme=True, trim_www=True, trim_slash=True, archive=True))
         return srcs
     
     def _get_tag(self):
@@ -161,7 +164,7 @@ class LayoutElement:
         """Collect tag name and other important attributes that matters to the rendering"""
         all_rules = [] # List of lambda func to get the attribute
         tag_rules = {
-            'img': [lambda img: self._get_src(img)],
+            'img': [lambda _: self._get_src()],
             'a': [
                 # lambda a: a.attrs.get('class'), 
                 lambda a: self._norm_href(a.attrs.get('href'))],
@@ -193,7 +196,10 @@ class LayoutElement:
             e2_write_stacks = [w for e in e2_elements for w in e.writes]
             return len(e1_write_stacks) > 0 and js_writes.writes_stacks_match(e1_write_stacks, e2_write_stacks)
 
-        def dimension_eq(d1, d2):
+        def dimension_eq(e1, e2):
+            if e1.tagname == 'img' and e2.tagname == 'img':
+                return True
+            d1, d2 = e1.dimension, e2.dimension
             d1w, d1h = d1.get('width', 1), d1.get('height', 1)
             d2w, d2h = d2.get('width', 1), d2.get('height', 1)
             wdiff = abs(d1w - d2w) / max(d1w, d2w, 1)
@@ -248,7 +254,7 @@ class LayoutElement:
             if e1.tagname != e2.tagname:
                 return False
             # SVG cases
-            if e1.parent.tagname == 'svg' and e2.parent.tagname == 'svg':
+            if (e1.parent and e1.parent.tagname == 'svg') and (e2.parent and e2.parent.tagname == 'svg'):
                 if e1.tagname == '#text' and e2.tagname == '#text':
                     return True
             # svg related, depend on parent dimension could change from time to time
@@ -274,7 +280,7 @@ class LayoutElement:
         #     return True
 
         # Static matching
-        if features_eq(self, other) and dimension_eq(self.dimension, other.dimension):
+        if features_eq(self, other) and dimension_eq(self, other):
             return True
         # Dynamic element that changes itself 
         if js_dynamism_self_eq(self, other):

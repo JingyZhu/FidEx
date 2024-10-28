@@ -52,6 +52,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             # 'https://www.yellowshop.es/',
             # 'https://www.eldestapeweb.com/',
             # 'https://www.radtouren.at/',
+            'https://www.chinadaily.com.cn/', # Carousel static match but descendant diff
 
             # * Need to resolve
             # 'https://www.nist.gov/',

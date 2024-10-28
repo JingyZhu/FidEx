@@ -106,7 +106,7 @@ def archive_split(archive_url):
     return result
 
 def url_norm(url, case=False, ignore_scheme=False, trim_www=False,\
-                trim_slash=False, sort_query=True):
+                trim_slash=False, sort_query=True, archive=False):
     """
     Perform URL normalization
     common: Eliminate port number, fragment
@@ -114,7 +114,10 @@ def url_norm(url, case=False, ignore_scheme=False, trim_www=False,\
     trim_slash: For non homepage path ending with slash, trim if off
     trim_www: For hostname start with www, trim if off
     sort_query: Sort query by keys
+    archive: If set to True, will check if the url is an archive url and filter out the prefix
     """
+    if archive:
+        url = filter_archive(url) if is_archive(url) else url
     us = urlsplit(url)
     netloc, path, query = us.netloc, us.path, us.query
     netloc = netloc.split(':')[0]
