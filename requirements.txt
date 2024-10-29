@@ -4,3 +4,4 @@ publicsuffixlist
 paramiko
 scp
 esprima
+requests

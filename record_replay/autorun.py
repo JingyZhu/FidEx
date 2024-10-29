@@ -162,6 +162,8 @@ def record_replay(url, archive_name,
             'req_url': url,
             'archive_url': f'{HOST}/{pw_archive}/{ts}/{record_url}',
             'directory': archive_name,
+            'proxy_host': PHOST if proxy else None,
+            'archive_host': AHOST if archive else None,
         }, open(f'{write_path}/{archive_name}/metadata.json', 'w+'), indent=2)
     
     client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
@@ -250,7 +252,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     if arguments is None:
         arguments = DEFAULTARGS
     for i in range(num_workers):
-        call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{i}'])
+        call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{_get_hostname()}_{i}'])
     # random.shuffle(urls)
     active_ids = set()
     pywb_servers = []
@@ -335,7 +337,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                 task = executor.submit(record_replay_worker, 
                                         url=url,
                                         metadata_file=f'{metadata_prefix}_{worker_id}.json',
-                                        chrome_data=f'{chrome_data_dir}/record_replay_{worker_id}',
+                                        chrome_data=f'{chrome_data_dir}/record_replay_{_get_hostname()}_{worker_id}',
                                         worker_id=worker_id,
                                         write_path=write_path,
                                         download_path=download_path,
