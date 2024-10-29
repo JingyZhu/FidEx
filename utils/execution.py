@@ -136,6 +136,7 @@ class ASTNode:
     def filter_archive(self):
         # * First, strip all the headers and block added by rewriting tools
         actual_root = self.children[2].children[9]
+        actual_root.parent = None
         
         # * Second, traverse through the tree and skip all the nodes that follows the rewriting pattern
         def skip_node(node, skip):
@@ -161,7 +162,7 @@ class ASTNode:
                 choose_skip_node(child)
         choose_skip_node(actual_root)
         
-        return actual_root        
+        return actual_root
 
     def __hash__(self) -> int:
         """Hash the node based on merkle tree method"""
