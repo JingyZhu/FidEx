@@ -2,7 +2,7 @@ import re
 from bs4 import BeautifulSoup
 
 def _ignore_tag(branch):
-    ignore_list = ['ruffle-embed', 'rs-progress-bar']
+    ignore_list = ['ruffle-embed', 'rs-progress-bar', 'br']
     for xpath in branch:
         for ig in ignore_list:
             if xpath.split('/')[-1].startswith(ig):
@@ -93,9 +93,12 @@ def _from_ads(branch, xpaths_map):
         # if element_tag is pure text continue
         if element_tag.find() is None:
             continue
-        # First element's class name includes "ytp"
-        if 'adsbygoogle' in ' '.join(element_tag.find().attrs.get('class', '')):
-            return True
+        # First element's class name includes ad related
+        ad_class = ['adsbygoogle', 'ad', 'advert', 'advertisement']
+        ad_classlist = ' '.join(element_tag.find().attrs.get('class', ''))
+        for ad in ad_class:
+            if ad in ad_classlist:
+                return True
     return False
     
 def _remove_wrapping_elements(branch, xpaths_map):

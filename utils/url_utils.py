@@ -1,5 +1,5 @@
 import re, os
-from urllib.parse import urlsplit, parse_qsl, urlunsplit, urljoin
+from urllib.parse import urlsplit, parse_qsl, urlunsplit, urljoin, unquote
 from publicsuffixlist import PublicSuffixList
 import hashlib
 import requests
@@ -118,6 +118,8 @@ def url_norm(url, case=False, ignore_scheme=False, trim_www=False,\
     """
     if archive:
         url = filter_archive(url) if is_archive(url) else url
+    if '%' in url:
+        url = unquote(url)
     us = urlsplit(url)
     netloc, path, query = us.netloc, us.path, us.query
     netloc = netloc.split(':')[0]

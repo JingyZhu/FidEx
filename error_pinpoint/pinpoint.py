@@ -40,10 +40,10 @@ def extra_writes(dirr, diffs: "list[list]", side='left', left_prefix='live', rig
     diff_writes.sort(key=lambda x: int(x[0].wid.split(':')[0]))
     return diff_writes
 
-def _search_dependencies_error(start_scripts: "List[str]",
-                               target_exceps: "List[js_exceptions.JSException]", 
-                               initiators: "Dict[str, js_initiators.JSIntiator]") -> "js_exceptions.JSException | None":
-    """Given a set of scripts, check if any of the 1.scripts 2.initiator for scripts are in the stack
+def _search_initiators(start_scripts: "List[str]",
+                        target_exceps: "List[js_exceptions.JSException]", 
+                        initiators: "Dict[str, js_initiators.JSIntiator]") -> "js_exceptions.JSException | None":
+    """Given a set of scripts, check if any of the 1.scripts 2.initiator for scripts are in the target exceptions
     Args:
         start_scripts: List of scripts to start with
         target_exceps: List of exceptions to search for
@@ -77,7 +77,7 @@ def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite",
             remain_exceps = [excep for excep in syntax_exceptions if excep not in matched_exceptions]
             if len(remain_exceps) == 0:
                 break
-            error = _search_dependencies_error(list(write.stack.scripts), remain_exceps, initiators)
+            error = _search_initiators(list(write.stack.scripts), remain_exceps, initiators)
             if error is not None:
                 matched_exceptions.add(error)
     return list(matched_exceptions)
@@ -170,7 +170,9 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
     if len(exceptions) > 0:
         return PinpointResult(fidelity_result, diff_writes, exceptions)
     print(dirr, 'finished exception pinpoint', time.time()-start)
-    mutation_errors = pinpoint_mutation(fidelity_result, dirr, idx, left, right, meaningful)
+    mutation_errors = pinpoint_mutation(fidelity_result, dirr, idx=idx, 
+                                        left_prefix=left_prefix, right_prefix=right_prefix, 
+                                        meaningful=meaningful)
     if len(mutation_errors) > 0:
         return PinpointResult(fidelity_result, diff_writes, mutation_errors)
     print(dirr, 'finished mutation pinpoint', time.time()-start)
