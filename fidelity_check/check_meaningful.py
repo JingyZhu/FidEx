@@ -85,6 +85,18 @@ def _from_vimeo(branch, xpaths_map):
     if iframe_element is not None:
         if 'player.vimeo.com' in iframe_element['text'].lower():
             return True
+
+def _from_ads(branch, xpaths_map):
+    for br in branch:
+        element = xpaths_map[br]
+        element_tag = BeautifulSoup(element['text'], 'html.parser')
+        # if element_tag is pure text continue
+        if element_tag.find() is None:
+            continue
+        # First element's class name includes "ytp"
+        if 'adsbygoogle' in ' '.join(element_tag.find().attrs.get('class', '')):
+            return True
+    return False
     
 def _remove_wrapping_elements(branch, xpaths_map):
     removed = 1 # dummy first
@@ -171,6 +183,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
             branch_meaningful = False
         if _from_vimeo(branch, left_xpaths_map):
             branch_meaningful = False
+        if _from_ads(branch, left_xpaths_map):
+            branch_meaningful = False
         if branch_meaningful:
             branch = _remove_wrapping_elements(branch, left_xpaths_map)
             new_left_unique.append(branch) if len(branch) > 0 else None
@@ -187,6 +201,8 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
         if _from_youtube(branch, right_xpaths_map):
             branch_meaningful = False
         if _from_vimeo(branch, right_xpaths_map):
+            branch_meaningful = False
+        if _from_ads(branch, right_xpaths_map):
             branch_meaningful = False
         if branch_meaningful:
             branch = _remove_wrapping_elements(branch, right_xpaths_map)
