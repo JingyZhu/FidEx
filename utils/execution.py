@@ -10,6 +10,9 @@ from fidex.utils import url_utils, logger
 import logging
 sys.setrecursionlimit(3000)
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 ALL_ASTS = {} # Cache for all the ASTs {url: ASTInfo}
 ALL_SCRIPTS = {} # Cache for all the code {url: code}
 
@@ -112,6 +115,7 @@ class ASTNode:
             return path
         a_path_to_root = path_to_root(self)
         b_path_to_root = path_to_root(other)
+        print(a_path_to_root, b_path_to_root)
         for i in range(min(len(a_path_to_root), len(b_path_to_root))):
             if a_path_to_root[i] != b_path_to_root[i]:
                 return a_path_to_root[i] > b_path_to_root[i]
@@ -223,6 +227,7 @@ class TextMatcher:
     """If ASTNode is not available, use this to match text"""
     def __init__(self, code):
         self.code = code
+        self.is_archive = False
     
     def find_unique_text(self, pos):
         """Starting from the given position, keep expanding until a unique text is found"""
@@ -271,6 +276,34 @@ class TextMatcher:
         final_line = filter_archive(lines[line][:col])
         new_pos += len(final_line)
         return new_pos
+
+    def scope(self, pos) -> int:
+        """Simply check the scope of the position"""
+        right_bracket_offset = 0
+        while pos < len(self.code):
+            if self.code[pos] == '{':
+                right_bracket_offset -= 1
+            if self.code[pos] == '}':
+                right_bracket_offset += 1
+            pos += 1
+        return max(0, right_bracket_offset - 2 * self.is_archive)
+    
+    def after(self, pos, other, other_pos):
+        scope = self.scope(pos)
+        other_scope = other.scope(other_pos)
+        # * If A is top scope, B is not. Then B is always after A
+        # * This is not true in general case, since there can be "func a() { ... } a(); b();" Then b() is after any within a()
+        # * However, in the context when this is called, it is the case:
+        # * 1. If there's some common frames ahead, no pos can be in the top scope
+        # * 2. If there's no common frames ahead, then both frame are from bottom, then one not in top scope definitely after the other
+        if scope > 0 and other_scope == 0:
+            return True
+        if self.is_archive:
+            pos = self.archive_pos_2_live(pos)
+        if other.is_archive:
+            other_pos = other.archive_pos_2_live(other_pos)
+        # Taking into consideration of some error in the position
+        return pos >= other_pos - len('_____WB$wombat$check$this$function_____(this)')
 
 
 class JSTextParser:
@@ -380,7 +413,7 @@ class Frame:
         return ALL_ASTS[self.url]
 
     @cached_property
-    def associated_ast(self):
+    def associated_ast(self) -> "ASTNode | None":
         ast_info = self.get_ASTInfo()
         ast_node = ast_info.ast
         if not ast_node:
@@ -391,7 +424,10 @@ class Frame:
     
     @cached_property
     def text_matcher(self):
-        return self.get_ASTInfo().parser.get_text_matcher()
+        text_matcher = self.get_ASTInfo().parser.get_text_matcher()
+        if url_utils.is_archive(self.url):
+            text_matcher.is_archive = True
+        return text_matcher
 
     @cached_property
     def ast_path(self) -> "list[dict]":
@@ -409,10 +445,13 @@ class Frame:
         self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
         return self.text_matcher.within_loop(self_pos, self.functionName)
 
+    def same_file(self, other: "Frame") -> bool:
+        return self.url == other.url or url_utils.url_match(self.url, other.url)
+
     def same_frame(self, other: "Frame") -> bool:
         if self.functionName != other.functionName:
             return False
-        if not self.url == other.url and not url_utils.url_match(self.url, other.url):
+        if not self.same_file(other):
             return False
         if self.associated_ast and other.associated_ast:
             return self.ast_path == other.ast_path
@@ -433,12 +472,8 @@ class Frame:
             return self.associated_ast.after(other.associated_ast)
         self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
         other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
-        if url_utils.is_archive(self.url):
-            self_pos = self.text_matcher.archive_pos_2_live(self_pos)
-        if url_utils.is_archive(other.url):
-            other_pos = other.text_matcher.archive_pos_2_live(other_pos)
-        # Taking into consideration of some error in the position
-        return self_pos >= other_pos - len('_____WB$wombat$check$this$function_____(this)')
+        return self.text_matcher.after(self_pos, other.text_matcher, other_pos)
+
 
 class Stack:
     def __init__(self, stack: list):
@@ -511,13 +546,18 @@ class Stack:
         """Check if this stack is after the other stack"""
         common_frames = self.overlap(other)
         if len(common_frames) == 0:
-            return False
-        # * If the last common frame is within a loop, then with static analysis it is impossible to determine
-        # * we always assume self is after 
-        if self.serialized_flat_reverse[len(common_frames)-1].within_loop:
-            return True
-        a_divergent = self.serialized_flat_reverse[len(common_frames)]
-        b_divergent = other.serialized_flat_reverse[len(common_frames)]
-        location_after =  a_divergent.after(b_divergent)
-        same_scope = a_divergent.same_scope(b_divergent)
-        return location_after and same_scope
+            a_base = self.serialized_flat_reverse[len(common_frames)]
+            b_base = other.serialized_flat_reverse[len(common_frames)]
+            if not a_base.same_file(b_base):
+                return False
+            return a_base.after(b_base)
+        else:
+            # * If the last common frame is within a loop, then with static analysis it is impossible to determine
+            # * we always assume self is after 
+            if self.serialized_flat_reverse[len(common_frames)-1].within_loop:
+                return True
+            a_divergent = self.serialized_flat_reverse[len(common_frames)]
+            b_divergent = other.serialized_flat_reverse[len(common_frames)]
+            location_after =  a_divergent.after(b_divergent)
+            same_scope = a_divergent.same_scope(b_divergent)
+            return location_after and same_scope
