@@ -7,9 +7,9 @@ from subprocess import call
 from fidex.record_replay import autorun
 from fidex.fidelity_check import fidelity_detect, layout_tree, js_writes
 from fidex.error_pinpoint import js_exceptions, js_initiators
-from fidex.utils import url_utils, common
+from fidex.utils import url_utils, common, execution
+from fidex.config import CONFIG
 
-CHROME_DATA_INIT = False
 
 def sum_diffs(left_unique, right_unique):
     return sum([len(branch) for branch in left_unique])
@@ -63,81 +63,37 @@ def _search_initiators(start_scripts: "List[str]",
             for initiator in initiators[script].initiators:
                 dfs_stack.append(initiator.url)
     return None
-        
 
-def pinpoint_syntax_errors(diff_writes: "js_writes.JSWrite",
-                           exceptions: "List[js_exceptions.JSException]",
-                           initiators: "Dict[str, js_initiators.JSIntiator]") -> "List[js_exceptions.JSExcep]":
-    syntax_exceptions = [excep for excep in exceptions if excep.is_syntax_error]
-    matched_exceptions = set()
-    if len(syntax_exceptions) == 0:
-        return []
-    for writes in diff_writes:
-        for write in writes:
-            remain_exceps = [excep for excep in syntax_exceptions if excep not in matched_exceptions]
-            if len(remain_exceps) == 0:
-                break
-            error = _search_initiators(list(write.stack.scripts), remain_exceps, initiators)
-            if error is not None:
-                matched_exceptions.add(error)
-    return list(matched_exceptions)
+def _search_imports(start_scripts: "List[str]",
+                    target_exceps: "List[js_exceptions.JSException]", 
+                    import_map: "Dict[str, str]") -> "js_exceptions.JSException | None":
+    """Given a set of scripts, check if it is imported from any of the target exceptions with the info of import map
+    Args: (First two are same as above)
+        import_map: map of script alias to script URL
+    """
+    url_exception = {url_utils.filter_archive(excep.scriptURL): excep for excep in target_exceps}
+    url_code = {
+                url_utils.filter_archive(excep.scriptURL): 
+                execution.Frame.get_code(url_utils.replace_archive_host(excep.scriptURL, CONFIG.host)) 
+                for excep in target_exceps
+            }
+    def import_from_code(code, key):
+        lines = code.split('\n')
+        for line in lines:
+            if key in line and "import" in line:
+                return True
+        return False
+    reverse_import_map = {v: k for k, v in import_map.items()}
+    # Currently only do one depth search. Ideally, for each key, we should search for all scrips requested during loading, and then do a DFS
+    for url in start_scripts:
+        if url not in reverse_import_map:
+            continue
+        key = reverse_import_map[url]
+        for excep_url, excep_code in url_code.items():
+            if import_from_code(excep_code, key):
+                return url_exception[excep_url]
+    return None
 
-def pinpoint_exceptions(diff_writes: "js_writes.JSWrite", exceptions: "js_exceptions.JSException") -> "List[js_exceptions.JSExcep]":
-    exception_errors = [excep for excep in exceptions if excep.has_stack]
-    matched_exceptions = set()
-    if len(exception_errors) == 0:
-        return []
-    for writes in diff_writes:
-        for write in writes:
-            for excep in exception_errors:
-                if excep in matched_exceptions:
-                    continue
-                if write.stack.after(excep.stack):
-                    matched_exceptions.add(excep)
-    return list(matched_exceptions)
-
-def pinpoint_mutation(fidelity_result: fidelity_detect.FidelityResult, dirr, idx=0, left_prefix='live', right_prefix='archive', meaningful=True) -> "List[js_exceptions.JSExcep]":
-    global CHROME_DATA_INIT
-    arguments = ['-w', '-t', '-s', '--scroll', '--headless', '-e', '--mutation']
-    write_path = '/'.join(dirr.split('/')[:-1]) if '/' in dirr else '.'
-    archive_name = dirr.split('/')[-1]
-    archive_url = json.load(open(f'{dirr}/metadata.json'))['archive_url'] # TODO: Need to change it back to archive_url
-    if fidelity_result.info['diff_stage'] != 'onload':
-        arguments.append('-i')
-        if fidelity_result.info['diff_stage'] == 'extraInteraction':
-            arguments.append('0')
-        else:
-            stage_num = int(fidelity_result.info['diff_stage'].split('_')[1])
-            arguments.append(str(stage_num + 1))
-    chrome_data_dir = os.path.dirname(autorun.DEFAULT_CHROMEDATA)
-    if not CHROME_DATA_INIT:
-        CHROME_DATA_INIT = True
-        call(f'rm -rf {chrome_data_dir}/pinpoint_{idx}', shell=True)
-        call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', f'{chrome_data_dir}/pinpoint_{idx}'])
-    autorun.replay(archive_url, archive_name,
-                   chrome_data=f'{chrome_data_dir}/pinpoint_{idx}',
-                   write_path=write_path,
-                   filename='mut',
-                   arguments=arguments)
-    fidelity_result_mut = fidelity_detect.fidelity_issue_all(dirr, left_prefix, 'mut', screenshot=False, meaningful=meaningful)
-    # TODO: Need to change it into actual meaningful check
-    mutation_success = [js_exceptions.JSException({
-            'ts': time.time(),
-            'description': 'Mutation success',
-            'scriptURL': 'wombat.js',
-            'line': 1,
-            'column': 1,
-        }
-        )]
-    if not fidelity_result_mut.info['diff']:
-        return mutation_success
-    if fidelity_result_mut.info['diff_stage'] != fidelity_result.info['diff_stage']:
-        if common.stage_nolater(fidelity_result_mut.info['diff_stage'], fidelity_result.info['diff_stage']):
-            return mutation_success
-    elif sum_diffs(fidelity_result_mut.live_unique, fidelity_result_mut.archive_unique) \
-         < sum_diffs(fidelity_result.live_unique, fidelity_result.archive_unique):
-        return mutation_success
-    return []
 
 @dataclass
 class PinpointResult:
@@ -148,31 +104,134 @@ class PinpointResult:
     def errors_to_dict(self):
         return [e.to_dict() for e in self.pinpointed_errors]
 
+class Pinpointer:
+    CHROME_DATA_INIT = False
+
+    def __init__(self, dirr, idx=0, left_prefix='live', right_prefix='archive', meaningful=True):
+        self.dirr = dirr
+        self.idx = idx
+        self.left_prefix = left_prefix
+        self.right_prefix = right_prefix
+        self.meaningful = meaningful
+    
+    def add_fidelity_result(self, fidelity_result: fidelity_detect.FidelityResult):
+        self.fidelity_result = fidelity_result
+        self.diff_stage = fidelity_result.info['diff_stage']
+        self.diff_stage = self.diff_stage if self.diff_stage != 'extraInteraction' else 'onload'
+        self.left = self.left_prefix if self.diff_stage =='onload' else f'{self.left_prefix}_{self.diff_stage.split("_")[1]}'
+        self.right = self.right_prefix if self.diff_stage == 'onload' else f'{self.right_prefix}_{self.diff_stage.split("_")[1]}'
+    
+    def extra_writes(self):
+        self.diff_writes = extra_writes(self.dirr, self.fidelity_result.live_unique, left_prefix=self.left, right_prefix=self.right)
+        return self.diff_writes
+
+    def read_related_info(self):
+        self.exceptions = js_exceptions.read_exceptions(self.dirr, self.right_prefix, self.diff_stage)
+        self.initiators = js_initiators.read_initiators(self.dirr, self.left_prefix)
+        self.url = json.load(open(f'{self.dirr}/metadata.json'))['req_url']
+        self.archive_url = json.load(open(f'{self.dirr}/metadata.json'))['archive_url']
+        self.import_map = js_initiators.read_import_map(self.url)
+
+    def pinpoint_syntax_errors(self) -> "List[js_exceptions.JSExcep]":
+        syntax_exceptions = [excep for excep in self.exceptions if excep.is_syntax_error]
+        matched_exceptions = set()
+        if len(syntax_exceptions) == 0:
+            return []
+        for writes in self.diff_writes:
+            for write in writes:
+                remain_exceps = [excep for excep in syntax_exceptions if excep not in matched_exceptions]
+                if len(remain_exceps) == 0:
+                    break
+                error = _search_initiators(list(write.stack.scripts), remain_exceps, self.initiators) \
+                        or _search_imports(list(write.stack.scripts), remain_exceps, self.import_map)
+                if error is not None:
+                    matched_exceptions.add(error)
+        return list(matched_exceptions)
+
+    def pinpoint_exceptions(self) -> "List[js_exceptions.JSExcep]":
+        exception_errors = [excep for excep in self.exceptions if excep.has_stack]
+        matched_exceptions = set()
+        if len(exception_errors) == 0:
+            return []
+        for writes in self.diff_writes:
+            for write in writes:
+                for excep in exception_errors:
+                    if excep in matched_exceptions:
+                        continue
+                    if write.stack.after(excep.stack):
+                        matched_exceptions.add(excep)
+        return list(matched_exceptions)
+
+    def pinpoint_mutation(self) -> "List[js_exceptions.JSExcep]":
+        arguments = ['-w', '-t', '-s', '--scroll', '--headless', '-e', '--mutation']
+        write_path = '/'.join(self.dirr.split('/')[:-1]) if '/' in self.dirr else '.'
+        archive_name = self.dirr.split('/')[-1]
+        archive_url = json.load(open(f'{self.dirr}/metadata.json'))['archive_url']
+        if self.fidelity_result.info['diff_stage'] != 'onload':
+            arguments.append('-i')
+            if self.fidelity_result.info['diff_stage'] == 'extraInteraction':
+                arguments.append('0')
+            else:
+                stage_num = int(self.fidelity_result.info['diff_stage'].split('_')[1])
+                arguments.append(str(stage_num + 1))
+        chrome_data_dir = os.path.dirname(autorun.DEFAULT_CHROMEDATA)
+        if not Pinpointer.CHROME_DATA_INIT:
+            Pinpointer.CHROME_DATA_INIT = True
+            call(f'rm -rf {chrome_data_dir}/pinpoint_{self.idx}', shell=True)
+            call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', f'{chrome_data_dir}/pinpoint_{self.idx}'])
+        autorun.replay(archive_url, archive_name,
+                    chrome_data=f'{chrome_data_dir}/pinpoint_{self.idx}',
+                    write_path=write_path,
+                    filename='mut',
+                    arguments=arguments)
+        fidelity_result_mut = fidelity_detect.fidelity_issue_all(self.dirr, 
+                                                                 self.left_prefix, 
+                                                                 'mut', 
+                                                                 screenshot=False, 
+                                                                 meaningful=self.meaningful)
+        # TODO: Need to change it into actual meaningful check
+        mutation_success = [js_exceptions.JSException({
+                'ts': time.time(),
+                'description': 'Mutation success',
+                'scriptURL': 'wombat.js',
+                'line': 1,
+                'column': 1,
+            }
+            )]
+        if not fidelity_result_mut.info['diff']:
+            return mutation_success
+        if fidelity_result_mut.info['diff_stage'] != self.fidelity_result.info['diff_stage']:
+            if common.stage_nolater(fidelity_result_mut.info['diff_stage'], self.fidelity_result.info['diff_stage']):
+                return mutation_success
+        elif sum_diffs(fidelity_result_mut.live_unique, fidelity_result_mut.archive_unique) \
+            < sum_diffs(self.fidelity_result.live_unique, self.fidelity_result.archive_unique):
+            return mutation_success
+        return []
+
 
 def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', meaningful=True) -> PinpointResult:
     fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix, screenshot=False, meaningful=meaningful)
     if not fidelity_result.info['diff']:
         return PinpointResult(fidelity_result, [], [])
+    
     start = time.time()
-    diff_stage = fidelity_result.info['diff_stage']
-    diff_stage = diff_stage if diff_stage != 'extraInteraction' else 'onload'
-    left = left_prefix if diff_stage =='onload' else f'{left_prefix}_{diff_stage.split("_")[1]}'
-    right = right_prefix if diff_stage == 'onload' else f'{right_prefix}_{diff_stage.split("_")[1]}'
-    diff_writes = extra_writes(dirr, fidelity_result.live_unique, left_prefix=left, right_prefix=right)
-    exceptions = js_exceptions.read_exceptions(dirr, right_prefix, diff_stage)
-    initiators = js_initiators.read_initiators(dirr, left_prefix)
+    pinpointer = Pinpointer(dirr, idx, left_prefix, right_prefix, meaningful)
+    pinpointer.add_fidelity_result(fidelity_result)
+    diff_writes = pinpointer.extra_writes()
+    pinpointer.read_related_info()
     print(dirr, 'finished pinpoint preparation', time.time()-start)
-    syntax_errors = pinpoint_syntax_errors(diff_writes, exceptions, initiators)
+    
+    syntax_errors = pinpointer.pinpoint_syntax_errors()
     if len(syntax_errors) > 0:
         return PinpointResult(fidelity_result, diff_writes, syntax_errors)
     print(dirr, 'finished syntax error pinpoint', time.time()-start)
-    exceptions = pinpoint_exceptions(diff_writes, exceptions)
+    
+    exceptions = pinpointer.pinpoint_exceptions()
     if len(exceptions) > 0:
         return PinpointResult(fidelity_result, diff_writes, exceptions)
     print(dirr, 'finished exception pinpoint', time.time()-start)
-    mutation_errors = pinpoint_mutation(fidelity_result, dirr, idx=idx, 
-                                        left_prefix=left_prefix, right_prefix=right_prefix, 
-                                        meaningful=meaningful)
+    
+    mutation_errors = pinpointer.pinpoint_mutation()
     if len(mutation_errors) > 0:
         return PinpointResult(fidelity_result, diff_writes, mutation_errors)
     print(dirr, 'finished mutation pinpoint', time.time()-start)
