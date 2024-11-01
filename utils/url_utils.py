@@ -6,12 +6,12 @@ import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
-ARCHIVE_PATTERN = r'https?://[^/]+/[^/]+/(\d+)[^/\d]*/(((https?:)?//)?.+)'
+ARCHIVE_PATTERN = r'(https?://[^/]+)/([^/]+)/(\d+)[^/\d]*/(((https?:)?//)?.+)'
 
 def filter_archive(archive_url):
     match = re.search(ARCHIVE_PATTERN, archive_url)
     if match:
-        url = match.group(2)
+        url = match.group(4)
         if url.startswith('http'):
             return url
         if url.startswith('//'):
@@ -27,6 +27,13 @@ def is_archive(url):
 def replace_archive_host(url, new_host):
     us = urlsplit(url)
     return urlunsplit(us._replace(netloc=new_host))
+
+def add_id(url):
+    """Add id_ to archive URL to get original resource"""
+    if not is_archive(url):
+        return url
+    arsp = archive_split(url)
+    return f"{arsp['hostname']}/{arsp['collection']}/{arsp['ts']}id_/{arsp['url']}"
 
 def url_match(url1, url2, archive=True, case=False):
     """
@@ -64,38 +71,21 @@ def url_match(url1, url2, archive=True, case=False):
     qsl1, qsl2 = sorted(parse_qsl(query1), key=lambda kv: (kv[0], kv[1])), sorted(parse_qsl(query2), key=lambda kv: (kv[0], kv[1]))
     return len(qsl1) > 0 and qsl1 == qsl2
 
-class HostExtractor:
-    def __init__(self):
-        self.psl = PublicSuffixList()
-    
-    def extract(self, url, wayback=False):
-        """
-        Wayback: Whether the url is got from wayback
-        """
-        if wayback:
-            url = filter_archive(url)
-        if 'http://' not in url and 'https://' not in url:
-            url = 'http://' + url
-        hostname = urlsplit(url).netloc.strip('.').split(':')[0]
-        return self.psl.privatesuffix(hostname)
-
 def get_ts(archive_url):
-    pattern = r'https?://[^/]+/[^/]+/(\d+)[^/]+/(https?://.+)'
-    match = re.search(pattern, archive_url)
+    match = re.search(ARCHIVE_PATTERN, archive_url)
     if match:
-        return match.group(1)
+        return match.group(3)
     else:
         return None
 
 def archive_split(archive_url):
-    pattern = r'(https?://[^/]+)/([^/]+)/(\d+)[^/]+/(https?://.+)'
     result = {
         'hostname': None,
         'collection': None,
         'ts': None,
         'url': None,
     }
-    match = re.search(pattern, archive_url)
+    match = re.search(ARCHIVE_PATTERN, archive_url)
     if match:
         result['hostname'] = match.group(1)
         result['collection'] = match.group(2)
@@ -160,3 +150,18 @@ def request_live_url(url):
             if content.startswith('url='):
                 final_url = urljoin(url, content[4:])
     return final_url
+
+class HostExtractor:
+    def __init__(self):
+        self.psl = PublicSuffixList()
+    
+    def extract(self, url, wayback=False):
+        """
+        Wayback: Whether the url is got from wayback
+        """
+        if wayback:
+            url = filter_archive(url)
+        if 'http://' not in url and 'https://' not in url:
+            url = 'http://' + url
+        hostname = urlsplit(url).netloc.strip('.').split(':')[0]
+        return self.psl.privatesuffix(hostname)
