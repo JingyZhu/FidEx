@@ -1,4 +1,5 @@
 import json
+import bs4
 from fidex.utils import execution
 
 
@@ -26,3 +27,16 @@ def read_initiators(dirr, base) -> "Dict[str, JSInitiator]":
                     initiator.add_initiator(js_initiator_map[script])
             js_initiator_map[url] = initiator
     return js_initiator_map
+
+def read_import_map(page_url) -> "Dict[str, str]":
+    """Parse the main HTML file looking for import maps"""
+    importmap = {}
+    html = execution.Frame.get_code(page_url)
+    soup = bs4.BeautifulSoup(html, 'html.parser')
+    for tag in soup.find_all('script'):
+        if tag.get('type') == 'importmap':
+            try:
+                importmap = json.loads(tag.string).get('imports')
+                return importmap
+            except: pass
+    return importmap

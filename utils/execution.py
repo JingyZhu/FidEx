@@ -115,7 +115,6 @@ class ASTNode:
             return path
         a_path_to_root = path_to_root(self)
         b_path_to_root = path_to_root(other)
-        print(a_path_to_root, b_path_to_root)
         for i in range(min(len(a_path_to_root), len(b_path_to_root))):
             if a_path_to_root[i] != b_path_to_root[i]:
                 return a_path_to_root[i] > b_path_to_root[i]
@@ -393,9 +392,9 @@ class Frame:
             if url_utils.is_archive(url):
                 url = url_utils.replace_archive_host(url, CONFIG.host)
             else:
-                args['proxies'] = {'http': f'http://{CONFIG.host_proxy}', 'https': f'http://{CONFIG.host_proxy}'}
+                url = f'http://{CONFIG.host}/{CONFIG.collection}/{CONFIG.ts}id_/{url}'
             try:
-                response = requests.get(url, timeout=5, verify=False, **args)
+                response = requests.get(url, timeout=5)
             except Exception as e:
                 logging.error(f"Fail to fetch {url}: {e}")
                 return None
