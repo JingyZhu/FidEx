@@ -15,6 +15,7 @@ function getElemId (elem) {
 function getDomXPath(elm, fullTrace=false) {
     var xPathsList = [];
     let segs = [];
+    const origElm = elm;
     for (; elm && [1,3].includes(elm.nodeType); elm = elm.parentNode)
     // for (; elm ; elm = elm.parentNode)  // curently using this will cause exception
     { 
@@ -44,7 +45,16 @@ function getDomXPath(elm, fullTrace=false) {
         segs.unshift(`${elm.nodeName.toLowerCase()}[${i}]`); 
     };
     xPathsList.push('/' + segs.join('/') );
+    const retval = fullTrace ? xPathsList : xPathsList[xPathsList.length-1];
     
-    return fullTrace ? xPathsList : xPathsList[xPathsList.length-1];
+    if (!origElm) return retval;
+    if (!origElm._fidex_xpaths) origElm._fidex_xpaths = {};
+    if (typeof __current_stage != 'undefined' && retval && !origElm._fidex_xpaths[__current_stage])
+        origElm._fidex_xpaths[__current_stage] = retval;
+    return retval;
 };
 
+function getDomStageXPath(elm, stage, fullTrace=false) {
+    if (!elm._fidex_xpaths) return getDomXPath(elm, fullTrace);
+    return elm._fidex_xpaths[stage] || getDomXPath(elm, fullTrace);
+}

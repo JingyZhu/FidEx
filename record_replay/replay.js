@@ -124,8 +124,6 @@ loggerizeConsole();
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
-        } else if (options.mutation) {
-            fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify([], null, 2));
         }
         
         // * Step 6: Collect the writes to the DOM

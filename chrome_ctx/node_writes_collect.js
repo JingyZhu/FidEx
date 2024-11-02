@@ -44,7 +44,7 @@ function collect_writes(){
     __write_log_processed = [];
     __write_log = [];
     // Process raw_args so that it can be stringified
-    function process_args(raw_args) {
+    function process_args(raw_args, stage) {
         let args = [];
         for (let arg of raw_args) {
             let arg_info = {
@@ -55,17 +55,17 @@ function collect_writes(){
             if (arg instanceof Element) {
                 // try { arg = _normalSRC(arg); } catch {}
                 arg_info.html = arg.outerHTML;
-                arg_info.xpath = getDomXPath(arg);
+                arg_info.xpath = getDomStageXPath(arg, stage);
             } else if (arg instanceof Node) {
                 if (arg.nodeName !== undefined)
                     arg_info.html = arg.nodeName;
                 else
                     arg_info.html = arg.nodeType;
-                arg_info.xpath = getDomXPath(arg);
+                arg_info.xpath = getDomStageXPath(arg, stage);
             } else if (arg instanceof Array) {
                 arg_info = [];
                 for (const a of arg) {
-                    const processed_a = process_args([a])[0];
+                    const processed_a = process_args([a], stage)[0];
                     arg_info.push(processed_a);
                 }
             }
@@ -100,7 +100,7 @@ function collect_writes(){
     for (const record of __raw_write_log) {
         if (!isNodeInDocument(record.target))
             continue
-        args = process_args(record.args);
+        args = process_args(record.args, record.currentStage);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
 
@@ -113,7 +113,7 @@ function collect_writes(){
             effective = !record.beforeDS.isDimensionMatch(record.afterDS);
         __write_log_processed.push({
             wid: record.id,
-            xpath: getDomXPath(record.target),
+            xpath: getDomStageXPath(record.target, record.currentStage),
             method: record.method,
             args: args,
             beforeDS: record.beforeDS.getSelfDimension(),
