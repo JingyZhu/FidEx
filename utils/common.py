@@ -8,3 +8,7 @@ def stage_nolater(s1, s2):
     if o2 == -1:
         o2 = int(s2.replace('interaction_', '')) + 2
     return o1 <= o2
+
+def stage_later(s1, s2):
+    """Check if s1 is strictly later than s2"""
+    return not stage_nolater(s1, s2)

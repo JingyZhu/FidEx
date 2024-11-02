@@ -184,6 +184,10 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
     # * Check for each interaction
     for left_e, right_e in zip(fidelity_detector.left_common_events, 
                                fidelity_detector.right_common_events):
+        if (not os.path.exists(f"{dirr}/{left_prefix}_{left_e.idx}_dom.json") or 
+            not os.path.exists(f"{dirr}/{right_prefix}_{right_e.idx}_dom.json")):
+            assert(not need_exist), f"Interaction {left_e.idx} or {right_e.idx} not found and need_exist is True"
+            continue
         i, j = left_e.idx, right_e.idx
         diff, s_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
         logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(fidelity_detector.left_common_events)} elasped: {time.time()-start}')

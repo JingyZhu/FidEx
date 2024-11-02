@@ -162,18 +162,17 @@ class Pinpointer:
                         matched_exceptions.add(excep)
         return list(matched_exceptions)
 
-    def pinpoint_mutation(self) -> "List[js_exceptions.JSExcep]":
+    def pinpoint_mutations(self) -> "List[js_exceptions.JSExcep]":
         arguments = ['-w', '-t', '-s', '--scroll', '--headless', '-e', '--mutation']
         write_path = '/'.join(self.dirr.split('/')[:-1]) if '/' in self.dirr else '.'
         archive_name = self.dirr.split('/')[-1]
         archive_url = json.load(open(f'{self.dirr}/metadata.json'))['archive_url']
-        if self.fidelity_result.info['diff_stage'] != 'onload':
-            arguments.append('-i')
-            if self.fidelity_result.info['diff_stage'] == 'extraInteraction':
-                arguments.append('0')
-            else:
-                stage_num = int(self.fidelity_result.info['diff_stage'].split('_')[1])
-                arguments.append(str(stage_num + 1))
+        arguments.append('-i')
+        if self.fidelity_result.info['diff_stage'] in ['extraInteraction', 'onload']:
+            arguments.append('0')
+        else:
+            stage_num = int(self.fidelity_result.info['diff_stage'].split('_')[1])
+            arguments.append(str(stage_num + 1))
         chrome_data_dir = os.path.dirname(autorun.DEFAULT_CHROMEDATA)
         if not Pinpointer.CHROME_DATA_INIT:
             Pinpointer.CHROME_DATA_INIT = True
@@ -188,7 +187,8 @@ class Pinpointer:
                                                                  self.left_prefix, 
                                                                  'mut', 
                                                                  screenshot=False, 
-                                                                 meaningful=self.meaningful)
+                                                                 meaningful=self.meaningful,
+                                                                 need_exist=False)
         # TODO: Need to change it into actual meaningful check
         mutation_success = [js_exceptions.JSException({
                 'ts': time.time(),
@@ -201,7 +201,7 @@ class Pinpointer:
         if not fidelity_result_mut.info['diff']:
             return mutation_success
         if fidelity_result_mut.info['diff_stage'] != self.fidelity_result.info['diff_stage']:
-            if common.stage_nolater(fidelity_result_mut.info['diff_stage'], self.fidelity_result.info['diff_stage']):
+            if common.stage_later(fidelity_result_mut.info['diff_stage'], self.fidelity_result.info['diff_stage']):
                 return mutation_success
         elif sum_diffs(fidelity_result_mut.live_unique, fidelity_result_mut.archive_unique) \
             < sum_diffs(self.fidelity_result.live_unique, self.fidelity_result.archive_unique):
@@ -231,7 +231,7 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
         return PinpointResult(fidelity_result, diff_writes, exceptions)
     print(dirr, 'finished exception pinpoint', time.time()-start)
     
-    mutation_errors = pinpointer.pinpoint_mutation()
+    mutation_errors = pinpointer.pinpoint_mutations()
     if len(mutation_errors) > 0:
         return PinpointResult(fidelity_result, diff_writes, mutation_errors)
     print(dirr, 'finished mutation pinpoint', time.time()-start)
