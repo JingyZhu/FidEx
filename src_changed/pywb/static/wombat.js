@@ -18,6 +18,14 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// * jingyz: Comment
+/*
+Current, all mutation is controlled by __fidex_mutation. But this can be split into multiple knobs
+1. Response.JSON
+2. ServiceWorker consturction
+3. Window.getter
+*/
+// * jingyz: End of comment
 (function () {
   function FuncMap() {
     this._map = [];
@@ -2251,6 +2259,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
               (res = this.wrapScriptTextJsProxy(res)))
           : (res = this.rewriteHtml(newValue))),
         oSetter.call(thisObj, res),
+        // * jingyz: Start change
+        thisObj._res = res,
+        // * jingyz: End of change
         this.wbUseAFWorker &&
           this.WBAutoFetchWorker &&
           tagName === "STYLE" &&
@@ -2543,12 +2554,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
       var orig_setter = this.getOrigSetter(obj, prop),
         wombat = this,
         setter = function overrideSetter(orig) {
-          return (
-            (this.__wb_srcdoc = orig),
-            wombat.wb_info.isSW
-              ? (wombat.blobUrlForIframe(this, orig), orig)
-              : wombat.rewriteHTMLAssign(this, orig_setter, orig)
-          );
+          function originalSrcDocSetter() {
+            return (
+              (this.__wb_srcdoc = orig),
+              wombat.wb_info.isSW
+                ? (wombat.blobUrlForIframe(this, orig), orig)
+                : wombat.rewriteHTMLAssign(this, orig_setter, orig)
+            );
+          }
+          // * jingyz: Start change
+          let retval = originalSrcDocSetter.apply(this);
+          if (this._res && wombat.workerBlobRe.test(this._res)) {
+            console.warn(`Fidex (wombat invariant violated): srcdoc contains __WB_pmw(), which could raise errors`);
+            if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
+              try {
+                updated = this._res.replace(wombat.workerBlobRe, "");
+                orig_setter.call(this, updated);
+              } catch {}
+            }
+          }
+          return retval;
+          // * jingyz: End of change  
         },
         getter = function overrideGetter() {
           return this.__wb_srcdoc;
@@ -2615,13 +2641,29 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
           var orig_setter = this.getOrigSetter(obj, prop),
             wombat = this,
             getter = function overrideIframeContentAccessGetter() {
-              j// * jingyz
+              // * jingyz: Start change
               function originalWombatIframeContentAccessGetter() {
                 return (
                   wombat.initIframeWombat(this),
                   wombat.objToProxy(orig_getter.call(this))
                 );
               }
+              function WBpmwCompatibleIframe(contentWindow) {
+                return {
+                  __WB_pmw: () => contentWindow,
+                  postMessage: contentWindow.postMessage.bind(contentWindow),
+                }
+              }
+              let retval = originalWombatIframeContentAccessGetter.apply(this);
+              try {
+                retval.__WB_pmw;
+              } catch (e) {
+                console.warn(`Fidex (wombat invariant violated): contentFrame can't access __WB_pmw`);
+                if (typeof __fidex_mutation !== "undefined" && __fidex_mutation)
+                  return WBpmwCompatibleIframe(retval);
+              }
+              return retval;
+              // * jingyz: End of change
             };
           this.defProp(obj, prop, orig_setter, getter),
             (obj["_get_" + prop] = orig_getter);
@@ -3685,11 +3727,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         this.$wbwindow.Response.prototype.json = async function () {
           let jsonResponse = null;
           try {
-            if (typeof __wombat_mutation !== "undefined" && __wombat_mutation)
+            if (typeof __fidex_mutation !== "undefined" && __fidex_mutation)
               this.cloneResponse = this.cloneResponse || this.clone();
             jsonResponse = await originalJson.call(this);
           } catch (error) {
-            if (typeof __wombat_mutation !== "undefined" && __wombat_mutation) {
+            if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
               let jsonText = await this.cloneResponse.text();
               jsonText = wombat.unwrapScriptTextJsProxy(jsonText);
               jsonResponse = JSON.parse(jsonText);
@@ -4148,7 +4190,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
               );
             } catch (e) {
               console.warn(`Fidex (wombat exception thrown) ${e}`);
-              if (typeof __wombat_mutation !== "undefined" && __wombat_mutation) {
+              if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
                 return new Worker_(url, options);
               }   
               throw e;
@@ -4866,7 +4908,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
               let retval = originalWombatWindowGet(target, prop);
               if (wombat.invarCheckProp(prop) && wombat.proxyToObj(retval) !== wombat.$wbwindow[prop]) {
                 console.warn(`Fidex (wombat invariant violated): WindowProxy invariant violated for ${prop} ${wombat.proxyToObj(retval)} !== ${wombat.$wbwindow[prop]}`);
-                if (typeof __wombat_mutation !== "undefined" && __wombat_mutation) {
+                if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
                   return wombat.objToProxy(wombat.$wbwindow[prop]);
                 }
               }

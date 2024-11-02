@@ -84,7 +84,7 @@ loggerizeConsole();
             await page.evaluateOnNewDocument("__trace_enabled = true");
         Error.stackTraceLimit = Infinity;
         if (options.mutation)
-            await page.evaluateOnNewDocument("__wombat_mutation = true");
+            await page.evaluateOnNewDocument("__fidex_mutation = true");
 
         // * Step 2: Load the page
         try {
