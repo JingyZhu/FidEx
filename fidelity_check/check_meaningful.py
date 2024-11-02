@@ -94,8 +94,8 @@ def _from_ads(branch, xpaths_map):
         if element_tag.find() is None:
             continue
         # First element's class name includes ad related
-        ad_class = ['adsbygoogle', 'ad', 'advert', 'advertisement']
-        ad_classlist = ' '.join(element_tag.find().attrs.get('class', ''))
+        ad_class = ['adsbygoogle', 'ad', 'advertisement']
+        ad_classlist = element_tag.find().attrs.get('class', '')
         for ad in ad_class:
             if ad in ad_classlist:
                 return True

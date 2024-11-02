@@ -10,6 +10,7 @@ class Config:
     def __init__(self, path):
         self.path = path
         self.config = json.load(open(path))
+        self._collection = None
 
     @cached_property
     def host(self):
@@ -27,9 +28,15 @@ class Config:
     def pywb_env(self):
         return self.config.get('pywb_env', ':')
     
-    @cached_property
+    @property
     def collection(self):
-        return self.config.get('collection')
+        if self._collection is None:
+            self._collection = self.config.get('collection')
+        return self._collection
+
+    @collection.setter
+    def collection(self, value):
+        self._collection = value
     
     @property
     def ts(self):
