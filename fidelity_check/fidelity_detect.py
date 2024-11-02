@@ -7,12 +7,21 @@ from dataclasses import dataclass
 from fidex.fidelity_check import check_utils, check_meaningful
 from fidex.utils import common, logger
 
+def dedeup_elements(layout):
+    seen_xpath = set()
+    new_elements = []
+    for element in layout:
+        if element['xpath'] not in seen_xpath:
+            seen_xpath.add(element['xpath'])
+            new_elements.append(element)
+    return new_elements
+
 class LoadInfo:
-    def __init__(self, dirr, prefix, read_events=False):
+    def __init__(self, dirr, prefix):
         self.dirr = dirr
         self.prefix = prefix
         self.base, self.stage = self.prefix.split('_') if '_' in self.prefix else (self.prefix, 'onload')
-        self.read_info(read_events)
+        self.read_info()
 
     @staticmethod
     def read_write_stacks(dirr, base):
@@ -26,28 +35,21 @@ class LoadInfo:
                     'stackInfo': stackInfo
                 })
         return sorted(write_stacks_flattered, key=lambda x: int(x['wid'].split(':')[0]))
-
-    @staticmethod
-    def dedeup_elements(layout):
-        seen_xpath = set()
-        new_elements = []
-        for element in layout:
-            if element['xpath'] not in seen_xpath:
-                seen_xpath.add(element['xpath'])
-                new_elements.append(element)
-        return new_elements
     
-    def read_info(self, read_events):
+    def read_info(self):
         self.elements = json.load(open(f"{self.dirr}/{self.prefix}_dom.json"))
         
-        self.elements = LoadInfo.dedeup_elements(self.elements)
+        self.elements = dedeup_elements(self.elements)
         self.writes = json.load(open(f"{self.dirr}/{self.base}_writes.json"))
         # Filter writes based on stages
         self.writes = [w for w in self.writes if common.stage_nolater(w['currentStage'], self.stage)]
         self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
-        if read_events:
-            self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
+    
+    def read_events(self, available=True) -> list:
+        self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
+        if available:
             self.available_events()
+        return self.events
     
     def gen_xpath_map(self):
         self.elements_map = {e['xpath']: e for e in self.elements}
@@ -97,85 +99,94 @@ class FidelityResult:
     live_unique: list
     archive_unique: list
 
-def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', screenshot=False, meaningful=True) -> FidelityResult:
+class FidelityDetector:
+    def __init__(self, dirr, left_prefix='live', right_prefix='archive', screenshot=False, meaningful=True):
+        self.dirr = dirr
+        self.left_prefix = left_prefix
+        self.right_prefix = right_prefix
+        self.screenshot = screenshot
+        self.meaningful = meaningful
+        self.diff = False
+        self.diff_stage = None
+        self.screenshot_diff = False
+        self.screenshot_diff_stage = None
+        self.screenshot_simi = None
+
+        self.left_unique = None
+        self.right_unique = None
+    
+    def detect_stage(self, left_stage, right_stage) -> "Tuple(bool, bool)":
+        left = self.left_prefix if left_stage == 'onload' else f'{self.left_prefix}_{left_stage.split("_")[1]}'
+        right = self.right_prefix if right_stage == 'onload' else f'{self.right_prefix}_{right_stage.split("_")[1]}'
+        if not self.diff:
+            # Only check fidelity issue if no diff found so far
+            diff, (left_unique, right_unique) = fidelity_issue(self.dirr, left, right, meaningful=self.meaningful)
+            self.diff = self.diff or diff
+            if self.diff:
+                # Only set unique elements if diff is found
+                self.diff_stage = left_stage
+                self.left_unique = left_unique
+                self.right_unique = right_unique
+        if self.screenshot and not self.screenshot_diff:
+            s_diff, s_simi = fidelity_issue_screenshot(self.dirr, left, right)
+            self.screenshot_diff = self.screenshot_diff or s_diff
+            if self.screenshot_diff:
+                self.screenshot_diff_stage = left_stage
+                self.screenshot_simi = s_simi
+        return self.diff, (not self.screenshot or self.screenshot_diff)
+    
+    def extra_interaction(self, need_exist=True):
+        left_info = LoadInfo(self.dirr, self.left_prefix)
+        right_info = LoadInfo(self.dirr, self.right_prefix)
+        left_info.read_events(available=need_exist), right_info.read_events(available=need_exist)
+        left_info.gen_xpath_map(), right_info.gen_xpath_map()
+        left_unique_events, right_unique_events, left_common_events, right_common_events = check_utils.diff_interaction(left_info, right_info)
+        self.left_common_events = left_common_events
+        self.right_common_events = right_common_events
+        left_unique_events = [e for e in left_unique_events if check_meaningful.meaningful_interaction(e, elements_map=left_info.elements_map)]
+        right_unique_events = [e for e in right_unique_events if check_meaningful.meaningful_interaction(e, elements_map=right_info.elements_map)]
+        if len(left_unique_events) > 0:
+            self.diff = True
+            self.diff_stage = self.diff_stage or 'extraInteraction'
+            self.screenshot_diff = True
+            self.screenshot_diff_stage = self.screenshot_diff_stage or 'extraInteraction'
+            self.left_unique = [[e.xpath] for e in left_unique_events]
+            self.right_unique = [[e.xpath] for e in right_unique_events]
+        return len(left_unique_events) > 0
+    
+    def generate_result(self) -> FidelityResult:
+        return FidelityResult({
+            'hostname': self.dirr,
+            'diff': self.diff,
+            'screenshot_diff': self.screenshot_diff,
+            'diff_stage': self.diff_stage,
+            'screenshot_diff_stage': self.screenshot_diff_stage,
+            'similarity': self.screenshot_simi
+        }, self.left_unique, self.right_unique)
+
+def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', 
+                       screenshot=False, meaningful=True, need_exist=True) -> FidelityResult:
     """
     Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
     """
     start = time.time()
-    # * Overall diff for layout and screenshot
-    diff, s_diff = False, False
-    # * If any stage is different, which one
-    diff_stage, s_diff_stage, s_simi = None, None, None
-    # * Checking onload
-    ol_diff, (left_unique, right_unique) = fidelity_issue(dirr, left_prefix, right_prefix, meaningful=meaningful)
-    ol_s_diff = None
-    if screenshot:
-        ol_s_diff, s_simi = fidelity_issue_screenshot(dirr, left_prefix, right_prefix)
-    if ol_diff:
-        diff = True
-        diff_stage = 'onload'
-    if ol_s_diff:
-        s_diff = True
-        s_diff_stage = 'onload'
-    if diff_stage and (not screenshot or s_diff_stage):
-        return FidelityResult({
-            'hostname': dirr,
-            'diff': diff,
-            'screenshot_diff': s_diff,
-            'diff_stage': diff_stage,
-            'screenshot_diff_stage': s_diff_stage,
-            'similarity': s_simi
-        }, left_unique, right_unique)
+    fidelity_detector = FidelityDetector(dirr, left_prefix, right_prefix, screenshot, meaningful)
+    diff, s_diff = fidelity_detector.detect_stage('onload', 'onload')
+    if diff and s_diff:
+        return fidelity_detector.generate_result()
     logging.info(f'{dirr.split("/")[-1]} onload elasped: {time.time()-start}')
     
     # * Check extraInteraction
-    left_info = LoadInfo(dirr, left_prefix, read_events=True)
-    right_info = LoadInfo(dirr, right_prefix, read_events=True)
-    left_info.gen_xpath_map(), right_info.gen_xpath_map()
-    left_unique_events, right_unique_events, left_common_events, right_common_events = check_utils.diff_interaction(left_info, right_info)
-    left_unique_events = [e for e in left_unique_events if check_meaningful.meaningful_interaction(e, elements_map=left_info.elements_map)]
-    right_unique_events = [e for e in right_unique_events if check_meaningful.meaningful_interaction(e, elements_map=right_info.elements_map)]
+    extra_intact = fidelity_detector.extra_interaction(need_exist=need_exist)
+    if extra_intact:
+        return fidelity_detector.generate_result()
 
-    if len(left_unique_events) > 0:
-        return FidelityResult({
-            'hostname': dirr,
-            'diff': True,
-            'screenshot_diff': True,
-            'diff_stage': 'extraInteraction',
-            'screenshot_diff_stage': 'extraInteraction'
-        }, [[e.xpath] for e in left_unique_events], [[e.xpath] for e in right_unique_events])
-    
     # * Check for each interaction
-    for left_e, right_e in zip(left_common_events, right_common_events):
+    for left_e, right_e in zip(fidelity_detector.left_common_events, 
+                               fidelity_detector.right_common_events):
         i, j = left_e.idx, right_e.idx
-        # if not os.path.exists(f"{dirr}/{left_prefix}_{i}_dom.json") or not os.path.exists(f"{dirr}/{right_prefix}_{j}_dom.json"):
-        #     continue
-        i_diff, (left_unique, right_unique) = fidelity_issue(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}', meaningful=True)
-        i_s_diff, i_s_simi = None, None
-        if screenshot:
-            i_s_diff, i_s_simi = fidelity_issue_screenshot(dirr, f'{left_prefix}_{i}', f'{right_prefix}_{j}')
-        if i_diff and not diff:
-            diff = True
-            diff_stage = f'interaction_{i}'
-        if i_s_diff and not s_diff:
-            s_diff = True
-            s_diff_stage = f'interaction_{i}'
-            s_simi = i_s_simi
-        logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(left_common_events)} elasped: {time.time()-start}')
-        if diff_stage and (not screenshot or s_diff_stage):
-            return FidelityResult({
-                'hostname': dirr,
-                'diff': diff,
-                'screenshot_diff': s_diff,
-                'diff_stage': diff_stage,
-                'screenshot_diff_stage': s_diff_stage,
-                'similarity': s_simi
-            }, left_unique, right_unique)
-    return FidelityResult({
-        'hostname': dirr,
-        'diff': diff,
-        'screenshot_diff': s_diff,
-        'diff_stage': diff_stage,
-        'screenshot_diff_stage': s_diff_stage,
-        'similarity': s_simi
-    }, [], [])
+        diff, s_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
+        logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(fidelity_detector.left_common_events)} elasped: {time.time()-start}')
+        if diff and s_diff:
+            return fidelity_detector.generate_result()
+    return fidelity_detector.generate_result()
