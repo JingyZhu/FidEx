@@ -1,9 +1,6 @@
 from bs4 import BeautifulSoup
 import functools
-from fidex.utils import execution
-
-def _tag_from_xpath(xpath):
-    return xpath.split('/')[-1].split('[')[0]
+from fidex.utils import execution, common
 
 def _tag_from_arg(args):
     if not isinstance(args, list):
@@ -11,7 +8,7 @@ def _tag_from_arg(args):
     tags = []
     for arg in args:
         if 'xpath' in arg:
-            tags.append(_tag_from_xpath(arg['xpath']))
+            tags.append(common.tagname_from_xpath(arg['xpath']))
         else:
             html = BeautifulSoup(str(arg['html']), 'html.parser')
             tag = html.find()
@@ -82,7 +79,7 @@ class JSWrite:
             return False
         
         def _img_set_src(write):
-            target_name = _tag_from_xpath(write['xpath'])
+            target_name = common.tagname_from_xpath(write['xpath'])
             if target_name not in ['img']:
                 return False
             if write['method'] in ['set:src']:
@@ -148,7 +145,7 @@ class JSWrite:
         return self.stack.scripts
     
     def _hash_tuple(self):
-        target = _tag_from_xpath(self.xpath)
+        target = common.tagname_from_xpath(self.xpath)
         args = []
         for arg in self.args:
             args += _tag_from_arg(arg)

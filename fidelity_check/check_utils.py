@@ -9,7 +9,7 @@ from collections import defaultdict
 import cv2
 import numpy as np
 
-from fidex.utils import url_utils
+from fidex.utils import url_utils, common
 from fidex.fidelity_check import layout_tree, events
 import warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
@@ -153,16 +153,13 @@ def diff_writes(left_writes: list, right_writes: list, attribute: str='rawWrites
     left_writes = left_writes[attribute]
     right_writes = right_writes[attribute]
 
-    def _tag_from_xpath(xpath):
-        return xpath.split('/')[-1].split('[')[0]
-
     def _tag_from_arg(args):
         if not isinstance(args, list):
             args = [args]
         tags = []
         for arg in args:
             if 'xpath' in arg:
-                tags.append(_tag_from_xpath(arg['xpath']))
+                tags.append(common.tagname_from_xpath(arg['xpath']))
             else:
                 html = BeautifulSoup(str(arg['html']), 'html.parser')
                 tag = html.find()
@@ -176,7 +173,7 @@ def diff_writes(left_writes: list, right_writes: list, attribute: str='rawWrites
     for write in left_writes:
         # write_sig = generate_sig(live_stacks_id[write['wid']], live=True)
         write_sig = [write['method']]
-        target = _tag_from_xpath(write['xpath'])
+        target = common.tagname_from_xpath(write['xpath'])
         args = []
         for arg in write['arg']:
             args += _tag_from_arg(arg)
@@ -187,7 +184,7 @@ def diff_writes(left_writes: list, right_writes: list, attribute: str='rawWrites
     for write in right_writes:
         # write_sig = generate_sig(archive_stacks_id[write['wid']], live=False)
         write_sig = [write['method']]
-        target = _tag_from_xpath(write['xpath'])
+        target = common.tagname_from_xpath(write['xpath'])
         args = []
         for arg in write['arg']:
             args += _tag_from_arg(arg)

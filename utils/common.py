@@ -12,3 +12,7 @@ def stage_nolater(s1, s2):
 def stage_later(s1, s2):
     """Check if s1 is strictly later than s2"""
     return not stage_nolater(s1, s2)
+
+def tagname_from_xpath(xpath):
+    """Get the tag name from the xpath"""
+    return xpath.split('/')[-1].split('[')[0]

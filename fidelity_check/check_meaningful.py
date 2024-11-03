@@ -1,11 +1,13 @@
 import re
 from bs4 import BeautifulSoup
 
+from fidex.utils import common
+
 def _ignore_tag(branch):
     ignore_list = ['ruffle-embed', 'rs-progress-bar', 'br']
     for xpath in branch:
         for ig in ignore_list:
-            if xpath.split('/')[-1].startswith(ig):
+            if common.tagname_from_xpath(xpath).startswith(ig):
                 return True
     return False
 
@@ -21,7 +23,7 @@ def _visible(branch, xpaths_map):
             return False
 
     for xpath in branch:
-        tag = xpath.split('/')[-1].split('[')[0]
+        tag = common.tagname_from_xpath(xpath)
         if tag == '#text':
             xpath = '/'.join(xpath.split('/')[:-1])
         dimension = xpaths_map[xpath].get('dimension', None)
@@ -60,10 +62,17 @@ def _from_recaptcha(branch, xpaths_map):
         return False
 
 def _from_youtube(branch, xpaths_map):
+    parsed_xpath = set()
     for br in branch:
-        element = xpaths_map[br]
+        actual_br = br
+        if actual_br in parsed_xpath:
+            continue
+        element = xpaths_map[actual_br]
+        while common.tagname_from_xpath(element['xpath']) == '#text' and len(actual_br.split('/')) > 1:
+            actual_br = '/'.join(actual_br.split('/')[:-1])
+            element = xpaths_map[actual_br]
+        parsed_xpath.add(actual_br)
         element_tag = BeautifulSoup(element['text'], 'html.parser')
-        # if element_tag is pure text continue
         if element_tag.find() is None:
             continue
         # First element's class name includes "ytp"
@@ -177,7 +186,7 @@ def meaningful_interaction(event: "events.Event", elements: list=None, elements_
     xpath_map = elements_map if elements_map is not None else {e['xpath']: e for e in elements}
     non_meaningful = set([('a', 'click'), ('a', 'mousedown')])
     xpath = event.xpath
-    tag = xpath.split('/')[-1].split('[')[0]
+    tag = common.tagname_from_xpath(xpath)
     event_types = [t for t in event.events]
     # All event types and tag combination is in non_meaningful
     event_types_not_meaningful = [(tag, t) in non_meaningful for t in event_types]
