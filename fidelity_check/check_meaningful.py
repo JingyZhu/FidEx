@@ -100,7 +100,40 @@ def _from_ads(branch, xpaths_map):
             if ad in ad_classlist:
                 return True
     return False
-    
+
+def branch_meaningful(branch, xpaths_map: dict=None) -> bool:
+    if not _visible(branch, xpaths_map):
+        return False
+    if _ignore_tag(branch):
+        return False
+    if _from_recaptcha(branch, xpaths_map):
+        return False
+    if _from_youtube(branch, xpaths_map):
+        return False
+    if _from_vimeo(branch, xpaths_map):
+        return False
+    if _from_ads(branch, xpaths_map):
+        return False
+    return True
+
+def _remove_unnecessary_elements(branch, xpaths_map):
+    """Throw away sub-branches, not the whole branch"""
+    new_branch = []
+    filtered_branch = []
+    for br in branch:
+        in_filter_branch = False
+        for fbr in filtered_branch:
+            if br.startswith(fbr):
+                in_filter_branch = True
+                break
+        if in_filter_branch:
+            continue
+        if _from_ads([br], xpaths_map) or _from_recaptcha([br], xpaths_map):
+            filtered_branch.append(br)
+            continue
+        new_branch.append(br)
+    return new_branch
+
 def _remove_wrapping_elements(branch, xpaths_map):
     removed = 1 # dummy first
     cur_branch = branch
@@ -130,7 +163,7 @@ def _remove_wrapping_elements(branch, xpaths_map):
     return cur_branch
 
 
-def meaningful_branch(branch, elements_map: dict=None) -> bool:
+def interaction_branch_meaningful(branch, elements_map: dict=None) -> bool:
     branch_meaningful = True
     if _ignore_tag(branch):
         branch_meaningful = False
@@ -155,7 +188,7 @@ def meaningful_interaction(event: "events.Event", elements: list=None, elements_
     dimen = xpath_map[xpath].get('dimension', {'width': 0, 'height': 0})
     if dimen['width'] <= 1 or dimen['height'] <= 1:
         return False
-    return meaningful_branch([xpath], elements_map=xpath_map)
+    return interaction_branch_meaningful([xpath], elements_map=xpath_map)
 
 
 def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (list, list):
@@ -175,40 +208,18 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
 
     new_left_unique = []
     for branch in left_unique:
-        branch_meaningful = True
-        if not _visible(branch, left_xpaths_map):
-            branch_meaningful = False
-        if _ignore_tag(branch):
-            branch_meaningful = False
-        if _from_recaptcha(branch, left_xpaths_map):
-            branch_meaningful = False
-        if _from_youtube(branch, left_xpaths_map):
-            branch_meaningful = False
-        if _from_vimeo(branch, left_xpaths_map):
-            branch_meaningful = False
-        if _from_ads(branch, left_xpaths_map):
-            branch_meaningful = False
-        if branch_meaningful:
-            branch = _remove_wrapping_elements(branch, left_xpaths_map)
-            new_left_unique.append(branch) if len(branch) > 0 else None
+        if not branch_meaningful(branch, left_xpaths_map):
+            continue
+        # branch = _remove_unnecessary_elements(branch, left_xpaths_map)
+        branch = _remove_wrapping_elements(branch, left_xpaths_map)
+        new_left_unique.append(branch) if len(branch) > 0 else None
     
     new_right_unique = []
     for branch in right_unique:
-        branch_meaningful = True
-        if not _visible(branch, right_xpaths_map):
-            branch_meaningful = False
-        if _ignore_tag(branch):
-            branch_meaningful = False
-        if _from_recaptcha(branch, right_xpaths_map):
-            branch_meaningful = False
-        if _from_youtube(branch, right_xpaths_map):
-            branch_meaningful = False
-        if _from_vimeo(branch, right_xpaths_map):
-            branch_meaningful = False
-        if _from_ads(branch, right_xpaths_map):
-            branch_meaningful = False
-        if branch_meaningful:
-            branch = _remove_wrapping_elements(branch, right_xpaths_map)
-            new_right_unique.append(branch) if len(branch) > 0 else None
+        if not branch_meaningful(branch, right_xpaths_map):
+            continue
+        # branch = _remove_unnecessary_elements(branch, right_xpaths_map)
+        branch = _remove_wrapping_elements(branch, right_xpaths_map)
+        new_right_unique.append(branch) if len(branch) > 0 else None
 
     return new_left_unique, new_right_unique

@@ -284,8 +284,11 @@ class LayoutElement:
             return True
         # Dynamic element that changes itself 
         if js_dynamism_self_eq(self, other):
-            self.dynamic_matched = True
-            other.dynamic_matched = True
+            # Exclude body dynamic match tagging
+            if self.tagname != 'body':
+                self.dynamic_matched = True
+            if other.tagname != 'body':
+                other.dynamic_matched = True
             return True
         # Dynamism caused by css
         if css_dynamism_self_eq(self, other):
