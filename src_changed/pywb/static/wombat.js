@@ -2542,8 +2542,10 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
                 return rewriteFn(this, orig_setter, orig);
               } catch (e) {
                 console.error(`Fidex (wombat exception thrown): got unexpected errors in overrideHtmlAssign ${e}`);
-                if (typeof __fidex_mutation !== "undefined" && __fidex_mutation)
+                if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
                   orig_setter.call(this, orig);
+                  return;
+                }
                 throw e;
               }
               // * jingyz: End of change
