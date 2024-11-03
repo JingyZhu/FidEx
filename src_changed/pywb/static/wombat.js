@@ -2537,7 +2537,16 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
         if (orig_setter) {
           var rewriteFn = this.rewriteHTMLAssign,
             setter = function overrideHTMLAssignSetter(orig) {
-              return rewriteFn(this, orig_setter, orig);
+              // * jingyz: Start change
+              try {
+                return rewriteFn(this, orig_setter, orig);
+              } catch (e) {
+                console.error(`Fidex (wombat exception thrown): got unexpected errors in overrideHtmlAssign ${e}`);
+                if (typeof __fidex_mutation !== "undefined" && __fidex_mutation)
+                  orig_setter.call(this, orig);
+                throw e;
+              }
+              // * jingyz: End of change
             },
             wb_unrewrite_rx = this.wb_unrewrite_rx,
             getter = function overrideHTMLAssignGetter() {
@@ -2658,7 +2667,7 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
               try {
                 retval.__WB_pmw;
               } catch (e) {
-                console.warn(`Fidex (wombat invariant violated): contentFrame can't access __WB_pmw`);
+                console.error(`Fidex (wombat exception thrown): overrideIframeContentAccessGetter contentFrame can't access __WB_pmw`);
                 if (typeof __fidex_mutation !== "undefined" && __fidex_mutation)
                   return WBpmwCompatibleIframe(retval);
               }
@@ -4189,7 +4198,7 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
                 new Worker_(wombat.rewriteWorker(url), options)
               );
             } catch (e) {
-              console.warn(`Fidex (wombat exception thrown) ${e}`);
+              console.error(`Fidex (wombat exception thrown): Worker ${e}`);
               if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
                 return new Worker_(url, options);
               }   

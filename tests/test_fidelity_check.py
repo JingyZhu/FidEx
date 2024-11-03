@@ -155,6 +155,7 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
             # 'https://oenergetice.cz/', # Spotify player
             # 'https://www.telstra.com.au/', # Phone recommendation and carousel not flashing
             'https://www.nih.gov/',
+            'https://www.futurelearn.com:443/', # body dynamically matched but not children
         ]
     }
     urls = urls[tocmp]
