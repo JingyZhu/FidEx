@@ -16,3 +16,6 @@ def stage_later(s1, s2):
 def tagname_from_xpath(xpath):
     """Get the tag name from the xpath"""
     return xpath.split('/')[-1].split('[')[0]
+
+def normal_text(text):
+    return text.strip()

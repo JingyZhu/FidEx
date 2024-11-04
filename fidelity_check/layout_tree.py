@@ -6,7 +6,7 @@ import json, time
 import functools
 
 from fidex.fidelity_check import js_writes
-from fidex.utils import url_utils
+from fidex.utils import url_utils, common
 
 CSS_ANIMATION_STYLES = [
     'clip-path',
@@ -20,6 +20,7 @@ CSS_ANIMATION_STYLES = [
     'top',
     'bottom',
     'right',
+    'opacity',
 ]
 
 FILTERED_STYLES = CSS_ANIMATION_STYLES + [
@@ -218,7 +219,7 @@ class LayoutElement:
                     identical = identical and (f1.endswith(f2) or f2.endswith(f1))
                 return identical
             elif e1.features[0].lower() == '#text' and e2.features[0].lower() == '#text':
-                return e1.text == e2.text
+                return common.normal_text(e1.text) == common.normal_text(e2.text)
             elif e1.features[0].lower() == 'img' and e2.features[0].lower() == 'img':
                 src_match = len(set(e1.features[1]).intersection(set(e2.features[1]))) > 0
                 return src_match and tuple(e1.features[2:]) == tuple(e2.features[2:])

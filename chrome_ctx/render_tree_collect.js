@@ -138,7 +138,7 @@ function getNodeText(node) {
         }
         return tag.replace(/\n/g, "");
     } else if (node.nodeType === Node.TEXT_NODE){
-        return node.textContent;
+        return node.textContent.trim();
     } else
         return null;
 }

@@ -85,6 +85,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             # 'https://www.tado.com/all-en', # Messenger seems only appears in live
             # 'https://oenergetice.cz/', # Spotify player
             'https://equativ.com:443/', # Lazy loading image
+            'https://pinterestdownloader.com/', # ytp diff on play time
 
             # ? Double check or need to resolve
             # 'https://ht-web.com/', # Interaction 2
