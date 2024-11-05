@@ -1,7 +1,7 @@
 import re
 from bs4 import BeautifulSoup
 
-from fidex.utils import common
+from fidex.utils import common, url_utils
 
 def _ignore_tag(branch):
     ignore_list = ['ruffle-embed', 'rs-progress-bar', 'br']
@@ -103,12 +103,35 @@ def _from_ads(branch, xpaths_map):
         if element_tag.find() is None:
             continue
         # First element's class name includes ad related
-        ad_class = ['adsbygoogle', 'ad', 'advertisement']
+        ad_class = ['adsbygoogle', 'ad', 'advertisement', 'infinite']
         ad_classlist = element_tag.find().attrs.get('class', '')
+        # ad_classlist = ' '.join(ad_classlist)
+        ad_classlist = [c for cl in ad_classlist for c in re.split(r'[ \-_]+', cl)]
         for ad in ad_class:
             if ad in ad_classlist:
                 return True
     return False
+
+def _from_eager_image(branch, xpaths_map, other_invisible_img_srcs: set):
+    for br in branch:
+        element = xpaths_map[br]
+        element_tag = BeautifulSoup(element['text'], 'html.parser')
+        if element_tag.find() is None:
+            continue
+        # First element's class name includes ad related
+        img_tag = element_tag.find('img')
+        if img_tag is None:
+            continue
+        if img_tag.attrs.get('loading', '') != 'eager':
+            return False
+        srcs = common.get_img_src(img_tag)
+        if 'currentSrc' in element.get('extraAttr', {}):
+            srcs.add(url_utils.url_norm(element['extraAttr']['currentSrc'], 
+                     ignore_scheme=True, trim_www=True, trim_slash=True, archive=True))
+        if srcs.intersection(other_invisible_img_srcs):
+            return True
+    return False
+
 
 def branch_meaningful(branch, xpaths_map: dict=None) -> bool:
     if not _visible(branch, xpaths_map):
@@ -125,8 +148,19 @@ def branch_meaningful(branch, xpaths_map: dict=None) -> bool:
         return False
     return True
 
-def _remove_unnecessary_elements(branch, xpaths_map):
+def _remove_unnecessary_elements(branch, xpaths_map, other_xpaths_map: dict):
     """Throw away sub-branches, not the whole branch"""
+    # * Construct invisible img srcs
+    invisible_img_srcs = set()
+    for xpath, obj in other_xpaths_map.items():
+        if not _visible([xpath], other_xpaths_map) and common.tagname_from_xpath(xpath) == 'img':
+            img_tag = BeautifulSoup(obj['text'], 'html.parser').find('img')
+            srcs = common.get_img_src(img_tag)
+            if 'currentSrc' in obj.get('extraAttr', {}):
+                srcs.add(url_utils.url_norm(obj['extraAttr']['currentSrc'], 
+                                            ignore_scheme=True, trim_www=True, trim_slash=True, archive=True))
+            invisible_img_srcs.update(srcs)
+
     new_branch = []
     filtered_branch = []
     for br in branch:
@@ -137,7 +171,9 @@ def _remove_unnecessary_elements(branch, xpaths_map):
                 break
         if in_filter_branch:
             continue
-        if _from_ads([br], xpaths_map) or _from_recaptcha([br], xpaths_map):
+        if _from_ads([br], xpaths_map) \
+          or _from_recaptcha([br], xpaths_map) \
+          or _from_eager_image([br], xpaths_map, invisible_img_srcs):
             filtered_branch.append(br)
             continue
         new_branch.append(br)
@@ -219,7 +255,7 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
     for branch in left_unique:
         if not branch_meaningful(branch, left_xpaths_map):
             continue
-        # branch = _remove_unnecessary_elements(branch, left_xpaths_map)
+        branch = _remove_unnecessary_elements(branch, left_xpaths_map, right_xpaths_map)
         branch = _remove_wrapping_elements(branch, left_xpaths_map)
         new_left_unique.append(branch) if len(branch) > 0 else None
     
@@ -227,7 +263,7 @@ def meaningful_diff(left_element, left_unique, right_element, right_unique) -> (
     for branch in right_unique:
         if not branch_meaningful(branch, right_xpaths_map):
             continue
-        # branch = _remove_unnecessary_elements(branch, right_xpaths_map)
+        branch = _remove_unnecessary_elements(branch, right_xpaths_map, left_xpaths_map)
         branch = _remove_wrapping_elements(branch, right_xpaths_map)
         new_right_unique.append(branch) if len(branch) > 0 else None
 
