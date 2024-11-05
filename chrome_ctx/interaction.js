@@ -259,6 +259,17 @@ function loadEventListeners(loadEvents) {
     return listeners;
 }
 
+function filterByClassName(listeners) {
+    let filtered = {};
+    for (let eli of listeners){
+        let key = eli[0].className;
+        if (!filtered[key]){
+            filtered[key] = eli;
+        }
+    }
+    return Object.values(filtered);
+}
+
 function getCandidateElements(listeners) {
     var elems = []; // each entry is a two-tupe [1st,2nd] where 1st is element, and 2nd is list of events
     listeners.forEach((l) => {
@@ -411,12 +422,18 @@ function _filter_handlers(handlers) {
 }
 
 class eventListenersIterator {
-    constructor(loadEvents = null) {
+    constructor(options={loadEvents: null, grouping: false}) {
+        let loadEvents = options.loadEvents;
+        let grouping = options.grouping;
+
         this.verbose_listeners = listAllEventListeners();
         // if (loadEvents == null)
         this.listeners = getCandidateElements(this.verbose_listeners)
         // else
         //     this.listeners = loadEventListeners(loadEvents);
+        if (grouping) {
+            this.listeners = filterByClassName(this.listeners);
+        }
         this.origPath = [];
         for (const _e of this.listeners)
             this.origPath.push(getDomXPath(_e[0]));
@@ -517,7 +534,7 @@ class eventListenersIterator {
     }
 }
 
-// let eli = new eventListenersIterator();
+// let eli = new eventListenersIterator(options={grouping: true});
 // for (const _e of eli.listeners) {
 //     [elem, _] = _e;
 //     console.log(elem, getDomXPath(elem))
