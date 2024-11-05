@@ -134,11 +134,14 @@ def test_mutation(record=False):
         test_utils.init_test()
     write_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
     urls = [
-        # 'https://www.nit.pt/', # top popup
-        # 'https://www.kualo.com/', # Trustpilot popup
-        # 'https://www.vivastreet.co.uk/', # Response.json error
-        # 'https://opensource.jp/', # Google translate
-        'https://www.google.ee/'
+        'https://www.nit.pt/', # top popup
+        'https://www.kualo.com/', # Trustpilot popup
+        'https://www.vivastreet.co.uk/', # Response.json error
+        'https://opensource.jp/', # Google translate
+        'https://www.google.ee/',
+        'https://www.futurelearn.com:443/', # Override HTML Assignment
+        'https://ectopic.org.uk/', # JSON parse on wrongly js rewritten JSON
+        'https://www.estadiodeportivo.com/', # firstElementChild is wombat script
     ]
     if record:
         urls_copy = urls.copy()
@@ -181,4 +184,4 @@ def test_mutation(record=False):
 
 # test_syntax_error(record=False)
 # test_exception_error(record=False)
-test_mutation(record=False)
+test_mutation(record=True)

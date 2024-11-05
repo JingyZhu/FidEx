@@ -74,7 +74,7 @@ class JSWrite:
             for arg in write['args']:
                 if not isinstance(arg, dict):
                     continue
-                if arg['html'] in ['#text']:
+                if arg.get('html', '') in ['#text']:
                     return True
             return False
         

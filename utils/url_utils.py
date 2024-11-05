@@ -110,7 +110,9 @@ def url_norm(url, case=False, ignore_scheme=False, trim_www=False,\
         url = filter_archive(url) if is_archive(url) else url
     if '%' in url:
         url = unquote(url)
-    us = urlsplit(url)
+    try:
+        us = urlsplit(url)
+    except: return url
     netloc, path, query = us.netloc, us.path, us.query
     netloc = netloc.split(':')[0]
     if ignore_scheme:

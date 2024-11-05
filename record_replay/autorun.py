@@ -301,7 +301,8 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         if archive:
             archive = _replace_port(HOST, pywb_server.port)
         if not os.path.exists(chrome_data):
-            call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
+            # call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
+            call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
             time.sleep(worker_id*5)
         record_replay_all_urls([url], 
                                metadata_file,
