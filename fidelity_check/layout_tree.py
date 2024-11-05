@@ -142,15 +142,7 @@ class LayoutElement:
         return color
 
     def _get_src(self) -> set:
-        src_terms = [re.compile('^src$'), re.compile('.*lazy.+src'), re.compile('.*data.+src')]
-        srcs = []
-        img = self.tag
-        for attr in img.attrs:
-            for term in src_terms:
-                if term.match(attr):
-                    src = img.attrs[attr]
-                    srcs.append(src)
-        srcs = set([url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True, archive=True) for src in srcs])
+        srcs = common.get_img_src(self.tag)
         if 'currentSrc' in self.extraAttr:
             srcs.add(url_utils.url_norm(self.extraAttr['currentSrc'], ignore_scheme=True, trim_www=True, trim_slash=True, archive=True))
         return srcs

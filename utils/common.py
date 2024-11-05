@@ -1,4 +1,7 @@
 import socket
+import re
+
+from fidex.utils import url_utils
 
 def get_hostname():
     return socket.gethostname()
@@ -24,3 +27,15 @@ def tagname_from_xpath(xpath):
 
 def normal_text(text):
     return text.strip()
+
+def get_img_src(img_tag) -> set:
+    src_terms = [re.compile('^src$'), re.compile('.*lazy.+src'), re.compile('.*data.+src')]
+    srcs = []
+    img = img_tag
+    for attr in img.attrs:
+        for term in src_terms:
+            if term.match(attr):
+                src = img.attrs[attr]
+                srcs.append(src)
+    srcs = set([url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True, archive=True) for src in srcs])
+    return srcs
