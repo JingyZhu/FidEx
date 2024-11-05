@@ -416,7 +416,8 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
         parent_node.add_child(layout_element)
     
     # Given addEventlistener could be registered by webrecord ruffle, some wid in writes may not in stack_map
-    writes_obj = [js_writes.JSWrite(w, stack_map[w['wid']]['stackInfo']) for w in writes if w['wid'] in stack_map and js_writes.JSWrite.effective(w)]
+    writes_obj = [js_writes.JSWrite(w, stack_map[w['wid']]['stackInfo'], list(nodes.keys())) \
+                  for w in writes if w['wid'] in stack_map and js_writes.JSWrite.effective(w)]
     for w in writes_obj:
         for xpath in w.associated_xpaths:
             if xpath in nodes:

@@ -23,7 +23,7 @@ def extra_writes(dirr, diffs: "list[list]", side='left', left_prefix='live', rig
     target_info = right_info if side == 'left' else left_info
     extra_layout = layout_tree.build_layout_tree(extra_info.elements, extra_info.writes, extra_info.write_stacks)
     target_layout = layout_tree.build_layout_tree(target_info.elements, target_info.writes, target_info.write_stacks)
-    target_stacks = set([w.serialized_stack for w in target_layout.all_writes])
+    target_stacks = set([w.serialized_stack_async for w in target_layout.all_writes])
 
     diff_writes = []
     for branch in diffs:
@@ -32,7 +32,7 @@ def extra_writes(dirr, diffs: "list[list]", side='left', left_prefix='live', rig
             element = extra_layout.all_nodes[xpath]
             element_writes = element.writes
             for w in element_writes:
-                if w.serialized_stack not in target_stacks:
+                if w.serialized_stack_async not in target_stacks:
                     writes.add(w)
                     break
         if len(writes) > 0:

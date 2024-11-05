@@ -95,6 +95,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             # 'https://www.camara.leg.br/',
             # 'https://tarhely.eu/',
             'https://www.pinterest.com/', # interaction_0 popping "i" timing
+            'https://9to5mac.com/', # Infinite scroll icon + Eager image loading in archive
 
             # ! Unable to fix now
             # 'https://www.warnerrecords.com/',

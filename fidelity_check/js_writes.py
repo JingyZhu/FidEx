@@ -52,7 +52,7 @@ def writes_stacks_match(writes_1: "List[JSWrite]", writes_2: "List[JSWrite]") ->
     return True
 
 class JSWrite:
-    def __init__(self, write: dict, stack: list = None):
+    def __init__(self, write: dict, stack: list = None, all_xpaths: list = None):
         self.wid = write['wid']
         self.method = write['method']
         self.xpath = write['xpath']
@@ -60,6 +60,7 @@ class JSWrite:
         self.currentDS = write.get('currentDS', {})
         self.stack = execution.Stack(stack) if stack else None
         self.write = write
+        self.all_xpaths = all_xpaths
         self._hash = None
 
     @staticmethod
@@ -133,12 +134,24 @@ class JSWrite:
                     xpaths.append(a['xpath'])
         if JSWrite.effective(self.write):
             xpaths.append(self.xpath + '/#text[1]')
-        return xpaths
+        # * For set:innerHTML, consider all descendants as associated
+        if self.method == 'set:innerHTML':
+            for xpath in self.all_xpaths:
+                if xpath.startswith(self.xpath) and xpath != self.xpath:
+                    xpaths.append(xpath)
+        return list(set(xpaths))
     
     @functools.cached_property
     def serialized_stack(self) -> "tuple(tuple)":
         serialized_stack = self.stack.serialized[0]
         return tuple([tuple([s.functionName]) for s in serialized_stack])
+    
+    @functools.cached_property
+    def serialized_stack_async(self) -> "tuple(tuple)":
+        serialized_stack = []
+        for async_stack in self.stack.serialized:
+            serialized_stack += [tuple([s.functionName]) for s in async_stack]
+        return tuple(serialized_stack)
 
     @functools.cached_property
     def scripts(self) -> "set[str]":
