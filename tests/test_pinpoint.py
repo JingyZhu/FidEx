@@ -87,6 +87,7 @@ def test_exception_error(record=False):
         'https://www.billabong.com/',
         'https://superbet.com/', # No main part of the page overall
         'https://www.transip.nl/', # Previous seen bug
+        'https://felenasoft.com/en/', # set:innerHTML needs to be associated
     ]
     if record:
         urls_copy = urls.copy()

@@ -96,6 +96,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             # 'https://tarhely.eu/',
             'https://www.pinterest.com/', # interaction_0 popping "i" timing
             'https://9to5mac.com/', # Infinite scroll icon + Eager image loading in archive
+            'https://www.trainsimcommunity.com/', # Clicking on cookie accept trigger a reload? in live
 
             # ! Unable to fix now
             # 'https://www.warnerrecords.com/',
