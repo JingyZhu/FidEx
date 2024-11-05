@@ -51,6 +51,9 @@ class LoadInfo:
             self.available_events()
         return self.events
     
+    def read_excep_ff(self) -> list:
+        return json.load(open(f"{self.dirr}/{self.base}_exception_failfetch.json"))
+
     def gen_xpath_map(self):
         self.elements_map = {e['xpath']: e for e in self.elements}
     

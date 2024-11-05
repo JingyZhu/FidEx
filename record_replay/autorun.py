@@ -23,7 +23,7 @@ import logging
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(_FILEDIR))
 _CURDIR = os.getcwd()
-from fidex.utils import upload, url_utils, logger
+from fidex.utils import upload, url_utils, logger, common
 from fidex.config import CONFIG
 
 REMOTE = False
@@ -33,9 +33,7 @@ HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
 
-def _get_hostname():
-    return socket.gethostname()
-DEFAULT_CHROMEDATA = f'{HOME}/chrome_data/{_get_hostname()}'
+DEFAULT_CHROMEDATA = f'{HOME}/chrome_data/{common.get_hostname()}'
 
 
 def record(url, archive_name,
@@ -252,7 +250,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     if arguments is None:
         arguments = DEFAULTARGS
     for i in range(num_workers):
-        call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{_get_hostname()}_{i}'])
+        call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{i}'])
     # random.shuffle(urls)
     active_ids = set()
     pywb_servers = []
@@ -338,7 +336,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                 task = executor.submit(record_replay_worker, 
                                         url=url,
                                         metadata_file=f'{metadata_prefix}_{worker_id}.json',
-                                        chrome_data=f'{chrome_data_dir}/record_replay_{_get_hostname()}_{worker_id}',
+                                        chrome_data=f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{worker_id}',
                                         worker_id=worker_id,
                                         write_path=write_path,
                                         download_path=download_path,

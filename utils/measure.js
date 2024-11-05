@@ -88,10 +88,11 @@ async function getPageDimension(page) {
  * @param {*} page 
  */
 async function scroll(page) {
-    let height = 1081;
-    try {
-        ( { height } = await getPageDimension(page));
-    } catch {}
+    /* The problem that timeout here is not directly related to scoll.
+    Instead, it is very likely caused by previous JS execution (probably wirte_overrides)
+    The JS is stuck in the page, so here there is the timeout.
+    */
+    let { height } = await getPageDimension(page);
     for (let i = 1; i * 1080 < height; i += 1) {
         await page.evaluate(() => window.scrollBy(0, 1080));
         await new Promise(resolve => setTimeout(resolve, 500));

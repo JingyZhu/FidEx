@@ -176,10 +176,10 @@ class Pinpointer:
         chrome_data_dir = os.path.dirname(autorun.DEFAULT_CHROMEDATA)
         if not Pinpointer.CHROME_DATA_INIT:
             Pinpointer.CHROME_DATA_INIT = True
-            call(f'rm -rf {chrome_data_dir}/pinpoint_{self.idx}', shell=True)
-            call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', f'{chrome_data_dir}/pinpoint_{self.idx}'])
+            call(f'rm -rf {chrome_data_dir}/pinpoint_{common.get_hostname()}_{self.idx}', shell=True)
+            call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', f'{chrome_data_dir}/pinpoint_{common.get_hostname()}_{self.idx}'])
         autorun.replay(archive_url, archive_name,
-                    chrome_data=f'{chrome_data_dir}/pinpoint_{self.idx}',
+                    chrome_data=f'{chrome_data_dir}/pinpoint_{common.get_hostname()}_{self.idx}',
                     write_path=write_path,
                     filename='mut',
                     arguments=arguments)

@@ -1,3 +1,8 @@
+import socket
+
+def get_hostname():
+    return socket.gethostname()
+
 def stage_nolater(s1, s2):
     """Check if s1 is earlier or equal to s2"""
     order = ['onload', 'extraInteraction']
