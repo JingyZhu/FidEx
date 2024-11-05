@@ -89,6 +89,15 @@ def _collect_dimension(element):
     }
 
 class LayoutElement:
+    @staticmethod
+    def dummy_element():
+        return LayoutElement({
+            'depth': 0,
+            'xpath': '/',
+            'text': 'html',
+            'extraAttr': {}
+        })
+    
     def __init__(self, element: dict):
         self.depth = element['depth']
         self.xpath = element['xpath']
@@ -392,7 +401,10 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
     """
     stack_map = {w['wid']: w for w in writeStacks}
     if len(elements) == 0:
-        return
+        dummy = LayoutElement.dummy_element()
+        dummy.all_writes = []
+        dummy.all_nodes = {dummy.xpath: dummy}
+        return dummy
     root_e = elements[0]
     nodes = {root_e['xpath']: LayoutElement(root_e)} # {xpath: LayoutElement}
 
