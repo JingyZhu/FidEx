@@ -444,7 +444,10 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
       (this.IsTagRegex = /^\s*</),
       (this.DotPostMessageRe = /(\.postMessage\s*\()/),
       (this.extractPageUnderModifierRE = /\/(?:[0-9]{14})?([a-z]{2, 3}_)\//),
-      (this.write_buff = "");
+      (this.write_buff = ""),
+      // * jingyz: Start change
+      (this.json_parse = this.$wbwindow.JSON.parse);
+      // * jingyz: End change
     var eTargetProto = ($wbwindow.EventTarget || {}).prototype;
     (this.utilFns = {
       cspViolationListener: function (e) {
@@ -3745,7 +3748,7 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
             if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
               let jsonText = await this.cloneResponse.text();
               jsonText = wombat.unwrapScriptTextJsProxy(jsonText);
-              jsonResponse = JSON.parse(jsonText);
+              jsonResponse = wombat.json_parse(jsonText);
               return jsonResponse;
             }
             throw error;
@@ -3843,6 +3846,42 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
                 : result;
             });
         }
+        // * jingyz: Start change. Check Element.firstElementChild
+        // use defprop to redefine firstElementChild
+        var orig_firstElementChild_getter = this.getOrigGetter(ElementProto, "firstElementChild");
+        function findOriginalFirstElement(element) {
+          let childNodes = element.childNodes;
+          let childElements = element.children;
+          let n_idx = 0, e_idx = 0;
+          let wb_stage = 0;
+          // Throw away all elements that are wrapped between WB Insert and End WB Insert
+          while (n_idx < childNodes.length && e_idx < childElements.length) {
+            let node = childNodes[n_idx];
+            if (node.nodeType === Node.COMMENT_NODE) {
+              if (node.textContent.includes("WB Insert") || node.textContent.includes("End WB Insert"))
+                wb_stage++;
+              if (wb_stage == 2)
+                break;
+            }
+            n_idx++;
+            if (childNodes[n_idx] === childElements[e_idx])
+              e_idx++;
+          }
+          if (e_idx < childElements.length)
+            return { hasWB: wb_stage > 0, element: childElements[e_idx] };
+          else
+            return { hasWB: false, element: childElements[0] };
+        }
+        function firstElementChildGetter() {
+          let retval = orig_firstElementChild_getter.call(this);
+          if (retval && retval.textContent.includes('_____WB$wombat$assign$function_____')) {
+            console.warn(`Fidex (wombat invariant violated): firstElementChild is from rewritten`);
+            if (typeof __fidex_mutation !== "undefined" && __fidex_mutation)
+              return findOriginalFirstElement(this).element;
+          }
+          return retval;
+        }
+        this.defProp(ElementProto, "firstElementChild", null, firstElementChildGetter);
       }
     }),
     (Wombat.prototype.initSvgImageOverrides = function () {
@@ -5266,6 +5305,44 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
           }
         );
     }),
+    // * jingyz: Start change
+    (Wombat.prototype.initJSONParseOverride = function () {
+      var wombat = this;
+      function tryParseJson(...args) {
+        let args_copy = args.slice();
+        while (args_copy[0].length > 0) {
+          try {
+            return wombat.json_parse(...args_copy);
+          } catch (e) {
+            if (!(e instanceof SyntaxError))
+              return null;
+            const match = e.message.match(/at position (\d+)/);
+            if (!match)
+              return null;
+            const pos = parseInt(match[1], 10);
+            args_copy[0] = args_copy[0].slice(0, pos) + args_copy[0].slice(pos + 1);
+          }
+        }
+        return null;
+      }
+
+      this.$wbwindow.JSON.parse = function (...args) {
+        try {
+          return wombat.json_parse(...args);
+        } catch (e) {
+          console.error(`Fidex (wombat error): JSON parse error: ${e}`);
+          if (typeof __fidex_mutation !== "undefined" && __fidex_mutation) {
+            args[0] = wombat.unwrapScriptTextJsProxy(args[0]);
+            let retval = tryParseJson(...args);
+            if (retval) {
+              return retval;
+            } 
+          }
+          throw e
+        }
+      }
+    }),
+    // * jingyz: End change
     (Wombat.prototype.wombatInit = function () {
       this._internalInit(),
         this.initCookiePreset(),
@@ -5365,7 +5442,10 @@ Current, all mutation is controlled by __fidex_mutation. But this can be split i
         this.initCachesOverride(),
         this.initIndexedDBOverride(),
         this.initWindowObjProxy(this.$wbwindow),
-        this.initDocumentObjProxy(this.$wbwindow.document);
+        this.initDocumentObjProxy(this.$wbwindow.document),
+        // * jingyz: Start change
+        this.initJSONParseOverride();
+        // * jingyz: End change
       var wombat = this;
       return {
         extract_orig: this.extractOriginalURL,
