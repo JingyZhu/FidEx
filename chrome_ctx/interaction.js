@@ -44,6 +44,10 @@ var IGNORE_ELEMENTS = [
     "#document"
 ];
 
+var IGNORE_ELEMENT_INTERACTIONS = {
+    'A': ['click', 'mousedown', 'mouseup'],
+}
+
 let funcMap = new Map();
 let funcCount = 0;
 
@@ -300,6 +304,8 @@ function getCandidateElements(listeners) {
 
             var e = [el, {}];
             Object.keys(handler).forEach((h) => {
+                // if (IGNORE_ELEMENT_INTERACTIONS[el.nodeName] && IGNORE_ELEMENT_INTERACTIONS[el.nodeName].indexOf(h) >= 0)
+                //     return;
                 if (all_handlers.indexOf(h) >= 0) { 
                     e[1][h] = [];
                     for (const f of handler[h]) {

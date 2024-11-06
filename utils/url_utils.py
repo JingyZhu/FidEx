@@ -95,8 +95,8 @@ def archive_split(archive_url):
         raise Exception(f"Invalid archive url: {archive_url}")
     return result
 
-def url_norm(url, case=False, ignore_scheme=False, trim_www=False,\
-                trim_slash=False, sort_query=True, archive=False):
+def url_norm(url, case=False, ignore_scheme=False, ignore_netloc=False, \
+             trim_www=False, trim_slash=False, sort_query=True, archive=False):
     """
     Perform URL normalization
     common: Eliminate port number, fragment
@@ -119,6 +119,8 @@ def url_norm(url, case=False, ignore_scheme=False, trim_www=False,\
         us = us._replace(scheme='http')
     if trim_www and netloc.split('.')[0] == 'www':
         netloc = '.'.join(netloc.split('.')[1:])
+    if ignore_netloc:
+        netloc = ''
     us = us._replace(netloc=netloc, fragment='')
     if not case:
         path, query = path.lower(), query.lower()

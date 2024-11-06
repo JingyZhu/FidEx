@@ -37,5 +37,5 @@ def get_img_src(img_tag) -> set:
             if term.match(attr):
                 src = img.attrs[attr]
                 srcs.append(src)
-    srcs = set([url_utils.url_norm(src, ignore_scheme=True, trim_www=True, trim_slash=True, archive=True) for src in srcs])
+    srcs = set([url_utils.url_norm(src, ignore_scheme=True, ignore_netloc=True, trim_slash=True, archive=True) for src in srcs])
     return srcs

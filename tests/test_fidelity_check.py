@@ -75,33 +75,33 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
 
     'archive': [
             # * Should be solved
-            # 'https://web.mit.edu/', # set:textContent writes to text
-            # 'https://www.princeton.edu/', # 1x1 extra span in text   
-            # 'https://www.inkfrog.com/',
-            # 'https://www.klaviyo.com/', # hidden different dimensions in archive
-            # 'https://www.skype.com/en/', # Long waiting before fully loaded
-            # 'https://miniclip.com/',
-            # 'https://www.mysql.com/',
-            # 'https://www.tado.com/all-en', # Messenger seems only appears in live
-            # 'https://oenergetice.cz/', # Spotify player
+            'https://web.mit.edu/', # set:textContent writes to text
+            'https://www.princeton.edu/', # 1x1 extra span in text   
+            'https://www.inkfrog.com/',
+            'https://www.klaviyo.com/', # hidden different dimensions in archive
+            'https://www.skype.com/en/', # Long waiting before fully loaded
+            'https://miniclip.com/',
+            'https://www.tado.com/all-en', # Messenger seems only appears in live
+            'https://oenergetice.cz/', # Spotify player
             'https://equativ.com:443/', # Lazy loading image
             'https://pinterestdownloader.com/', # ytp diff on play time
+            'https://comozero.it/', # Blocked ads
 
             # ? Double check or need to resolve
-            # 'https://ht-web.com/', # Interaction 2
-            # 'https://www.instagram.com/',
-            # 'https://www.efortuna.pl/',
-            # 'https://www.trustpilot.com/',
-            # 'https://www.camara.leg.br/',
-            # 'https://tarhely.eu/',
+            'https://ht-web.com/', # Interaction 2
+            'https://www.instagram.com/',
+            'https://www.efortuna.pl/',
+            'https://www.trustpilot.com/',
+            'https://www.camara.leg.br/',
+            'https://tarhely.eu/',
             'https://www.pinterest.com/', # interaction_0 popping "i" timing
             'https://9to5mac.com/', # Infinite scroll icon + Eager image loading in archive
-            'https://www.trainsimcommunity.com/', # Clicking on cookie accept trigger a reload? in live
+            'https://dsport.bg/', # Lazy loading + relative path vs. absolute path
 
             # ! Unable to fix now
             # 'https://www.warnerrecords.com/',
-            # 'https://lipighor.com/', # Lazy loading?
-            
+            'https://lipighor.com/', # Lazy loading?
+            # 'https://www.trainsimcommunity.com/', # Clicking on cookie accept trigger a reload? in live            
         ]
 
     }
@@ -134,10 +134,10 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
         for r in results:
             if r is None:
                 continue
-            hostname = r['hostname'].split('/')[-1]
+            hostname = r.info['hostname'].split('/')[-1]
             url = available_host_url[hostname]
-            correct = 'Correct' if r['diff'] == False else 'Wrong'
-            test_results.loc[len(test_results)] = {'url': url, 'correct?': correct, 'stage (if not correct)': r['diff_stage']}
+            correct = 'Correct' if r.info['diff'] == False else 'Wrong'
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': correct, 'stage (if not correct)': r.info['diff_stage']}
     print(test_results)
 
 
@@ -157,6 +157,7 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
             # 'https://voxeu.org', # Browser incompatibility
             # 'https://oenergetice.cz/', # Spotify player
             # 'https://www.telstra.com.au/', # Phone recommendation and carousel not flashing
+            'https://www.mysql.com/', # Cookie preferences can't show in archive
             'https://www.nih.gov/',
             'https://www.futurelearn.com:443/', # body dynamically matched but not children
         ]
@@ -190,12 +191,12 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
         for r in results:
             if r is None:
                 continue
-            hostname = r['hostname'].split('/')[-1]
+            hostname = r.info['hostname'].split('/')[-1]
             url = available_host_url[hostname]
-            correct = 'Wrong' if r['diff'] == False else 'Correct'
-            test_results.loc[len(test_results)] = {'url': url, 'correct?': correct, 'stage (if correct)': r['diff_stage']}
+            correct = 'Wrong' if r.info['diff'] == False else 'Correct'
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': correct, 'stage (if correct)': r.ifno['diff_stage']}
     print(test_results)
 
 
-# test_fidelity_detect_no_issue(tocmp='proxy', record=True)
-test_fidelity_detect_with_issue(tocmp='archive', record=True)
+test_fidelity_detect_no_issue(tocmp='archive', record=True)
+# test_fidelity_detect_with_issue(tocmp='archive', record=True)
