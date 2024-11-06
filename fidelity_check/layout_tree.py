@@ -192,8 +192,8 @@ class LayoutElement:
             return False
         
         def full_stack_eq(e1, e2):
-            e1_elements = [e1] + e1.descendants
-            e2_elements = [e2] + e2.descendants
+            e1_elements = [e1] + e1.descendants()
+            e2_elements = [e2] + e2.descendants()
             e1_write_stacks = [w for e in e1_elements for w in e.writes]
             e2_write_stacks = [w for e in e2_elements for w in e.writes]
             return len(e1_write_stacks) > 0 and js_writes.writes_stacks_match(e1_write_stacks, e2_write_stacks)
@@ -241,12 +241,18 @@ class LayoutElement:
                     e2_related_writes = [w for e in e2.parent.children for w in e.writes]
                 else:
                     e2_related_writes = e2.writes
-                
                 # e1_related_writes = e1.writes
                 # e2_related_writes = e2.writes
 
                 e1_subset = set(e1_related_writes).issubset(set(e2_related_writes))
                 e2_subset = set(e2_related_writes).issubset(set(e1_related_writes))
+                if e1_subset and e2_subset:
+                    return True
+                
+                e1_related_writes_plain = [w.plain_form for w in e1_related_writes]
+                e2_related_writes_plain = [w.plain_form for w in e2_related_writes]
+                e1_subset = set(e1_related_writes_plain).issubset(set(e2_related_writes_plain))
+                e2_subset = set(e2_related_writes_plain).issubset(set(e1_related_writes_plain))
                 if e1_subset and e2_subset:
                     return True
             return False
@@ -323,13 +329,32 @@ class LayoutElement:
             cur_node = cur_node.parent
         return ancestors
     
-    @functools.cached_property
-    def descendants(self):
+    def descendants(self) -> "list[LayoutElement]":
         descendants = []
         for child in self.children:
             descendants.append(child)
-            descendants += child.descendants
+            descendants += child.descendants()
         return descendants
+    
+    def next_siblings(self) -> "List[LayoutElement]":
+        if not self.parent:
+            return None
+        idx = 0
+        while idx < len(self.parent.children):
+            if self.parent.children[idx] is self:
+                break
+            idx += 1
+        return self.parent.children[idx+1:]
+    
+    def prev_siblings(self) -> "List[LayoutElement]":
+        if not self.parent:
+            return None
+        idx = 0
+        while idx < len(self.parent.children):
+            if self.parent.children[idx] is self:
+                break
+            idx += 1
+        return self.parent.children[:idx]
 
     def tag_new_writes(self, other):
         """tag unique writes for both self and others"""
@@ -416,9 +441,11 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
         parent_node.add_child(layout_element)
     
     # Given addEventlistener could be registered by webrecord ruffle, some wid in writes may not in stack_map
-    writes_obj = [js_writes.JSWrite(w, stack_map[w['wid']]['stackInfo'], list(nodes.keys())) \
-                  for w in writes if w['wid'] in stack_map and js_writes.JSWrite.effective(w)]
+    writes_obj = [js_writes.JSWrite(w, stack_map[w['wid']]['stackInfo'], nodes) \
+                  for w in writes if w['wid'] in stack_map]
     for w in writes_obj:
+        if not w.effective:
+            continue
         for xpath in w.associated_xpaths:
             if xpath in nodes:
                 nodes[xpath].add_writes([w])
@@ -574,6 +601,7 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     # json.dump(right_unique, open('right_unique.json', 'w'), indent=2)
     
     if left_write_stacks == right_write_stacks:
+        # print("Same whole write stacks", left_layout.all_writes, right_layout.all_writes)
         return [], []
 
     left_layout_list = left_layout.list_tree(layout_order=layout_order)

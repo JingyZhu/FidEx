@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 import functools
+import json
 from fidex.utils import execution, common
 
 def _tag_from_arg(args):
@@ -52,59 +53,93 @@ def writes_stacks_match(writes_1: "List[JSWrite]", writes_2: "List[JSWrite]") ->
     return True
 
 class JSWrite:
-    def __init__(self, write: dict, stack: list = None, all_xpaths: list = None):
+    def __init__(self, write: dict, stack: list = None, node_map: dict = None):
         self.wid = write['wid']
         self.method = write['method']
         self.xpath = write['xpath']
         self.args = write['args']
         self.currentDS = write.get('currentDS', {})
         self.stack = execution.Stack(stack) if stack else None
+        self._effective = write.get('effective', False)
         self.write = write
-        self.all_xpaths = all_xpaths
+        self.node_map = node_map or {}
         self._hash = None
-
-    @staticmethod
-    def effective(write: dict) -> "bool":
-        """
-        Filter out effective writes
-        """
-        # setTextContent should always be effective on the text children
-        def _write_to_text(write):
-            if write['method'] == 'set:textContent':
-                return True
-            for arg in write['args']:
-                if not isinstance(arg, dict):
-                    continue
-                if arg.get('html', '') in ['#text']:
-                    return True
-            return False
         
-        def _img_set_src(write):
-            target_name = common.tagname_from_xpath(write['xpath'])
-            if target_name not in ['img']:
-                return False
-            if write['method'] in ['set:src']:
-                return True
-            if write['method'] in ['setAttribute']:
-                first_arg = write.get('args', [{}])[0]
-                if first_arg.get('html', '') in ['src']:
-                    return True
+    def _img_set_src(self):
+        """If the write is setting src of img, it is always effective"""
+        target_name = common.tagname_from_xpath(self.xpath)
+        if target_name not in ['img']:
             return False
-        
-        return write['effective']  \
-                or _write_to_text(write) \
-                or _img_set_src(write)
+        if self.method in ['set:src']:
+            return True
+        if self.method in ['setAttribute']:
+            first_arg = self.args[0]
+            if first_arg.get('html', '') in ['src']:
+                return True
+        return False
 
     def _write_to_text(self) -> "bool":
+        """If the write is writing to text node, it is always effective"""
         if self.method == 'set:textContent':
             return True
         for arg in self.args:
             if not isinstance(arg, dict):
                 continue
-            if arg['html'] in ['#text']:
+            if arg.get('html', '') in ['#text']:
                 return True
         return False
-                
+    
+    @functools.cached_property
+    def effective(self) -> "bool":
+        """
+        Filter out effective writes
+        Combine the hint from the dict and other factors
+        """
+        # setTextContent should always be effective on the text children
+        if self._effective:
+            return True
+        if self._write_to_text():
+            return True
+        if self._img_set_src():
+            return True
+        # Set html has more chance to be effective 
+        if self.method in ['insertAdjacentHTML', 'set:innerHTML']:
+            return True
+        return False
+    
+    def _adjacent_nodes(self, html=None) -> list:
+        """Proceess the adjacent related operations looking for related path
+        Currently, it is not 100% accurate, since only one actual child (and its descendants) will be affected, but we're considering all children
+        
+        Args:
+            html (str): the html (if any) that is being inserted
+        """
+        first_arg = self.args[0].get('html', '')
+        related_xpaths = []
+        if first_arg not in ['beforebegin', 'afterend', 'beforeend', 'afterbegin']:
+            return related_xpaths
+        self_node = self.node_map.get(self.xpath)
+        if first_arg in ['afterbegin', 'beforeend']:
+            self_node = self.node_map.get(self.xpath)
+            if self_node:
+                related_xpaths.append(self.xpath)
+                related_xpaths += [n.xpath for n in self_node.descendants() if html is None or n.tagname in html]
+            return related_xpaths
+        if first_arg == 'beforebegin':
+            related_xpaths.append(self.xpath)
+            prev_siblings = self_node.prev_siblings()
+            for p_sib in prev_siblings:
+                related_xpaths.append(p_sib.xpath)
+                related_xpaths += [n.xpath for n in p_sib.descendants() if html is None or n.tagname in html]
+            return related_xpaths
+        if first_arg == 'afterend':
+            related_xpaths.append(self.xpath)
+            next_siblings = self_node.next_siblings()
+            for n_sib in next_siblings:
+                related_xpaths.append(n_sib.xpath)
+                related_xpaths += [n.xpath for n in n_sib.descendants() if html is None or n.tagname in html]
+            return related_xpaths
+
     @functools.cached_property
     def associated_xpaths(self) -> "list[str]":
         """
@@ -132,13 +167,19 @@ class JSWrite:
                     continue
                 if 'xpath' in a:
                     xpaths.append(a['xpath'])
-        if JSWrite.effective(self.write):
+        if self.effective:
             xpaths.append(self.xpath + '/#text[1]')
         # * For set:innerHTML, consider all descendants as associated
         if self.method == 'set:innerHTML':
-            for xpath in self.all_xpaths:
-                if xpath.startswith(self.xpath) and xpath != self.xpath:
-                    xpaths.append(xpath)
+            self_node = self.node_map.get(self.xpath)
+            html = self.args[0].get('html', '')
+            if self_node:
+                xpaths += [n.xpath for n in self_node.descendants() if n.tagname in html]
+        # * For insertAdjacentHTML, consider prev sibling / next sibling or children as associated
+        if self.method == 'insertAdjacentHTML':
+            html = self.args[1].get('html', '')
+            related_xpaths = self._adjacent_nodes(html)
+            xpaths += related_xpaths
         return list(set(xpaths))
     
     @functools.cached_property
@@ -156,6 +197,12 @@ class JSWrite:
     @functools.cached_property
     def scripts(self) -> "set[str]":
         return self.stack.scripts
+    
+    @functools.cached_property
+    def plain_form(self) -> "tuple":
+        for arg in self.args:
+            args_str = json.dumps(arg, sort_keys=True)
+        return (self.method, self.xpath, args_str)
     
     def _hash_tuple(self):
         target = common.tagname_from_xpath(self.xpath)
