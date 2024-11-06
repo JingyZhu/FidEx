@@ -14,29 +14,32 @@ from fidex.config import CONFIG
 def sum_diffs(left_unique, right_unique):
     return sum([len(branch) for branch in left_unique])
 
-def extra_writes(dirr, diffs: "list[list]", side='left', left_prefix='live', right_prefix='archive') -> "list[js_writes.JSWrite]":
+def extra_writes(dirr, left_diffs, right_diffs, left_prefix='live', right_prefix='archive') -> "list[js_writes.JSWrite]":
     """Get extra writes from left to right, or right to left, depending on the side"""
-    assert side in ['left', 'right'], 'side should be either left or right'
+    diff_writes = []
     left_info = fidelity_detect.LoadInfo(dirr, left_prefix)
     right_info = fidelity_detect.LoadInfo(dirr, right_prefix)
-    extra_info = left_info if side == 'left' else right_info
-    target_info = right_info if side == 'left' else left_info
-    extra_layout = layout_tree.build_layout_tree(extra_info.elements, extra_info.writes, extra_info.write_stacks)
-    target_layout = layout_tree.build_layout_tree(target_info.elements, target_info.writes, target_info.write_stacks)
-    target_stacks = set([w.serialized_stack_async for w in target_layout.all_writes])
+    for side in ['left', 'right']:
+        extra_info = left_info if side == 'left' else right_info
+        target_info = right_info if side == 'left' else left_info
+        extra_layout = layout_tree.build_layout_tree(extra_info.elements, extra_info.writes, extra_info.write_stacks)
+        target_layout = layout_tree.build_layout_tree(target_info.elements, target_info.writes, target_info.write_stacks)
+        target_stacks = set([w.serialized_stack_async for w in target_layout.all_writes])
 
-    diff_writes = []
-    for branch in diffs:
-        writes = set()
-        for xpath in branch:
-            element = extra_layout.all_nodes[xpath]
-            element_writes = element.writes
-            for w in element_writes:
-                if w.serialized_stack_async not in target_stacks:
-                    writes.add(w)
-                    break
-        if len(writes) > 0:
-            diff_writes.append(sorted(list(writes), key=lambda x: int(x.wid.split(':')[0])))
+        diffs = left_diffs if side == 'left' else right_diffs
+        for branch in diffs:
+            writes = set()
+            for xpath in branch:
+                element = extra_layout.all_nodes[xpath]
+                element_writes = element.writes
+                for w in element_writes:
+                    if w.serialized_stack_async not in target_stacks:
+                        writes.add(w)
+                        break
+            if len(writes) > 0:
+                diff_writes.append(sorted(list(writes), key=lambda x: int(x.wid.split(':')[0])))
+        if len(diff_writes) > 0:
+            break
     diff_writes.sort(key=lambda x: int(x[0].wid.split(':')[0]))
     return diff_writes
 
@@ -122,7 +125,9 @@ class Pinpointer:
         self.right = self.right_prefix if self.diff_stage == 'onload' else f'{self.right_prefix}_{self.diff_stage.split("_")[1]}'
     
     def extra_writes(self):
-        self.diff_writes = extra_writes(self.dirr, self.fidelity_result.live_unique, left_prefix=self.left, right_prefix=self.right)
+        self.diff_writes = extra_writes(self.dirr, left_diffs=self.fidelity_result.live_unique, 
+                                        right_diffs=self.fidelity_result.archive_unique,
+                                        left_prefix=self.left, right_prefix=self.right)
         return self.diff_writes
 
     def read_related_info(self):
