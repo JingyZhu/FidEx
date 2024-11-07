@@ -172,7 +172,7 @@ class JSWrite:
         # * For set:innerHTML, consider all descendants as associated
         if self.method == 'set:innerHTML':
             self_node = self.node_map.get(self.xpath)
-            args_0 = self.args[0] if isinstance(self.args[0], dict) else {}
+            args_0 = self.args[0] if len(self.args) > 0 and isinstance(self.args[0], dict) else {}
             html = args_0.get('html', '')
             if self_node:
                 xpaths += [n.xpath for n in self_node.descendants() if n.tagname in html]

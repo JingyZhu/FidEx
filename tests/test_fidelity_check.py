@@ -97,6 +97,7 @@ def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
             'https://www.pinterest.com/', # interaction_0 popping "i" timing
             'https://9to5mac.com/', # Infinite scroll icon + Eager image loading in archive
             'https://dsport.bg/', # Lazy loading + relative path vs. absolute path
+            'https://patch.com/', # Img lazying loading with patched image
 
             # ! Unable to fix now
             # 'https://www.warnerrecords.com/',
@@ -198,5 +199,5 @@ def test_fidelity_detect_with_issue(tocmp='proxy', record=False):
     print(test_results)
 
 
-test_fidelity_detect_no_issue(tocmp='archive', record=True)
+test_fidelity_detect_no_issue(tocmp='archive', record=False)
 # test_fidelity_detect_with_issue(tocmp='archive', record=True)

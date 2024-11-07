@@ -107,6 +107,7 @@ class LayoutElement:
         self.tagname = self.tag.name if isinstance(self.tag, Tag) else self.tag
         self.id = self._get_id()
         self.writes = []
+        self.verbose_writes = []
         self.dimension = _collect_dimension(element)
 
         self.children = []
@@ -377,8 +378,10 @@ class LayoutElement:
         self.children.append(child)
         child.parent = self
     
-    def add_writes(self, writes: "list[js_writes.JSWrite]"):
-        self.writes += writes
+    def add_writes(self, writes: "list[js_writes.JSWrite]", effective=False):
+        self.verbose_writes += writes
+        if effective:
+            self.writes += writes
     
     def list_tree(self, layout=True, layout_order=False) -> "list(LayoutElement)":
         """List all elements in the tree
@@ -409,12 +412,13 @@ class LayoutElement:
         return f"{self.xpath} {self.text} {self.dimension}"
 
 
-def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list) -> "Optional[LayoutElement]":
+def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list, include_verbose_writes=False) -> "Optional[LayoutElement]":
     """
     Args:
         elements (list): List of elements
         writes (list): List of writes
         writeStacks (list): List of write stacks
+        include_verbose_writes (bool): If True, include verbose writes
     """
     stack_map = {w['wid']: w for w in writeStacks}
     if len(elements) == 0:
@@ -444,11 +448,11 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
     writes_obj = [js_writes.JSWrite(w, stack_map[w['wid']]['stackInfo'], nodes) \
                   for w in writes if w['wid'] in stack_map]
     for w in writes_obj:
-        if not w.effective:
+        if not w.effective and not include_verbose_writes:
             continue
         for xpath in w.associated_xpaths:
             if xpath in nodes:
-                nodes[xpath].add_writes([w])
+                nodes[xpath].add_writes([w], effective=w.effective)
     root_node = nodes[root_e['xpath']]
     root_node.all_writes = [w for w in writes_obj if w.currentDS.get('width', 0) > 0 and w.currentDS.get('height', 0) > 0]
     root_node.all_nodes = nodes
