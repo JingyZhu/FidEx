@@ -52,5 +52,5 @@ class JSException:
 
 def read_exceptions(dirr, base, stage):
     exceptions = json.load(open(f"{dirr}/{base}_exception_failfetch.json"))
-    exceptions = [e for e in exceptions if common.stage_nolater(stage, e['stage'])]
+    exceptions = [e for e in exceptions if common.stage_nolater(e['stage'], stage)]
     return [JSException(e) for exceps in exceptions for e in exceps['exceptions']]
