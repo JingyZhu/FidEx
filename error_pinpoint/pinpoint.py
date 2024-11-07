@@ -1,6 +1,7 @@
 import json
 import time
 import os
+import bs4
 from dataclasses import dataclass
 from subprocess import call
 
@@ -19,25 +20,34 @@ def extra_writes(dirr, left_diffs, right_diffs, left_prefix='live', right_prefix
     diff_writes = []
     left_info = fidelity_detect.LoadInfo(dirr, left_prefix)
     right_info = fidelity_detect.LoadInfo(dirr, right_prefix)
-    for side in ['left', 'right']:
-        extra_info = left_info if side == 'left' else right_info
-        target_info = right_info if side == 'left' else left_info
-        extra_layout = layout_tree.build_layout_tree(extra_info.elements, extra_info.writes, extra_info.write_stacks)
-        target_layout = layout_tree.build_layout_tree(target_info.elements, target_info.writes, target_info.write_stacks)
-        target_stacks = set([w.serialized_stack_async for w in target_layout.all_writes])
+    left_layout = layout_tree.build_layout_tree(left_info.elements, left_info.writes, left_info.write_stacks,
+                                                include_verbose_writes=True)
+    right_layout = layout_tree.build_layout_tree(right_info.elements, right_info.writes, right_info.write_stacks,
+                                                include_verbose_writes=True)
+    
+    # * Enumerate [effective writes, verbose writes] x [left, right]. Starting from the most common and making senses one
+    collect_writes = [lambda x: x.writes, lambda x: x.verbose_writes]
+    sides = ['left', 'right']
+    for collect in collect_writes:
+        for side in sides:
+            extra_layout = left_layout if side == 'left' else right_layout
+            target_layout = right_layout if side == 'left' else left_layout
+            target_stacks = set([w.serialized_stack_async for w in target_layout.all_writes])
 
-        diffs = left_diffs if side == 'left' else right_diffs
-        for branch in diffs:
-            writes = set()
-            for xpath in branch:
-                element = extra_layout.all_nodes[xpath]
-                element_writes = element.writes
-                for w in element_writes:
-                    if w.serialized_stack_async not in target_stacks:
-                        writes.add(w)
-                        break
-            if len(writes) > 0:
-                diff_writes.append(sorted(list(writes), key=lambda x: int(x.wid.split(':')[0])))
+            diffs = left_diffs if side == 'left' else right_diffs
+            for branch in diffs:
+                writes = set()
+                for xpath in branch:
+                    element = extra_layout.all_nodes[xpath]
+                    element_writes = collect(element)
+                    for w in element_writes:
+                        if 1 or w.serialized_stack_async not in target_stacks:
+                            writes.add(w)
+                            break
+                if len(writes) > 0:
+                    diff_writes.append(sorted(list(writes), key=lambda x: int(x.wid.split(':')[0])))
+            if len(diff_writes) > 0:
+                break
         if len(diff_writes) > 0:
             break
     diff_writes.sort(key=lambda x: int(x[0].wid.split(':')[0]))
@@ -136,6 +146,51 @@ class Pinpointer:
         self.url = json.load(open(f'{self.dirr}/metadata.json'))['req_url']
         self.archive_url = json.load(open(f'{self.dirr}/metadata.json'))['archive_url']
         self.import_map = js_initiators.read_import_map(self.url)
+    
+    def read_original_info(self, stage):
+        left_stage = self.left_prefix if stage in ['onload', 'extraInteraction'] \
+                        else f'{self.left_prefix}_{stage.split("_")[1]}'
+        right_stage = self.right_prefix if stage in ['onload', 'extraInteraction'] \
+                        else f'{self.right_prefix}_{stage.split("_")[1]}'
+        if not hasattr(self, 'left_info'):
+            self.left_info = fidelity_detect.LoadInfo(self.dirr, left_stage)
+            self.left_info.read_info()
+            self.left_info.gen_xpath_map()
+        if not hasattr(self, 'right_info'):
+            self.right_info = fidelity_detect.LoadInfo(self.dirr, right_stage)
+            self.right_info.read_info()
+            self.right_info.gen_xpath_map()
+        
+    def pinpoint_common(self) -> "List[js_exceptions.JSExcep]":
+        """Pinpoint some errors that are common and not related to errors"""
+        issues = []
+        self.read_original_info(self.diff_stage)
+        # Check svg issue with use
+        for branch in self.fidelity_result.live_unique:
+            for br in branch:
+                if common.tagname_from_xpath(br) != 'use':
+                    continue
+                element = self.left_info.elements_map[br]
+                element_tag = bs4.BeautifulSoup(element['text'], 'html.parser').find()
+                if element_tag is None:
+                    continue
+                xlink = element_tag.attrs.get('xlink:href', '')
+                if xlink == '':
+                    continue
+                right_uses = [e for e in self.right_info.elements if common.tagname_from_xpath(e['xpath']) == 'use']
+                right_uses = [self.right_info.elements_map[e['xpath']] for e in right_uses]
+                right_use_nodes = [bs4.BeautifulSoup(e['text'], 'html.parser').find() for e in right_uses]
+                right_xlinks = [e.attrs.get('xlink:href', '') for e in right_use_nodes if e is not None and e.attrs.get('xlink:href', '')]
+                right_xlinks = [url_utils.filter_archive(x) if url_utils.is_archive(x) else x for x in right_xlinks]
+                if xlink in right_xlinks:
+                    issues.append(js_exceptions.JSException({
+                        'ts': time.time(),
+                        'description': '<use> link xlink:href issue, \n either rewritten causing not found, \n or not rewritten causing blocked',
+                        'scriptURL': br,
+                        'line': 1,
+                        'column': 1,
+                    }))
+        return issues
 
     def pinpoint_syntax_errors(self) -> "List[js_exceptions.JSExcep]":
         syntax_exceptions = [excep for excep in self.exceptions if excep.is_syntax_error]
@@ -222,6 +277,9 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
     start = time.time()
     pinpointer = Pinpointer(dirr, idx, left_prefix, right_prefix, meaningful)
     pinpointer.add_fidelity_result(fidelity_result)
+    common_issues = pinpointer.pinpoint_common()
+    if len(common_issues) > 0:
+        return PinpointResult(fidelity_result, [], common_issues)
     diff_writes = pinpointer.extra_writes()
     pinpointer.read_related_info()
     print(dirr, 'finished pinpoint preparation', time.time()-start)

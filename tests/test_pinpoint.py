@@ -35,6 +35,7 @@ def test_syntax_error(record=False):
         'https://www.scribd.com/',
         'https://tribute.tg/', # Initiator syntax error
         'https://wordpress.org/', # Extra interaction caused by syntax error from import map
+        'https://www.mace.com/', # cannot get effective writes, fallback to verbose_writes
     ]
     if record:
         urls_copy = urls.copy()
@@ -88,6 +89,7 @@ def test_exception_error(record=False):
         'https://superbet.com/', # No main part of the page overall
         'https://www.transip.nl/', # Previous seen bug
         'https://felenasoft.com/en/', # set:innerHTML needs to be associated
+        'https://www.envoyproxy.io/docs/envoy/latest/start/install', # insertAdjacent tracking
     ]
     if record:
         urls_copy = urls.copy()
@@ -182,7 +184,16 @@ def test_mutation(record=False):
     print(test_results)
     print(json.dumps(positive_reason, indent=2))
 
+def test_common_issues(record=False):
+    global PREFIX
+    if record:
+        PREFIX = 'test'
+        test_utils.init_test()
+    write_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
+    urls = [
+        'https://lightwidget.com/', # svg use issues
+    ]
 
-# test_syntax_error(record=False)
+test_syntax_error(record=True)
 # test_exception_error(record=False)
-test_mutation(record=True)
+# test_mutation(record=True)
