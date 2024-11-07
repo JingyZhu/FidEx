@@ -469,6 +469,9 @@ class Frame:
     def after(self, other: "Frame") -> bool:
         if self.associated_ast and other.associated_ast:
             return self.associated_ast.after(other.associated_ast)
+        self_code, other_code = Frame.get_code(self.url), Frame.get_code(other.url)
+        if not self_code or not other_code:
+            return False
         self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
         other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
         return self.text_matcher.after(self_pos, other.text_matcher, other_pos)

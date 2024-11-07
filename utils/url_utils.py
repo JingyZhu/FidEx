@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
-ARCHIVE_PATTERN = r'(https?://[^/]+)/([^/]+)/(\d+)[^/\d]*/(((https?:)?//)?.+)'
+ARCHIVE_PATTERN = r'(https?://[^/]+)/([^/]+)/([12]\d{9,})[^/\d]*/(((https?:)?//)?.+)'
 
 def filter_archive(archive_url):
     match = re.search(ARCHIVE_PATTERN, archive_url)
