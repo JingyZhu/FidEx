@@ -201,9 +201,10 @@ class JSWrite:
     
     @functools.cached_property
     def plain_form(self) -> "tuple":
+        args_strs = []
         for arg in self.args:
-            args_str = json.dumps(arg, sort_keys=True)
-        return (self.method, self.xpath, args_str)
+            args_strs.append(json.dumps(arg, sort_keys=True))
+        return (self.method, self.xpath, tuple(args_strs))
     
     def _hash_tuple(self):
         target = common.tagname_from_xpath(self.xpath)

@@ -116,7 +116,7 @@ def _from_ads(branch, xpaths_map):
                 return True
     return False
 
-def _from_eager_image(branch, xpaths_map, other_invisible_img_srcs: set):
+def _from_lazyload_image(branch, xpaths_map, other_invisible_img_srcs: set):
     for br in branch:
         element = xpaths_map[br]
         element_tag = BeautifulSoup(element['text'], 'html.parser')
@@ -126,6 +126,8 @@ def _from_eager_image(branch, xpaths_map, other_invisible_img_srcs: set):
         img_tag = element_tag.find('img')
         if img_tag is None:
             continue
+        if 'lazy' in ' '.join(img_tag.attrs.get('class', '')):
+            return True
         if img_tag.attrs.get('loading', '') != 'eager':
             return False
         srcs = common.get_img_src(img_tag)
@@ -177,7 +179,7 @@ def _remove_unnecessary_elements(branch, xpaths_map, other_xpaths_map: dict):
             continue
         if _from_ads([br], xpaths_map) \
           or _from_recaptcha([br], xpaths_map) \
-          or _from_eager_image([br], xpaths_map, invisible_img_srcs):
+          or _from_lazyload_image([br], xpaths_map, invisible_img_srcs):
             filtered_branch.append(br)
             continue
         new_branch.append(br)

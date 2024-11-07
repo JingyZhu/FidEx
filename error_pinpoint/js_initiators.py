@@ -32,6 +32,8 @@ def read_import_map(page_url) -> "Dict[str, str]":
     """Parse the main HTML file looking for import maps"""
     importmap = {}
     html = execution.Frame.get_code(page_url)
+    if not html:
+        return importmap
     soup = bs4.BeautifulSoup(html, 'html.parser')
     for tag in soup.find_all('script'):
         if tag.get('type') == 'importmap':
