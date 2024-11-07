@@ -28,31 +28,49 @@ function getElemId(elem) {
 function getDomXPath(elm, fullTrace = false) {
     var xPathsList = [];
     let segs = [];
-    for (; elm && elm.nodeType == 1; elm = elm.parentNode)
+    const origElm = elm;
+    for (; elm && [1,3].includes(elm.nodeType); elm = elm.parentNode)
     // for (; elm ; elm = elm.parentNode)  // curently using this will cause exception
     {
-        let withID = false;
+        // let withID = false;
         // if (elm.hasAttribute('id')) {
         //     withID = true;
-        //     segs.unshift(elm.localName.toLowerCase() + '[@id="' + elm.getAttribute('id') + '"]');
-        // }
-        // else if (elm.hasAttribute('class')) {
-        //     segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]');
+        //     segs.unshift(elm.localName.toLowerCase() + '[@id="' + elm.getAttribute('id') + '"]'); 
+        // } 
+        // else if (elm.hasAttribute('class')) { 
+        //     segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]'); 
         // }
         // else {
+        //    let i = 1;
+        //    for (sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
+        //        if (sib.nodeName == elm.nodeName)  
+        //            i++;
+        //    };
+        //    segs.unshift(`${elm.nodeName.toLowerCase()}[${i}]`); 
+        // };
+        // if (withID) // Only push new path if it has an ID
+        //     xPathsList.push('/' + segs.join('/') );
         let i = 1;
         for (let sib = elm.previousSibling; sib; sib = sib.previousSibling) {
-            if (sib.localName == elm.localName) i++;
+            if (sib.localName == elm.localName) 
+                i++;
         };
         segs.unshift(`${elm.localName.toLowerCase()}[${i}]`);
-        // };
-        if (withID) // Only push new path if it has an ID
-            xPathsList.push('/' + segs.join('/'));
     };
     xPathsList.push('/' + segs.join('/'));
-
+    const retval = fullTrace ? xPathsList : xPathsList[xPathsList.length-1];
+    
+    if (!origElm) return retval;
+    if (!origElm._fidex_xpaths) origElm._fidex_xpaths = {};
+    if (typeof __current_stage != 'undefined' && retval && !origElm._fidex_xpaths[__current_stage])
+        origElm._fidex_xpaths[__current_stage] = retval;
     return fullTrace ? xPathsList : xPathsList[xPathsList.length - 1];
 };
+
+function getDomStageXPath(elm, stage, fullTrace=false) {
+    if (!elm._fidex_xpaths) return getDomXPath(elm, fullTrace);
+    return elm._fidex_xpaths[stage] || getDomXPath(elm, fullTrace);
+}
 
 /**
  * Class for sets of recorded dimensions of different nodes.
@@ -201,7 +219,7 @@ unsafeWindow.collect_writes = function (){
     unsafeWindow.__write_log_processed = [];
     unsafeWindow.__write_log = [];
     // Process raw_args so that it can be stringified
-    function process_args(raw_args) {
+    function process_args(raw_args, stage) {
         let args = [];
         for (let arg of raw_args) {
             let arg_info = {
@@ -212,17 +230,17 @@ unsafeWindow.collect_writes = function (){
             if (arg instanceof Element) {
                 // try { arg = _normalSRC(arg); } catch {}
                 arg_info.html = arg.outerHTML;
-                arg_info.xpath = getDomXPath(arg);
+                arg_info.xpath = getDomStageXPath(arg, stage);
             } else if (arg instanceof Node) {
                 if (arg.nodeName !== undefined)
                     arg_info.html = arg.nodeName;
                 else
                     arg_info.html = arg.nodeType;
-                arg_info.xpath = getDomXPath(arg);
+                arg_info.xpath = getDomStageXPath(arg, stage);
             } else if (arg instanceof Array) {
                 arg_info = [];
                 for (const a of arg) {
-                    const processed_a = process_args([a])[0];
+                    const processed_a = process_args([a], stage)[0];
                     arg_info.push(processed_a);
                 }
             }
@@ -255,9 +273,13 @@ unsafeWindow.collect_writes = function (){
     }
 
     for (const record of unsafeWindow.__raw_write_log) {
-        if (!isNodeInDocument(record.target))
-            continue
-        args = process_args(record.args);
+        /* No longer need to check if the node is in the document. 
+           Since a node could be previously written to the document and then removed.
+           With historical xpath, we can still track the node.
+        */
+        // if (!isNodeInDocument(record.target))
+        //     continue
+        args = process_args(record.args, record.currentStage);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;
 
@@ -270,7 +292,7 @@ unsafeWindow.collect_writes = function (){
             effective = !record.beforeDS.isDimensionMatch(record.afterDS);
         unsafeWindow.__write_log_processed.push({
             wid: record.id,
-            xpath: getDomXPath(record.target),
+            xpath: getDomStageXPath(record.target, record.currentStage),
             method: record.method,
             args: args,
             beforeDS: record.beforeDS.getSelfDimension(),
@@ -280,6 +302,7 @@ unsafeWindow.collect_writes = function (){
             currentDS: currentDS.getSelfDimension(),
             currentStage: record.currentStage,
             inDocument: record.inDocument,
+            currentInDocument: isNodeInDocument(record.target),
             effective: effective,
         })
 
