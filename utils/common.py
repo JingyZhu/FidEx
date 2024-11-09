@@ -1,5 +1,6 @@
 import socket
 import re
+import os
 
 from fidex.utils import url_utils
 
@@ -39,3 +40,7 @@ def get_img_src(img_tag) -> set:
                 srcs.append(src)
     srcs = set([url_utils.url_norm(src, ignore_scheme=True, ignore_netloc=True, trim_slash=True, archive=True) for src in srcs])
     return srcs
+
+def finished_record_replaY(write_dir, check_prefix):
+    return os.path.exists(f"{write_dir}/{check_prefix}_dom.json") \
+        and os.path.exists(f"{write_dir}/{check_prefix}_events.json")

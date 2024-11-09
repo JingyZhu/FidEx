@@ -125,6 +125,12 @@ class SSHClientManager:
             call(f"rm -rf {write_path}", shell=True)
         except Exception as e:
             print("Exception on uploading writes", str(e))
+    
+    def remove_write(self, directory):
+        try:
+            self.ssh_exec(f"rm -rf {ARCHIVEDIR}/writes/{directory}")
+        except Exception as e:
+            print("Exception on removing writes", str(e))
 
     def upload_warc(self, warc_path, col_name, directory='default', lock=True):
         try:
@@ -193,7 +199,13 @@ class LocalUploadManager:
             call(f"mv -f {write_path} {ARCHIVEDIR}/writes/{directory}", shell=True)
         except Exception as e:
             print("Exception on uploading writes", str(e))
-    
+
+    def remove_write(self, directory):
+        try:
+            call(f"rm -rf {ARCHIVEDIR}/writes/{directory}", shell=True)
+        except Exception as e:
+            print("Exception on removing writes", str(e))
+
     def upload_warc(self, warc_path, col_name, directory='default', lock=True):
         try:
             os.makedirs(f'{ARCHIVEDIR}/warcs/{directory}', exist_ok=True)

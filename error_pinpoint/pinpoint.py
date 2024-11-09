@@ -277,9 +277,6 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
     start = time.time()
     pinpointer = Pinpointer(dirr, idx, left_prefix, right_prefix, meaningful)
     pinpointer.add_fidelity_result(fidelity_result)
-    common_issues = pinpointer.pinpoint_common()
-    if len(common_issues) > 0:
-        return PinpointResult(fidelity_result, [], common_issues)
     diff_writes = pinpointer.extra_writes()
     pinpointer.read_related_info()
     print(dirr, 'finished pinpoint preparation', time.time()-start)
@@ -298,4 +295,9 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
     if len(mutation_errors) > 0:
         return PinpointResult(fidelity_result, diff_writes, mutation_errors)
     print(dirr, 'finished mutation pinpoint', time.time()-start)
+
+    common_issues = pinpointer.pinpoint_common()
+    if len(common_issues) > 0:
+        return PinpointResult(fidelity_result, [], common_issues)
+    print(dirr, 'finished common pinpoint', time.time()-start)
     return PinpointResult(fidelity_result, diff_writes, [])

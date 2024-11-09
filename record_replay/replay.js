@@ -18,6 +18,7 @@ const { recordReplayArgs } = require('../utils/argsparse');
 const { loggerizeConsole } = require('../utils/logger');
 
 loggerizeConsole();
+const TIMEOUT = 60*1000;
 
 (async function(){
     // * Step 0: Prepare for running
@@ -70,7 +71,6 @@ loggerizeConsole();
             client.on('Network.responseReceived', params => excepFF.onFetch(params))
             client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
         }
-        const timeout = 30*1000;
         
         await preventNavigation(page);
         await preventWindowPopup(page);
@@ -92,7 +92,7 @@ loggerizeConsole();
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            await eventSync.waitTimeout(networkIdle, timeout); 
+            await eventSync.waitTimeout(networkIdle, TIMEOUT); 
         } catch {}
         if (options.minimal)
             return;

@@ -42,6 +42,10 @@ class Config:
     def ts(self):
         """Return a 12-digit timestamp by YYYYMMDDHHMM"""
         return time.strftime('%Y%m%d%H%M')
+    
+    @property
+    def chrome_data_dir(self):
+        return self.config.get('chrome_data_dir')
 
 config_path = os.path.join(_FILEDIR, 'config.json') if not os.environ.get('FIDEX_CONFIG') else os.environ.get('FIDEX_CONFIG')
 CONFIG = Config(config_path)

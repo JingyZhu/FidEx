@@ -33,7 +33,7 @@ HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
 
-DEFAULT_CHROMEDATA = f'{HOME}/chrome_data/{common.get_hostname()}'
+DEFAULT_CHROMEDATA = CONFIG.chrome_data_dir
 
 
 def record(url, archive_name,
@@ -116,6 +116,7 @@ def record_replay(url, archive_name,
         client = upload.SSHClientManager()
     else:
         client = upload.LocalUploadManager()
+    client.remove_write(f'{pw_archive}/{archive_name}')
 
     ts, record_url = record(url, archive_name, 
                 chrome_data=chrome_data, 
@@ -142,6 +143,8 @@ def record_replay(url, archive_name,
                 chrome_data=chrome_data,
                 write_path=write_path, 
                 arguments=arguments)
+        if not common.finished_record_replaY(f'{write_path}/{archive_name}', 'archive'):
+            return '', record_url
     
     if proxy:
         PHOST = proxy if isinstance(proxy, str) else PROXYHOST
@@ -151,6 +154,8 @@ def record_replay(url, archive_name,
                 write_path=write_path, 
                 proxy=True,
                 arguments=proxy_arguments)
+        if not common.finished_record_replaY(f'{write_path}/{archive_name}', 'proxy'):
+            return '', record_url
     
     # The metadata will also be merged and dump together later. Here just leave a copy at the directory
     if os.path.exists(f'{write_path}/{archive_name}'):
@@ -182,13 +187,14 @@ def record_replay_all_urls(urls,
                            remote_host=REMOTE,
                            proxy=False,
                            archive=True,
-                           arguments=None):
+                           arguments=None) -> set:
     if arguments is None:
         arguments = DEFAULTARGS
     if not os.path.exists(metadata_file):
         json.dump({}, open(metadata_file, 'w+'), indent=2)
     metadata = json.load(open(metadata_file, 'r'))
     seen_dir = set([v['directory'] for v in metadata.values()])
+    finished_urls = set()
 
     for i, url in list(enumerate(urls)):
         logging.info(f"Start {i} {url}") if worker_id is None else logging.info(f"Start {worker_id} {i} {url}")
@@ -229,7 +235,9 @@ def record_replay_all_urls(urls,
             'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
             'directory': archive_name,
         }
+        finished_urls.add(url)
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)
+    return finished_urls
 
 def record_replay_all_urls_multi(urls, num_workers=8,
                                  chrome_data_dir=os.path.dirname(DEFAULT_CHROMEDATA),
@@ -241,7 +249,8 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                  remote_host=REMOTE,
                                  proxy=False,
                                  archive=True,
-                                 arguments=None):
+                                 arguments=None,
+                                 trials=1):
     """
     The  multi-threaded version of record_replay_all_urls
     Need to make sure that the chrome_data_dir is set up with base, since the workers will copy from base
@@ -249,19 +258,18 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     """
     if arguments is None:
         arguments = DEFAULTARGS
-    for i in range(num_workers):
-        call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{i}'])
     # random.shuffle(urls)
     active_ids = set()
     pywb_servers = []
     id_lock = threading.Lock()
+    urls_remain, finished_urls = urls.copy(), set()
 
     def _get_worker_task():
         with id_lock:
             for i in range(num_workers):
                 if i not in active_ids:
                     active_ids.add(i)
-                    url = urls.pop(0) if len(urls) > 0 else None
+                    url = urls_remain.pop(0) if len(urls_remain) > 0 else None
                     return i, url
         return None, None
     
@@ -302,7 +310,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
             # call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
             time.sleep(worker_id*5)
-        record_replay_all_urls([url], 
+        succeed_url = record_replay_all_urls([url], 
                                metadata_file,
                                chrome_data=chrome_data,
                                worker_id=worker_id,
@@ -314,49 +322,54 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                proxy=proxy,
                                archive=archive,
                                arguments=arguments)
+        finished_urls.update(succeed_url)
         with id_lock:
             active_ids.remove(worker_id)
    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        # Keep track of futures
-        tasks = []
-        while True:
-            # Get worker id
-            sleep_time = 1
+    for _ in range(trials):
+        urls_remain = [url for url in urls if url not in finished_urls]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            for i in range(num_workers):
+                call(['rm', '-rf', f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{i}'])
+            # Keep track of futures
+            tasks = []
             while True:
-                worker_id, url = _get_worker_task()
-                if worker_id is not None:
-                    break
+                # Get worker id
+                sleep_time = 1
+                while True:
+                    worker_id, url = _get_worker_task()
+                    if worker_id is not None:
+                        break
+                    else:
+                        sleep_time = min(sleep_time * 2, 30)
+                        time.sleep(sleep_time)
+                assert worker_id is not None, "Worker ID is None"
+                if url:
+                    # Submit the worker thread to the pool
+                    task = executor.submit(record_replay_worker, 
+                                            url=url,
+                                            metadata_file=f'{metadata_prefix}_{worker_id}.json',
+                                            chrome_data=f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{worker_id}',
+                                            worker_id=worker_id,
+                                            write_path=write_path,
+                                            download_path=download_path,
+                                            wr_archive=wr_archive,
+                                            pw_archive=pw_archive,
+                                            remote_host=remote_host,
+                                            proxy=proxy,
+                                            archive=archive,
+                                            arguments=arguments)
+                    tasks.append(task)
                 else:
-                    sleep_time = min(sleep_time * 2, 30)
-                    time.sleep(sleep_time)
-            assert worker_id is not None, "Worker ID is None"
-            if url:
-                # Submit the worker thread to the pool
-                task = executor.submit(record_replay_worker, 
-                                        url=url,
-                                        metadata_file=f'{metadata_prefix}_{worker_id}.json',
-                                        chrome_data=f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{worker_id}',
-                                        worker_id=worker_id,
-                                        write_path=write_path,
-                                        download_path=download_path,
-                                        wr_archive=wr_archive,
-                                        pw_archive=pw_archive,
-                                        remote_host=remote_host,
-                                        proxy=proxy,
-                                        archive=archive,
-                                        arguments=arguments)
-                tasks.append(task)
-            else:
-                # Exit the loop if no more urls
-                break
-            # Check for any completed threads
-            for task in tasks:
-                if task.done():
-                    tasks.remove(task)
-            # Exit the loop if all tasks are done
-            if len(tasks) == 0 and len(active_ids) == 0:
-                break
+                    # Exit the loop if no more urls
+                    break
+                # Check for any completed threads
+                for task in tasks:
+                    if task.done():
+                        tasks.remove(task)
+                # Exit the loop if all tasks are done
+                if len(tasks) == 0 and len(active_ids) == 0:
+                    break
 
     # Merge metadata files
     if os.path.exists(f'{metadata_prefix}.json'):
