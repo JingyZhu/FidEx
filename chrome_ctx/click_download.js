@@ -17,11 +17,24 @@ function _getparamValue(query, key) {
     return urlParams[key]
 }
 
+async function retryQuerySelector(element, selector) {
+    let targetElement = null;
+    let retryTimes = 3, retrySleep = 300, retries = 0;
+    while (!targetElement && retries < retryTimes) {
+        if (retries > 0)
+            await sleep(retrySleep);
+        targetElement = element.querySelector(selector);
+        retries++;
+    }
+    return targetElement;
+}
+
 // archive needs to be passed on page.evaluate
-function firstPageClick(archive) {
+async function firstPageClick(archive) {
     // * First Page Click
-    let archiveLists = document.querySelector('archive-web-page-app').shadowRoot
-                        .querySelector('wr-rec-coll-index').shadowRoot
+    let archive_web_page_app = await retryQuerySelector(document, 'archive-web-page-app');
+    let wr_rec_coll_index = await retryQuerySelector(archive_web_page_app.shadowRoot, 'wr-rec-coll-index');
+    let archiveLists = wr_rec_coll_index.shadowRoot;
     let targetArchive;
     for (const al of archiveLists.querySelectorAll('wr-rec-coll-info')) {
         if (al.shadowRoot.querySelector('a').text.includes(archive)) {

@@ -98,12 +98,12 @@ function collect_writes(){
     }
 
     for (const record of __raw_write_log) {
-        /* No longer need to check if the node is in the document. 
+        /* Need to check if the node is ever (not necessarily currently) in the document. 
            Since a node could be previously written to the document and then removed.
            With historical xpath, we can still track the node.
         */
-        // if (!isNodeInDocument(record.target))
-        //     continue
+        if (!isRecordEverInDocument(record))
+            continue
         args = process_args(record.args, record.currentStage);
         if (record.method === 'setAttribute' && args[0] === 'src')
             args[1] = record.target.src;

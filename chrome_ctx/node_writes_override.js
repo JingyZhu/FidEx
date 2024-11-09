@@ -31,6 +31,18 @@ function isNodeInDocument(node) {
     return node.isConnected;
 }
 
+function isRecordEverInDocument(record) {
+    if (isNodeInDocument(record.target))
+        return true;
+    if (record.target._fidex_xpaths) {
+        for (const xpath of Object.values(record.target._fidex_xpaths)) {
+            if (xpath.startsWith('/html'))
+                return true;
+        }
+    }
+    return false;
+}
+
 function isNodeInDocumentNotRoot(node) {
     return isNodeInDocument(node) && node !== document && node !== document.documentElement;
 }

@@ -36,13 +36,13 @@ try{
 let Archive = null;
 let ArchiveFile = null;
 let downloadPath = null;
-const TIMEOUT = 60*1000;
+const TIMEOUT = 90*1000;
 
 
 async function clickDownload(page, url=null) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    await page.evaluate(archive => firstPageClick(archive), Archive)
-    await eventSync.sleep(500);
+    await page.evaluate(async (archive) => { await firstPageClick(archive) }, Archive)
+    // await eventSync.sleep(500);
     await page.waitForSelector('archive-web-page-app');
     let elementHandle = await page.$('archive-web-page-app'); // Get the shadow host element
     let shadowRoot = await elementHandle.evaluateHandle(el => el.shadowRoot); // Get the shadow root
@@ -51,7 +51,7 @@ async function clickDownload(page, url=null) {
     let shadowRoot2 = await elementHandle2.evaluateHandle(el => el.shadowRoot);
     await shadowRoot2.asElement().waitForSelector('#pages');
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    let {recordURL, pageTs} = await page.evaluate((url) => secondPageDownload(url), url);
+    let {recordURL, pageTs} = await page.evaluate(async (url) => await secondPageDownload(url), url);
     await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
     return {ts: pageTs, recordURL: recordURL};
 }
@@ -206,7 +206,9 @@ async function getActivePage(browser) {
                 timeout: TIMEOUT
             })
             await eventSync.waitTimeout(networkIdle, TIMEOUT); 
-        } catch {}
+        } catch { 
+            throw new Error('TimeoutError: Network idle')
+        }
         if (options.minimal) {
             const finalURL = recordPage.url();
             // * Step 10: Download recorded archive
