@@ -36,7 +36,7 @@ try{
 let Archive = null;
 let ArchiveFile = null;
 let downloadPath = null;
-const TIMEOUT = 90*1000;
+const TIMEOUT = 60*1000;
 
 
 async function clickDownload(page, url=null) {
@@ -51,7 +51,12 @@ async function clickDownload(page, url=null) {
     let shadowRoot2 = await elementHandle2.evaluateHandle(el => el.shadowRoot);
     await shadowRoot2.asElement().waitForSelector('#pages');
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
-    let {recordURL, pageTs} = await page.evaluate(async (url) => await secondPageDownload(url), url);
+    let {recordURL, pageTs} = await page.evaluate(async (url) => {
+        let wholePage = await secondPageDesc();
+        let {recordURL, pageTs} = await secondPageTarget(wholePage, url);
+        await secondPageDownload(wholePage);
+        return {recordURL: recordURL, pageTs: pageTs};
+    }, url);
     await eventSync.waitFile(`${downloadPath}/${ArchiveFile}.warc`);
     return {ts: pageTs, recordURL: recordURL};
 }
@@ -207,7 +212,7 @@ async function getActivePage(browser) {
             })
             await eventSync.waitTimeout(networkIdle, TIMEOUT); 
         } catch { 
-            throw new Error('TimeoutError: Network idle')
+            // throw new Error('TimeoutError: Network idle')
         }
         if (options.minimal) {
             const finalURL = recordPage.url();
