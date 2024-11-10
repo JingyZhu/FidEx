@@ -83,6 +83,7 @@ def replay(url, archive_name,
 
 def record_replay(url, archive_name,
                   chrome_data=DEFAULT_CHROMEDATA,
+                  worker_id=None,
                   write_path=f'{_CURDIR}/writes',
                   download_path=None,
                   archive_path='./',
@@ -110,12 +111,13 @@ def record_replay(url, archive_name,
         arguments = DEFAULTARGS
     temp_client = False
     client = None
+    wb_manager = upload.WBManager(split=(worker_id is not None), worker_id=worker_id)
     if remote_host:
         if sshclient is None:
             temp_client = True
-        client = upload.SSHClientManager()
+        client = upload.SSHClientManager(wb_manager=wb_manager)
     else:
-        client = upload.LocalUploadManager()
+        client = upload.LocalUploadManager(wb_manager=wb_manager)
     client.remove_write(f'{pw_archive}/{archive_name}')
 
     ts, record_url = record(url, archive_name, 
@@ -138,7 +140,8 @@ def record_replay(url, archive_name,
     ts = ts.strip()
     if archive:
         AHOST = archive if isinstance(archive, str) else HOST
-        archive_url = f"{AHOST}/{pw_archive}/{ts}/{record_url}"
+        a_pw_archive = wb_manager.collection(pw_archive)
+        archive_url = f"{AHOST}/{a_pw_archive}/{ts}/{record_url}"
         replay(archive_url, archive_name, 
                 chrome_data=chrome_data,
                 write_path=write_path, 
@@ -212,6 +215,7 @@ def record_replay_all_urls(urls,
         try:
             ts, record_url = record_replay(req_url, archive_name, 
                                     chrome_data=chrome_data,
+                                    worker_id=worker_id,
                                     write_path=write_path, 
                                     download_path=download_path, 
                                     archive_path=archive_path,
@@ -274,8 +278,10 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         return None, None
     
     def _start_pywb_servers():
-        for _ in range(num_workers):
-            pywb_server, pywb_server_proxy = upload.PYWBServer(archive=pw_archive), upload.PYWBServer(archive=pw_archive, proxy=True)
+        for i in range(num_workers):
+            wb_manager = upload.WBManager(split=True, worker_id=i)
+            pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive))
+            pywb_server_proxy = upload.PYWBServer(archive=wb_manager.collection(pw_archive), proxy=True)
             if proxy:
                 pywb_server_proxy.start()
             if archive:

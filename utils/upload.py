@@ -3,6 +3,8 @@ Upload crawled warc files and screenshots to group servers
 Remove the files after uploading
 """
 import os
+import re
+import glob
 import paramiko
 from scp import SCPClient
 import time
@@ -10,13 +12,14 @@ import socket, threading
 from subprocess import check_call, call, check_output, Popen, DEVNULL, PIPE
 
 from fidex.config import CONFIG
+from fidex.utils import common
 
 # SERVER is from the .ssh/config file
 ssh_config = paramiko.SSHConfig()
 ssh_alias = 'pistons'
 with open(os.path.expanduser('~/.ssh/config')) as f:
     ssh_config.parse(f)
-ARCHIVEDIR = os.path.join(os.path.expanduser("~"), 'fidelity-files')
+ARCHIVEDIR = CONFIG.archive_dir
 PYWBENV = CONFIG.pywb_env
 
 class PYWBServer:
@@ -52,9 +55,41 @@ class PYWBServer:
             print(f"Killing server {self.port}")
             call(f"kill -9 {self.server}", shell=True)
 
+class WBManager:
+    def __init__(self, split=False, worker_id=None):
+        self.split = split
+        assert not split or worker_id is not None, "If split is True, worker_id should be provided"
+        self.hostname = common.get_hostname()
+        self.id = worker_id
+
+    def collection(self, col_name):
+        if not self.split:
+            return col_name
+        else:
+            return f"{col_name}-{self.hostname}-{self.id}"
+    
+    @staticmethod
+    def merge_collections(col_name):
+        def rm_col(col):
+            rm_col_cmd = f"cd {ARCHIVEDIR} && rm -rf collections/{col}"
+            call(rm_col_cmd, shell=True)
+        rm_col(col_name)
+        sub_cols_cmd = f"{PYWBENV} && cd {ARCHIVEDIR} && wb-manager list | grep {col_name}"
+        sub_cols = check_output(sub_cols_cmd, shell=True).decode().strip().split('\n')
+        sub_cols = [s for s in sub_cols if re.search(rf"- {col_name}-.*-.*", s)]
+        sub_cols = [s.split('- ')[1] for s in sub_cols]
+        init_cmd = f"{PYWBENV} && cd {ARCHIVEDIR} && wb-manager init {col_name}"
+        call(init_cmd, shell=True)
+        for sub_col in sub_cols:
+            mv_cmd = f"mv {ARCHIVEDIR}/collections/{sub_col}/archive/* {ARCHIVEDIR}/collections/{col_name}/archive/"
+            call(mv_cmd, shell=True)
+            rm_col(sub_col)
+        reindex_cmd = f"{PYWBENV} && cd {ARCHIVEDIR} && wb-manager reindex {col_name}"
+        call(reindex_cmd, shell=True)
+        
 
 class SSHClientManager:
-    def __init__(self, server=None, user=None, password=None):
+    def __init__(self, server=None, user=None, password=None, wb_manager=None):
         assert not server or (server and user and password), "If server provided, user and password should also be provided"
         if server is None:
             server = ssh_config.lookup(ssh_alias)['hostname']
@@ -71,6 +106,7 @@ class SSHClientManager:
             self.ssh_client.connect(server, username=user, key_filename=identity)
         self.ssh_client.get_transport().set_keepalive(30)
         self.scp_client = SCPClient(self.ssh_client.get_transport())
+        self.wb_manager = wb_manager or WBManager()
 
 
     def close(self):
@@ -133,6 +169,7 @@ class SSHClientManager:
             print("Exception on removing writes", str(e))
 
     def upload_warc(self, warc_path, col_name, directory='default', lock=True):
+        col_name = self.wb_manager.collection(col_name)
         try:
             self.ssh_exec(f"mkdir -p {ARCHIVEDIR}/warcs/{directory}")
             self.scp_copy(warc_path, f'{ARCHIVEDIR}/warcs/{directory}')
@@ -157,8 +194,8 @@ class SSHClientManager:
 
 
 class LocalUploadManager:
-    def __init__(self):
-        pass
+    def __init__(self, wb_manager=None):
+        self.wb_manager = wb_manager
 
     def close(self):
         pass
@@ -207,6 +244,7 @@ class LocalUploadManager:
             print("Exception on removing writes", str(e))
 
     def upload_warc(self, warc_path, col_name, directory='default', lock=True):
+        col_name = self.wb_manager.collection(col_name)
         try:
             os.makedirs(f'{ARCHIVEDIR}/warcs/{directory}', exist_ok=True)
             call(f"mv -f {warc_path} {ARCHIVEDIR}/warcs/{directory}", shell=True)

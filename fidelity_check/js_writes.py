@@ -119,6 +119,8 @@ class JSWrite:
         if first_arg not in ['beforebegin', 'afterend', 'beforeend', 'afterbegin']:
             return related_xpaths
         self_node = self.node_map.get(self.xpath)
+        if not self_node:
+            return related_xpaths
         if first_arg in ['afterbegin', 'beforeend']:
             self_node = self.node_map.get(self.xpath)
             if self_node:

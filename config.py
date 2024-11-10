@@ -45,7 +45,11 @@ class Config:
     
     @property
     def chrome_data_dir(self):
-        return self.config.get('chrome_data_dir')
+        return self.config.get('chrome_data_dir', '.')
+    
+    @property
+    def archive_dir(self):
+        return self.config.get('archive_dir', '.')
 
 config_path = os.path.join(_FILEDIR, 'config.json') if not os.environ.get('FIDEX_CONFIG') else os.environ.get('FIDEX_CONFIG')
 CONFIG = Config(config_path)

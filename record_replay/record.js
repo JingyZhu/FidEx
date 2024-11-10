@@ -42,7 +42,7 @@ const TIMEOUT = 90*1000;
 async function clickDownload(page, url=null) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
     await page.evaluate(async (archive) => { await firstPageClick(archive) }, Archive)
-    // await eventSync.sleep(500);
+    await eventSync.sleep(500);
     await page.waitForSelector('archive-web-page-app');
     let elementHandle = await page.$('archive-web-page-app'); // Get the shadow host element
     let shadowRoot = await elementHandle.evaluateHandle(el => el.shadowRoot); // Get the shadow root
