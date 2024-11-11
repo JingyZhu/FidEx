@@ -28,6 +28,14 @@ def replace_archive_host(url, new_host):
     us = urlsplit(url)
     return urlunsplit(us._replace(netloc=new_host))
 
+def replace_archive_collection(url, new_collection):
+    if not is_archive(url):
+        return url
+    matches = re.search(ARCHIVE_PATTERN, url)
+    if not matches:
+        return url
+    return f'{url[:matches.start(2)-1]}/{new_collection}/{url[matches.end(2)+1:]}'
+
 def add_id(url):
     """Add id_ to archive URL to get original resource"""
     if not is_archive(url):

@@ -378,12 +378,12 @@ class JSTextParser:
         return TextMatcher(self.text)
 
 
-@dataclass
 class Frame:
-    functionName: str
-    url: str
-    lineNumber: int
-    columnNumber: int
+    def __init__(self, functionName: str, url: str, lineNumber: int, columnNumber: int):
+        self.functionName = functionName
+        self.url = url_utils.replace_archive_collection(url, CONFIG.collection)
+        self.lineNumber = lineNumber
+        self.columnNumber = columnNumber
 
     @staticmethod
     def get_code(url):
