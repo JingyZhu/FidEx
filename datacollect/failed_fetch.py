@@ -74,6 +74,8 @@ class FailFetchDetector:
             for ff in obj['failedFetches']:
                 if ff.get('status') != 404:
                     continue
+                if ff.get('mime', '')not in ['Document']:
+                    continue
                 norm_url = url_utils.url_norm(ff['url'], ignore_scheme=True, archive=True)
                 if norm_url not in right_aborted and norm_url in left_blocked:
                     blocked_404s.append(ff)

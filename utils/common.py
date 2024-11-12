@@ -30,7 +30,7 @@ def normal_text(text):
     return text.strip()
 
 def get_img_src(img_tag) -> set:
-    src_terms = [re.compile('^src$'), re.compile('.*lazy.+src'), re.compile('.*data.+src')]
+    src_terms = [re.compile('^src$'), re.compile('.*lazy.+src'), re.compile('.*data.+src'), re.compile('.*data.+lazy')]
     srcs = []
     img = img_tag
     for attr in img.attrs:

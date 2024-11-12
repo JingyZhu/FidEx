@@ -114,6 +114,31 @@ def _from_ads(branch, xpaths_map):
         for ad in ad_class:
             if ad in ad_class_ids:
                 return True
+        ad_src = ['counter.yadro.ru/hit']
+        src = element_tag.find().attrs.get('src', '')
+        for ad in ad_src:
+            if ad in src:
+                return True
+    return False
+
+def _from_dynamic(branch, xpaths_map):
+    """Dynamic elements should be matched in matching phase. Here just to tackle some corner cases"""
+    for br in branch:
+        element = xpaths_map[br]
+        element_tag = BeautifulSoup(element['text'], 'html.parser')
+        if element_tag.find() is None:
+            continue
+        # First element's class name includes ad related
+        dynamic_class = ['progress']
+        dynamic_class_ids = []
+        if element_tag.find().attrs.get('class', ''):
+            dynamic_class_ids += element_tag.find().attrs.get('class', '')
+        if element_tag.find().attrs.get('id', ''):
+            dynamic_class_ids.append(element_tag.find().attrs.get('id', ''))
+        dynamic_class_ids = [c for cl in dynamic_class_ids for c in re.split(r'[ \-_]+', cl)]
+        for dynamic in dynamic_class:
+            if dynamic in dynamic_class_ids:
+                return True
     return False
 
 def _from_lazyload_image(branch, xpaths_map, other_invisible_img_srcs: set):
@@ -152,6 +177,8 @@ def branch_meaningful(branch, xpaths_map: dict=None) -> bool:
         return False
     if _from_ads(branch, xpaths_map):
         return False
+    if _from_dynamic(branch, xpaths_map):
+        return False
     return True
 
 def _remove_unnecessary_elements(branch, xpaths_map, other_xpaths_map: dict):
@@ -178,6 +205,7 @@ def _remove_unnecessary_elements(branch, xpaths_map, other_xpaths_map: dict):
         if in_filter_branch:
             continue
         if _from_ads([br], xpaths_map) \
+          or _from_dynamic([br], xpaths_map) \
           or _from_recaptcha([br], xpaths_map) \
           or _from_lazyload_image([br], xpaths_map, invisible_img_srcs):
             filtered_branch.append(br)
