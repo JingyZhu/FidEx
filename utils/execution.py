@@ -4,7 +4,8 @@ import esprima
 import re
 import requests
 from dataclasses import dataclass, asdict
-from functools import cached_property
+from functools import cached_property, lru_cache
+from bs4 import BeautifulSoup
 from fidex.config import CONFIG
 from fidex.utils import url_utils, logger
 import logging
@@ -18,8 +19,19 @@ ALL_SCRIPTS = {} # Cache for all the code {url: code}
 
 @dataclass
 class ASTInfo:
-    ast: "ASTNode"
     parser: "JSTextParser"
+    asts: "list[ASTNode]"
+    pos_ranges: "list[tuple[int, int]]"
+
+    def find_ast(self, pos):
+        for idx, (start, end) in enumerate(self.pos_ranges):
+            if start <= pos < end:
+                return self.asts[idx]
+        return None
+    
+    def add_ast(self, ast, start, end):
+        self.asts.append(ast)
+        self.pos_ranges.append((start, end))
 
 
 # Python implementation of js-parse for abling to multiprocess
@@ -212,13 +224,13 @@ class ASTNode:
 
 
 def filter_archive(text):
-    replace_ruls = {
+    replace_rules = {
             '_____WB$wombat$check$this$function_____(this)': 'this',
             '.__WB_pmw(self)': '',
             '.__WB_pmw': '',
             '__WB_pmw': '',
         }
-    for key, value in replace_ruls.items():
+    for key, value in replace_rules.items():
         text = text.replace(key, value)
     return text
 
@@ -313,16 +325,61 @@ class JSTextParser:
           parser = JSTextParser(program)
           ast_node = parser.get_ast_node()
         """
+        self.text = js_file
+
+    @lru_cache(maxsize=None)
+    def parse_source(self, text):
         try:
-            self.source_file = esprima.parseScript(js_file, {'loc': True, 'range': True, 'tolerant': True})
+            return esprima.parseScript(text, {'loc': True, 'range': True, 'tolerant': True})
         except Exception as e:
             logging.error(f"Error in parsing js: {e}")
-            self.source_file = None
-        self.text = js_file
-        self.ast_node = None
+            return None
 
     def get_text(self, start, end):
         return self.text[start:end]
+    
+    @lru_cache(maxsize=None)
+    def get_program(self, loc):
+        html_tags = re.compile(r'</?([a-zA-Z]+)>')
+        if not html_tags.search(self.text): # JS
+            return self.text
+        # If the text is HTML, then return the script part
+        soup = BeautifulSoup(self.text, 'html.parser')
+        scripts = soup.find_all('script')
+        for script in scripts:
+            script_str = script.get_text()
+            start = self.text.find(script_str)
+            end = start + len(script_str)
+            if start <= loc < end:
+                return script_str
+        return self.text
+    
+    def get_program_range(self, loc):
+        program = self.get_program(loc)
+        start = self.text.find(program)
+        return (start, start + len(program))
+    
+    def get_program_identifier(self, loc):
+        """Get some sort of identifier for the program
+        Return either "" for JS, or "script:N" for the Nth script in HTML
+        Note that Archive: script:N == Original script:N+3
+        """
+        start, _ = self.get_program_range(loc)
+        if start == 0:
+            return ""
+        return f"script:{self.text[:start].count('<script')-1}"
+
+    def range_from_identifier(self, identifier) -> (int, int):
+        if not identifier:
+            return 0, len(self.text)
+        script_num = int(identifier.split(':')[-1])
+        soup = BeautifulSoup(self.text, 'html.parser')
+        scripts = soup.find_all('script')
+        if script_num >= len(scripts):
+            return 0, len(self.text)
+        program = scripts[script_num].get_text()
+        start = self.text.find(program)
+        return start, start + len(program)
 
     def collect_node_info(self, node):
         full_text = self.get_text(node.range[0], node.range[1])
@@ -340,10 +397,12 @@ class JSTextParser:
     def is_node(self, node):
         return isinstance(node, esprima.nodes.Node)
 
-    def get_ast_node(self, archive=False):
-        if self.ast_node:
-            return self.ast_node
-        if not self.source_file:
+    @lru_cache(maxsize=None)
+    def get_ast_node(self, archive=False, pos: int=None):
+        """If pos is set, the ast_node will be returned around that position if self.text is HTML"""
+        program = self.get_program(pos) if pos else self.text
+        parsed_source = self.parse_source(program)
+        if not parsed_source:
             return None
         scopes = []
         def traverse_helper(node, depth=0):
@@ -369,10 +428,10 @@ class JSTextParser:
                 scopes.pop()
             return ast_node
 
-        self.ast_node = traverse_helper(self.source_file)
+        source_ast_node = traverse_helper(parsed_source)
         if archive:
-            self.ast_node = self.ast_node.filter_archive()
-        return self.ast_node
+            source_ast_node = source_ast_node.filter_archive()
+        return source_ast_node
     
     def get_text_matcher(self):
         return TextMatcher(self.text)
@@ -382,8 +441,26 @@ class Frame:
     def __init__(self, functionName: str, url: str, lineNumber: int, columnNumber: int):
         self.functionName = functionName
         self.url = url_utils.replace_archive_collection(url, CONFIG.collection)
+        self.url = url_utils.replace_archive_host(self.url, CONFIG.host)
         self.lineNumber = lineNumber
         self.columnNumber = columnNumber
+
+    @cached_property
+    def code(self):
+        return Frame.get_code(self.url)
+    
+    @cached_property
+    def position(self):
+        if self.code is None:
+            return None
+        return ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, self.code)
+    
+    @cached_property
+    def relative_position(self):
+        """Relative position to the actual JS code portion"""
+        parser = self.get_ASTInfo().parser
+        start, _ = parser.get_program_range(self.position)
+        return self.position - start
 
     @staticmethod
     def get_code(url):
@@ -401,24 +478,37 @@ class Frame:
             ALL_SCRIPTS[url] = response.text
         return ALL_SCRIPTS[url]
     
-    def get_ASTInfo(self):
-        if self.url not in ALL_ASTS:
-            try:
-                parser = JSTextParser(Frame.get_code(self.url))
-                ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url))
-            except Exception as e:
-                logging.error(f"Error in parsing {self.url}: {e}")
-            ALL_ASTS[self.url] = ASTInfo(ast=ast_node, parser=parser)
+    def get_program_identifier(self):
+        ast_info = self.get_ASTInfo()
+        if ast_info.parser is None:
+            return ""
+        return ast_info.parser.get_program_identifier(self.position)
+
+    def get_ASTInfo(self) -> ASTInfo:
+        parser = None
+        if self.url in ALL_ASTS:
+            ast = ALL_ASTS[self.url].find_ast(self.position)
+            if ast:
+                return ALL_ASTS[self.url]
+        else:
+            ALL_ASTS[self.url] = ASTInfo(parser=JSTextParser(self.code), asts=[], pos_ranges=[])
+        try:
+            parser = ALL_ASTS[self.url].parser
+            ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url), pos=self.position)
+            start, end = parser.get_program_range(self.position)
+            ALL_ASTS[self.url].add_ast(ast_node, start, end)
+        except Exception as e:
+            logging.error(f"Error in parsing {self.url}: {e}")
         return ALL_ASTS[self.url]
 
     @cached_property
     def associated_ast(self) -> "ASTNode | None":
         ast_info = self.get_ASTInfo()
-        ast_node = ast_info.ast
+        ast_node = ast_info.find_ast(self.position)
         if not ast_node:
             logging.error(f"AST not found for {self.url}")
             return None
-        node = ast_node.find_child(ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text))
+        node = ast_node.find_child(self.relative_position)
         return node
     
     @cached_property
@@ -432,17 +522,15 @@ class Frame:
     def ast_path(self) -> "list[dict]":
         assert self.associated_ast, f"AST not found for {self.url}"
         ast_info = self.get_ASTInfo()
-        ast_node = ast_info.ast
-        pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, ast_info.parser.text)
-        path = ast_node.find_path(pos)
+        ast_node = ast_info.find_ast(self.position)
+        path = ast_node.find_path(self.relative_position)
         return [{'idx': p['idx'], 'type': p['node'].type} for p in path]
 
     @cached_property
     def within_loop(self):
         if self.associated_ast:
             self.associated_ast.within_loop
-        self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
-        return self.text_matcher.within_loop(self_pos, self.functionName)
+        return self.text_matcher.within_loop(self.position, self.functionName)
 
     def same_file(self, other: "Frame") -> bool:
         return self.url == other.url or url_utils.url_match(self.url, other.url)
