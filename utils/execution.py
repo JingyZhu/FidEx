@@ -173,6 +173,9 @@ class ASTNode:
             if node.type == 'PropertyAccessExpression' \
                and node.info['property'] == '__WB_pmw':
                 skip_node(node, node.children[0])
+            if node.type == 'MemberExpression' \
+                and node.info['property'] == '__WB_pmw':
+                skip_node(node, node.children[0])
             for child in node.children:
                 choose_skip_node(child)
         choose_skip_node(actual_root)
@@ -367,7 +370,19 @@ class JSTextParser:
         start, _ = self.get_program_range(loc)
         if start == 0:
             return ""
-        return f"script:{self.text[:start].count('<script')-1}"
+        soup = BeautifulSoup(self.text, 'html.parser')
+        scripts = soup.find_all('script')
+        idx = 0
+        cur_start = 0
+        for script in scripts:
+            script_str = script.get_text() + '</script>'
+            start = self.text[cur_start:].find(script_str)
+            if start + cur_start <= loc:
+                idx += 1
+                cur_start += start
+            else:
+                break
+        return f"script:{idx-1}"
 
     def range_from_identifier(self, identifier) -> (int, int):
         if not identifier:
@@ -392,6 +407,8 @@ class JSTextParser:
                 info['arguments'].append(self.get_text(arg.range[0], arg.range[1]))
         if node.type == 'PropertyAccessExpression':
             info['property'] = node.name
+        if node.type == 'MemberExpression':
+            info['property'] = node.property.name
         return info
 
     def is_node(self, node):

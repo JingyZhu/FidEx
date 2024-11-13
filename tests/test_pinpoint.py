@@ -1,13 +1,16 @@
 import multiprocessing
 import pandas as pd
-from subprocess import call
+import subprocess
 import os
 import json
+import glob
+import random
+import tempfile
 
 import test_utils
 from fidex.config import CONFIG
 from fidex.fidelity_check import fidelity_detect
-from fidex.error_pinpoint import pinpoint, js_exceptions, js_initiators
+from fidex.error_pinpoint import pinpoint, js_exceptions, js_initiators, error_inject
 from fidex.utils import url_utils
 from fidex.record_replay import autorun
 
@@ -20,6 +23,68 @@ PREFIX = 'test' if os.environ.get('PREFIX') is None else os.environ.get('PREFIX'
 autorun.PROXYHOST = PROXY
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
+def test_error_injector(prefix='gt_2k'):
+    dirrs = glob.glob(f"{CONFIG.archive_dir}/writes/{prefix}/*")
+
+    def _check_syntax(code):
+        with tempfile.NamedTemporaryFile(suffix=".js", delete=False) as temp_file:
+            temp_file.write(code.encode('utf-8'))
+            temp_file.flush()
+            temp_file_path = temp_file.name
+            # Run the Node.js syntax checker on the temporary file
+            result = subprocess.run(
+                ['node', 'check_syntax_error.js', temp_file_path],
+                capture_output=True,
+                text=True
+            )
+            # Output the result
+            if result.returncode == 0:
+                return True, result.stdout, temp_file_path
+            else:
+                return False, result.stderr, temp_file_path
+    original_issue = []
+    injection_issue = []
+    dirrs = dirrs[0:500]
+    random.shuffle(dirrs)
+    for dirr in dirrs:
+        print("directory", dirr)
+        ei = error_inject.ErrorInjector(dirr)
+        ei.read_exceptions('interaction_20')
+        ei.inject_error_js()
+        overrides = json.load(open(f"{dirr}/overrides.json"))
+        originals = json.load(open(f"{dirr}/originals.json"))
+        for url, override in overrides.items():
+            original_code = originals[url]
+            original_syntax, original_output, original_path = _check_syntax(original_code)
+            if not original_syntax:
+                original_issue.append({
+                    'dirr': dirr,
+                    'url': url,
+                    'error': original_output,
+                    'file_path': original_path
+                })
+                continue
+            override_code = override['source']
+            override_syntax, override_output, override_path = _check_syntax(override_code)
+            if not override_syntax and override['type'] == 'runtime':
+                injection_issue.append({
+                    'dirr': dirr,
+                    'url': url,
+                    'error': override_output,
+                    'file_path': override_path
+                })
+            elif override_syntax and override['type'] == 'syntax':
+                injection_issue.append({
+                    'dirr': dirr,
+                    'url': url,
+                    'error': override_output,
+                    'file_path': override_path
+                })
+    print("original_issue", json.dumps(original_issue, indent=2))
+    print("injection_issue", json.dumps(injection_issue, indent=2))
+
+
+
 def test_syntax_error(record=False):
     global PREFIX
     if record:
@@ -27,15 +92,16 @@ def test_syntax_error(record=False):
         test_utils.init_test()
     write_dir = f'{HOME}/fidelity-files/writes/{PREFIX}'
     urls = [
-        'https://tapping-game.win/',
-        'https://www.taboola.com/',
-        'https://www.dkb.de/',
-        'https://www.gov.uk/',
-        'https://www.wireshark.org/',
-        'https://www.scribd.com/',
-        'https://tribute.tg/', # Initiator syntax error
-        'https://wordpress.org/', # Extra interaction caused by syntax error from import map
-        'https://www.mace.com/', # cannot get effective writes, fallback to verbose_writes
+        # 'https://tapping-game.win/',
+        # 'https://www.taboola.com/',
+        # 'https://www.dkb.de/',
+        # 'https://www.gov.uk/',
+        # 'https://www.wireshark.org/',
+        # 'https://www.scribd.com/',
+        # 'https://tribute.tg/', # Initiator syntax error
+        # 'https://wordpress.org/', # Extra interaction caused by syntax error from import map
+        # 'https://www.mace.com/', # cannot get effective writes, fallback to verbose_writes
+        'https://www.bang.com/', # prepend operation tacking. (Warning: porn site)
     ]
     if record:
         urls_copy = urls.copy()
@@ -194,6 +260,7 @@ def test_common_issues(record=False):
         'https://lightwidget.com/', # svg use issues
     ]
 
-test_syntax_error(record=True)
+test_error_injector()
+# test_syntax_error(record=True)
 # test_exception_error(record=False)
 # test_mutation(record=True)
