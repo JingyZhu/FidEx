@@ -26,7 +26,7 @@ def compare_screenshot(live_img, archive_img):
     diff = img1 - img2
     total = img1.shape[0]*img1.shape[1]*img1.shape[2]
     same = np.count_nonzero(diff == 0)
-    return same / total
+    return same / total, diff
 
 
 def _html_2_xpath(html, element):

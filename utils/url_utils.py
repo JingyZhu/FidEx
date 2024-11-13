@@ -25,6 +25,8 @@ def is_archive(url):
     return re.search(ARCHIVE_PATTERN, url) is not None
 
 def replace_archive_host(url, new_host):
+    if not is_archive(url):
+        return url
     us = urlsplit(url)
     return urlunsplit(us._replace(netloc=new_host))
 

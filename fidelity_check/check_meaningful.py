@@ -103,7 +103,7 @@ def _from_ads(branch, xpaths_map):
         if element_tag.find() is None:
             continue
         # First element's class name includes ad related
-        ad_class = ['adsbygoogle', 'ad', 'advertisement', 'infinite', 'gpt']
+        ad_class = ['adsbygoogle', 'ad', 'ads', 'advertisement', 'infinite', 'gpt']
         ad_class_ids = []
         if element_tag.find().attrs.get('class', ''):
             ad_class_ids += element_tag.find().attrs.get('class', '')
@@ -114,6 +114,7 @@ def _from_ads(branch, xpaths_map):
         for ad in ad_class:
             if ad in ad_class_ids:
                 return True
+        
         ad_src = ['counter.yadro.ru/hit']
         src = element_tag.find().attrs.get('src', '')
         for ad in ad_src:
