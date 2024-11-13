@@ -7,6 +7,7 @@ const fs = require('fs');
 const eventSync = require('../utils/event_sync');
 const measure = require('../utils/measure');
 const execution = require('../utils/execution');
+const override = require('../utils/override');
 const { startChrome, 
         loadToChromeCTX, 
         loadToChromeCTXWithUtils, 
@@ -70,6 +71,11 @@ const TIMEOUT = 60*1000;
             })
             client.on('Network.responseReceived', params => excepFF.onFetch(params))
             client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
+        }
+
+        if (options.override) {
+            const overrideInfos = override.readOverrideInfo(`${dirname}/overrides.json`);
+            await override.overrideResources(client, overrideInfos);
         }
         
         await preventNavigation(page);
