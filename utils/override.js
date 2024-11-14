@@ -21,6 +21,7 @@ class Overrider {
 
     async overriderHandler(params) {
         const { requestId, request, responseStatusCode } = params;
+        let responseCode = responseStatusCode ? responseStatusCode : 200;
         const url = request.url;
         if (this.overrides[url]) {
             const overrideInfo = this.overrides[url];
@@ -29,7 +30,7 @@ class Overrider {
             try{
                 await this.client.send('Fetch.fulfillRequest', {
                     requestId: params.requestId,
-                    responseCode: responseStatusCode,
+                    responseCode: responseCode,
                     responseHeaders: responseHeaders,
                     body: overrideInfo.plainText ? Buffer.from(resource).toString('base64') : resource
                 });
@@ -38,7 +39,11 @@ class Overrider {
                 console.warn("Error: sending Fetch.fulfillRequest", e);
             }
         } else {
-            await this.client.send('Fetch.continueRequest', { requestId: requestId })
+            try {
+               await this.client.send('Fetch.continueRequest', { requestId: requestId });
+            } catch (e) {
+                console.warn("Error: sending Fetch.continueRequest", e);
+            }
         }
     }
 
@@ -47,12 +52,14 @@ class Overrider {
      */
     async overrideResources(mapping){
         this.overrides = mapping;
-        await this.client.send('Fetch.enable', {
-            patterns: [{
-                urlPattern: '*',
+        let patterns = [];
+        for (const url in this.overrides){
+            patterns.push({
+                urlPattern: url,
                 requestStage: 'Response',
-            }]
-        });
+            })
+        }
+        await this.client.send('Fetch.enable', {patterns: patterns});
         console.log("Overrider.overrideResources:", "Overriding", Object.keys(this.overrides));
 
         this.client.on('Fetch.requestPaused', async (params) => {
