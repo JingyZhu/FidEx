@@ -20,18 +20,26 @@ ALL_SCRIPTS = {} # Cache for all the code {url: code}
 @dataclass
 class ASTInfo:
     parser: "JSTextParser"
-    asts: "list[ASTNode]"
-    pos_ranges: "list[tuple[int, int]]"
+    asts: "dict[ASTNode]"
+    text_matchers: "dict[TextMatcher]"
 
     def find_ast(self, pos):
-        for idx, (start, end) in enumerate(self.pos_ranges):
+        for (start, end), ast in self.asts.items():
             if start <= pos < end:
-                return self.asts[idx]
+                return ast
         return None
     
     def add_ast(self, ast, start, end):
-        self.asts.append(ast)
-        self.pos_ranges.append((start, end))
+        self.asts[(start, end)] = ast
+    
+    def find_matcher(self, pos):
+        for (start, end), matcher in self.text_matchers.items():
+            if start <= pos < end:
+                return matcher
+        return None
+    
+    def add_matcher(self, matcher, start, end):
+        self.text_matchers[(start, end)] = matcher
 
 
 # Python implementation of js-parse for abling to multiprocess
@@ -450,8 +458,10 @@ class JSTextParser:
             source_ast_node = source_ast_node.filter_archive()
         return source_ast_node
     
-    def get_text_matcher(self):
-        return TextMatcher(self.text)
+    @lru_cache(maxsize=128)
+    def get_text_matcher(self, pos=None):
+        program = self.get_program(pos) if pos else self.text
+        return TextMatcher(program)
 
 
 class Frame:
@@ -461,6 +471,9 @@ class Frame:
         self.url = url_utils.replace_archive_host(self.url, CONFIG.host)
         self.lineNumber = lineNumber
         self.columnNumber = columnNumber
+
+    def __hash__(self):
+        return hash((self.url, self.lineNumber, self.columnNumber))
 
     @cached_property
     def code(self):
@@ -505,10 +518,11 @@ class Frame:
         parser = None
         if self.url in ALL_ASTS:
             ast = ALL_ASTS[self.url].find_ast(self.position)
-            if ast:
+            matcher = ALL_ASTS[self.url].find_matcher(self.position)
+            if ast or matcher:
                 return ALL_ASTS[self.url]
         else:
-            ALL_ASTS[self.url] = ASTInfo(parser=JSTextParser(self.code), asts=[], pos_ranges=[])
+            ALL_ASTS[self.url] = ASTInfo(parser=JSTextParser(self.code), asts={}, text_matchers={})
         try:
             parser = ALL_ASTS[self.url].parser
             ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url), pos=self.position)
@@ -516,6 +530,10 @@ class Frame:
             ALL_ASTS[self.url].add_ast(ast_node, start, end)
         except Exception as e:
             logging.error(f"Error in parsing {self.url}: {e}")
+        matcher = parser.get_text_matcher(self.position)
+        if url_utils.is_archive(self.url):
+            matcher.is_archive = True
+        ALL_ASTS[self.url].add_matcher(matcher, start, end)
         return ALL_ASTS[self.url]
 
     @cached_property
@@ -530,10 +548,14 @@ class Frame:
     
     @cached_property
     def text_matcher(self):
-        text_matcher = self.get_ASTInfo().parser.get_text_matcher()
-        if url_utils.is_archive(self.url):
-            text_matcher.is_archive = True
-        return text_matcher
+        ast_info = self.get_ASTInfo()
+        matcher = ast_info.find_matcher(self.position)
+        if not matcher:
+            matcher = ast_info.parser.get_text_matcher(self.position)
+            if url_utils.is_archive(self.url):
+                matcher.is_archive = True
+            ast_info.add_matcher(matcher, *ast_info.parser.get_program_range(self.position))
+        return matcher
 
     @cached_property
     def ast_path(self) -> "list[dict]":
@@ -547,7 +569,7 @@ class Frame:
     def within_loop(self):
         if self.associated_ast:
             self.associated_ast.within_loop
-        return self.text_matcher.within_loop(self.position, self.functionName)
+        return self.text_matcher.within_loop(self.relative_position, self.functionName)
 
     def same_file(self, other: "Frame") -> bool:
         return self.url == other.url or url_utils.url_match(self.url, other.url)
@@ -559,10 +581,9 @@ class Frame:
             return False
         if self.associated_ast and other.associated_ast:
             return self.ast_path == other.ast_path
-        if Frame.get_code(self.url) and Frame.get_code(other.url):
-            self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
-            other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
-            if self.text_matcher.find_unique_text(self_pos) == other.text_matcher.find_unique_text(other_pos):
+        if self.code and other.code:
+            if self.text_matcher.find_unique_text(self.relative_position) \
+               == other.text_matcher.find_unique_text(other.relative_position):
                 return True
         return False
     
@@ -579,7 +600,7 @@ class Frame:
             return False
         self_pos = ASTNode.linecol_2_pos(self.lineNumber, self.columnNumber, Frame.get_code(self.url))
         other_pos = ASTNode.linecol_2_pos(other.lineNumber, other.columnNumber, Frame.get_code(other.url))
-        return self.text_matcher.after(self_pos, other.text_matcher, other_pos)
+        return self.text_matcher.after(self.relative_position, other.text_matcher, other.relative_position)
 
 
 class Stack:
