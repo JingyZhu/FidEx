@@ -474,6 +474,9 @@ class Frame:
 
     def __hash__(self):
         return hash((self.url, self.lineNumber, self.columnNumber))
+    
+    def __eq__(self, other):
+        return self.url == other.url and self.lineNumber == other.lineNumber and self.columnNumber == other.columnNumber
 
     @cached_property
     def code(self):
@@ -525,15 +528,14 @@ class Frame:
             ALL_ASTS[self.url] = ASTInfo(parser=JSTextParser(self.code), asts={}, text_matchers={})
         try:
             parser = ALL_ASTS[self.url].parser
-            ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url), pos=self.position)
             start, end = parser.get_program_range(self.position)
+            matcher = parser.get_text_matcher(self.position)
+            matcher.is_archive = url_utils.is_archive(self.url)
+            ALL_ASTS[self.url].add_matcher(matcher, start, end)    
+            ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url), pos=self.position)
             ALL_ASTS[self.url].add_ast(ast_node, start, end)
         except Exception as e:
             logging.error(f"Error in parsing {self.url}: {e}")
-        matcher = parser.get_text_matcher(self.position)
-        if url_utils.is_archive(self.url):
-            matcher.is_archive = True
-        ALL_ASTS[self.url].add_matcher(matcher, start, end)
         return ALL_ASTS[self.url]
 
     @cached_property
@@ -541,7 +543,7 @@ class Frame:
         ast_info = self.get_ASTInfo()
         ast_node = ast_info.find_ast(self.position)
         if not ast_node:
-            logging.error(f"AST not found for {self.url}")
+            # logging.error(f"AST not found for {self.url}")
             return None
         node = ast_node.find_child(self.relative_position)
         return node

@@ -32,6 +32,7 @@ PROXYHOST = f'http://{CONFIG.host_proxy}'
 HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll']
+SPLIT_ARCHIVE = True
 
 DEFAULT_CHROMEDATA = CONFIG.chrome_data_dir
 
@@ -45,6 +46,7 @@ def record(url, archive_name,
            filename=None, 
            arguments=None):
     filename = 'live' if filename is None else filename
+    assert '_' not in filename, "Filename cannot contain underscore"
     if download_path is not None:
         arguments = arguments + ['--download', download_path]
     p = Popen(['node', 'record.js', '-d', f'{write_path}/{archive_name}',
@@ -74,6 +76,7 @@ def replay(url, archive_name,
            arguments=None):
     if filename is None:
         filename = 'proxy' if proxy else 'archive'
+    assert '_' not in filename, "Filename cannot contain underscore"
     check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
                 '-f', filename,
                 '-c', chrome_data,
@@ -111,7 +114,7 @@ def record_replay(url, archive_name,
         arguments = DEFAULTARGS
     temp_client = False
     client = None
-    wb_manager = upload.WBManager(split=(worker_id is not None), worker_id=worker_id)
+    wb_manager = upload.WBManager(split=SPLIT_ARCHIVE and (worker_id is not None), worker_id=worker_id)
     if remote_host:
         if sshclient is None:
             temp_client = True
@@ -279,7 +282,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     
     def _start_pywb_servers():
         for i in range(num_workers):
-            wb_manager = upload.WBManager(split=True, worker_id=i)
+            wb_manager = upload.WBManager(split=SPLIT_ARCHIVE, worker_id=i)
             pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive))
             pywb_server_proxy = upload.PYWBServer(archive=wb_manager.collection(pw_archive), proxy=True)
             if proxy:

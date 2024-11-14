@@ -135,8 +135,8 @@ class FidelityDetector:
         self.more_errs_diff_stage = None
         self.more_errs_num = None
 
-        self.left_unique = None
-        self.right_unique = None
+        self.left_unique = []
+        self.right_unique = []
     
     def detect_stage(self, left_stage, right_stage) -> "Tuple(bool, bool, bool)":
         left = self.left_prefix if left_stage == 'onload' else f'{self.left_prefix}_{left_stage.split("_")[1]}'

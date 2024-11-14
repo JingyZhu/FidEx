@@ -16,6 +16,7 @@ HOME = os.path.expanduser("~")
 PROXY = f'http://{CONFIG.host_proxy_test}'
 PREFIX = 'test' if os.environ.get('PREFIX') is None else os.environ.get('PREFIX')
 autorun.PROXYHOST = PROXY
+autorun.SPLIT_ARCHIVE = False
 chrome_data_dir = os.path.join(HOME, 'chrome_data')
 
 def test_fidelity_detect_no_issue(tocmp='proxy', record=False):
