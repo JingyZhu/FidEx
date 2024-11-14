@@ -111,6 +111,7 @@ def _search_imports(start_scripts: "List[str]",
 @dataclass
 class PinpointResult:
     fidelity_result: fidelity_detect.FidelityResult
+    mut_fidelity_result: fidelity_detect.FidelityResult
     diff_writes: "List[js_writes.JSWrite]"
     pinpointed_errors: "List[js_exceptions.JSExcep]"
 
@@ -222,7 +223,7 @@ class Pinpointer:
                         matched_exceptions.add(excep)
         return list(matched_exceptions)
 
-    def pinpoint_mutations(self) -> "List[js_exceptions.JSExcep]":
+    def pinpoint_mutations(self) -> "List[js_exceptions.JSExcep], FidelityResult":
         arguments = ['-w', '-t', '-s', '--scroll', '--headless', '-e', '--mutation']
         write_path = '/'.join(self.dirr.split('/')[:-1]) if '/' in self.dirr else '.'
         archive_name = self.dirr.split('/')[-1]
@@ -259,20 +260,23 @@ class Pinpointer:
             }
             )]
         if not fidelity_result_mut.info['diff']:
-            return mutation_success
+            return mutation_success, fidelity_result_mut
         if fidelity_result_mut.info['diff_stage'] != self.fidelity_result.info['diff_stage']:
             if common.stage_later(fidelity_result_mut.info['diff_stage'], self.fidelity_result.info['diff_stage']):
-                return mutation_success
+                return mutation_success, fidelity_result_mut
         elif sum_diffs(fidelity_result_mut.live_unique, fidelity_result_mut.archive_unique) \
             < sum_diffs(self.fidelity_result.live_unique, self.fidelity_result.archive_unique):
-            return mutation_success
-        return []
+            return mutation_success, fidelity_result_mut
+        return [], None
 
 
 def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', meaningful=True) -> PinpointResult:
     fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix, screenshot=False, meaningful=meaningful)
     if not fidelity_result.info['diff']:
-        return PinpointResult(fidelity_result, [], [])
+        return PinpointResult(fidelity_result=fidelity_result, 
+                              mut_fidelity_result=None,
+                              diff_writes=[],
+                              pinpointed_errors=[])
     
     start = time.time()
     pinpointer = Pinpointer(dirr, idx, left_prefix, right_prefix, meaningful)
@@ -283,21 +287,36 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
     
     syntax_errors = pinpointer.pinpoint_syntax_errors()
     if len(syntax_errors) > 0:
-        return PinpointResult(fidelity_result, diff_writes, syntax_errors)
+        return PinpointResult(fidelity_result=fidelity_result, 
+                              mut_fidelity_result=None, 
+                              diff_writes=diff_writes, 
+                              pinpointed_errors=syntax_errors)
     print(dirr, 'finished syntax error pinpoint', time.time()-start)
     
     exceptions = pinpointer.pinpoint_exceptions()
     if len(exceptions) > 0:
-        return PinpointResult(fidelity_result, diff_writes, exceptions)
+        return PinpointResult(fidelity_result=fidelity_result, 
+                              mut_fidelity_result=None, 
+                              diff_writes=diff_writes, 
+                              pinpointed_errors=exceptions)
     print(dirr, 'finished exception pinpoint', time.time()-start)
     
-    mutation_errors = pinpointer.pinpoint_mutations()
+    mutation_errors, mut_fidelity_result = pinpointer.pinpoint_mutations()
     if len(mutation_errors) > 0:
-        return PinpointResult(fidelity_result, diff_writes, mutation_errors)
+        return PinpointResult(fidelity_result=fidelity_result, 
+                              mut_fidelity_result=mut_fidelity_result, 
+                              diff_writes=diff_writes, 
+                              pinpointed_errors=mutation_errors)
     print(dirr, 'finished mutation pinpoint', time.time()-start)
 
     common_issues = pinpointer.pinpoint_common()
     if len(common_issues) > 0:
-        return PinpointResult(fidelity_result, [], common_issues)
+        return PinpointResult(fidelity_result=fidelity_result, 
+                              mut_fidelity_result=None,
+                              diff_writes=[],
+                              pinpointed_errors=common_issues)
     print(dirr, 'finished common pinpoint', time.time()-start)
-    return PinpointResult(fidelity_result, diff_writes, [])
+    return PinpointResult(fidelity_result=fidelity_result,
+                          mut_fidelity_result=None,
+                          diff_writes=diff_writes, 
+                          pinpointed_errors=[])

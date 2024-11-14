@@ -1,6 +1,7 @@
 import socket
 import re
 import os
+from diff_match_patch import diff_match_patch
 
 from fidex.utils import url_utils
 
@@ -44,3 +45,22 @@ def get_img_src(img_tag) -> set:
 def finished_record_replaY(write_dir, check_prefix):
     return os.path.exists(f"{write_dir}/{check_prefix}_dom.json") \
         and os.path.exists(f"{write_dir}/{check_prefix}_events.json")
+
+def merge_strings(original: str, new_strs: list) -> str:
+    """Merge the strings in news from the original string"""
+    # Initialize diff_match_patch
+    dmp = diff_match_patch()
+    
+    # Start with the original string as the base for merging
+    merged_string = original
+    
+    # Loop through each modified version in the list
+    for new_str in new_strs:
+        # Compute the diff and create a patch based on the original
+        diff = dmp.diff_main(original, new_str)
+        patches = dmp.patch_make(original, diff)
+        
+        # Apply the patch to the current merged string
+        merged_string, _ = dmp.patch_apply(patches, merged_string)
+    
+    return merged_string

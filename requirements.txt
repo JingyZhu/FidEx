@@ -6,3 +6,4 @@ scp
 esprima
 requests
 pandas
+diff_match_patch
