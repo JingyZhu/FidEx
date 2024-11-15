@@ -146,6 +146,8 @@ class LayoutElement:
         srcs = common.get_img_src(self.tag)
         if 'currentSrc' in self.extraAttr:
             srcs.add(url_utils.url_norm(self.extraAttr['currentSrc'], ignore_scheme=True, trim_www=True, trim_slash=True, archive=True))
+        # TODO: Try only consider the directory part for random images orders
+        srcs = set(['/'.join(s.split('/')[:-1] if s[-1]!='/' else s.split('/')[:-2]) for s in srcs])
         return srcs
     
     def _get_tag(self):
