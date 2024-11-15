@@ -28,6 +28,10 @@ class JSException:
     @functools.cached_property
     def is_syntax_error(self):
         return re.compile('^SyntaxError:').match(self.description) is not None
+    
+    @functools.cached_property
+    def is_reference_error(self):
+        return re.compile('^ReferenceError:').match(self.description) is not None
 
     @functools.cached_property
     def has_stack(self):

@@ -28,11 +28,10 @@ chrome_data_dir = CONFIG.chrome_data_dir
 # logging.getLogger().setLevel(logging.DEBUG)
 
 def test_inject_error_js(prefix='gt_2k'):
-    CONFIG.collection = 'test'
+    CONFIG.collection = prefix
     dirrs = glob.glob(f"{CONFIG.archive_dir}/writes/{prefix}/*")
     target_drrs = [
-        # 'www.quickflirt.com_c146e793eb',
-        'gamersupps.gg_5dbff9bedf'
+        'nordvpn.com_571daad656'
     ]
     dirrs = [d for d in dirrs if any([t in d for t in target_drrs])]
 
@@ -103,7 +102,9 @@ def test_error_injector(record=False):
         'https://anota.ai/home/', # Type Error
         # 'https://www.sjny.edu/', # Type Error Seen no diffs some time
         # 'https://www.quickflirt.com/', # Reference Error
+        'https://www.sinsay.com/special/store/?nolang=true', # Reference Error but need to inject later
         # 'https://gamersupps.gg/', # Syntax Error
+        'https://nordvpn.com/cybersecurity-site/', # Syntax error in HTML
     ]
     if record:
         urls_copy = urls.copy()
@@ -320,8 +321,8 @@ def test_common_issues(record=False):
     ]
 
 
-# test_inject_error_js('test')
-test_error_injector(record=True)
+test_inject_error_js('gt_2k')
+# test_error_injector(record=True)
 # test_syntax_error(record=True)
 # test_exception_error(record=False)
 # test_mutation(record=True)

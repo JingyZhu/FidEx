@@ -13,7 +13,9 @@ from fidex.config import CONFIG
 
 
 def sum_diffs(left_unique, right_unique):
-    return sum([len(branch) for branch in left_unique])
+    left_sum = sum([len(branch) for branch in left_unique])
+    right_sum = sum([len(branch) for branch in right_unique])
+    return max(left_sum, right_sum)
 
 def extra_writes(dirr, left_diffs, right_diffs, left_prefix='live', right_prefix='archive') -> "list[js_writes.JSWrite]":
     """Get extra writes from left to right, or right to left, depending on the side"""
@@ -117,6 +119,15 @@ class PinpointResult:
 
     def errors_to_dict(self):
         return [e.to_dict() for e in self.pinpointed_errors]
+    
+    def mut_result(self):
+        if self.mut_fidelity_result is None:
+            return None
+        return {
+            'original_num_diff': sum_diffs(self.fidelity_result.live_unique, self.fidelity_result.archive_unique),
+            'mut_diff_stage': self.mut_fidelity_result.info['diff_stage'],
+            'mut_num_diff': sum_diffs(self.mut_fidelity_result.live_unique, self.mut_fidelity_result.archive_unique),
+        }
 
 class Pinpointer:
     CHROME_DATA_INIT = False

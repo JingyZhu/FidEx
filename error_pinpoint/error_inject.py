@@ -20,6 +20,12 @@ CHROME_DATA_INIT = False
 PROXYHOST = f'http://{CONFIG.host_proxy}'
 HOST = f'http://{CONFIG.host}'
 
+def next_token(code, pos):
+    reserved_chars = r'.,{}()\[\];:\'\"/\\+\-*&#|^%!=<>?@#$'
+    match = re.search(rf'[^\s{reserved_chars}]+', code[pos:])
+    if match:
+        return match.group(0)
+    return ''
 
 class ErrorInjector:
     def __init__(self, dirr, left_prefix='live', right_prefix='archive'):
@@ -32,19 +38,19 @@ class ErrorInjector:
         return self.exceptions
     
     @staticmethod
-    def inject_syntax_error(code, loc=0):
+    def inject_syntax_error(code, pos=0):
         """Inject a syntax error into the code"""
-        return code[:loc] + "@#$%^&SyntaxError For Fidex" + code[loc:]
+        html_tags = re.compile(r'</?([a-zA-Z]+)>')
+        is_html = html_tags.search(code)
+        if not is_html:
+            return "@#$%^&SyntaxError For Fidex" + code
+        else:
+            return code[:pos] + "@#$%^&SyntaxError For Fidex" + code[pos:]
     
     @staticmethod
     def inject_runtime_error(code, pos):
         """Inject a runtime error into the code"""
         delimitor = ',;()){}'
-        def next_token(pos):
-            match = re.search(r'\S+', code[pos:])
-            if match:
-                return match.group(0)
-            return ''
         while pos >= 0:
             if code[pos] == '.':
                 return code[:pos+1] + '___.___.' + code[pos+1:]
@@ -58,15 +64,24 @@ class ErrorInjector:
         last_char = ''
         if code[pos] in ",;":
             last_char = code[pos]
-        elif next_token(pos+1) in ['return', 'var', 'throw', 'let', 'const', 'function', '=>']:
+        elif next_token(code, pos+1) in ['return', 'var', 'throw', 'let', 'const', 'function', '=>']:
             last_char = ';'
         elif pos < 0:
             last_char = ';'
         else:
             last_char = ","
         return code[:pos+1] \
-                  + f'_ = (()=>{{throw new Error("Fidex Injected runtime error")}})(){last_char} '\
+                  + f' _ = (()=>{{throw new Error("Fidex Injected runtime error")}})(){last_char} '\
                   + code[pos+1:]
+    
+    @staticmethod
+    def inject_reference_error(code, pos):
+        """Inject a reference error into the code"""
+        next_t = next_token(code, pos)
+        if next_t in ['if', 'switch', 'for', 'while', 'do', 'try', 'catch', 'finally', 'with', 'function', '=>']:
+            return code[:pos] + " ___.___\n " + code[pos:]
+        else:
+            return code[:pos] + " ___.___." + code[pos:]
 
     @staticmethod
     def merge_override(original_map, override_map):
@@ -176,18 +191,21 @@ class ErrorInjector:
             if not original_code:
                 continue
             original_map[url_utils.filter_archive(url)] = original_code
+            original_pos = self.get_original_pos(exception, original_code)
             if exception.is_syntax_error:
-                injected_code = ErrorInjector.inject_syntax_error(original_code)
+                injected_code = ErrorInjector.inject_syntax_error(original_code, pos=original_pos)
                 override_map[url_utils.filter_archive(url)].append({
                     "source": injected_code,
                     "type": "syntax",
                     "plainText": True
                 })
             else: # Runtime error
-                original_pos = self.get_original_pos(exception, original_code)
                 if not original_pos:
                     continue
-                injected_code = ErrorInjector.inject_runtime_error(original_code, original_pos)
+                if exception.is_reference_error:
+                    injected_code = ErrorInjector.inject_reference_error(original_code, pos=original_pos)
+                else:
+                    injected_code = ErrorInjector.inject_runtime_error(original_code, pos=original_pos)
                 override_map[url_utils.filter_archive(url)].append({
                     "source": injected_code,
                     "type": "runtime",
