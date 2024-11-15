@@ -6,6 +6,7 @@ import json
 import glob
 import random
 import tempfile
+import logging
 
 import test_utils
 from fidex.config import CONFIG
@@ -21,10 +22,19 @@ HOME = os.path.expanduser("~")
 PROXY = f'http://{CONFIG.host_proxy_test}'
 PREFIX = 'test' if os.environ.get('PREFIX') is None else os.environ.get('PREFIX')
 autorun.PROXYHOST = PROXY
-chrome_data_dir = os.path.join(HOME, 'chrome_data')
+autorun.SPLIT_ARCHIVE = False
+error_inject.PROXYHOST = PROXY
+chrome_data_dir = CONFIG.chrome_data_dir
+# logging.getLogger().setLevel(logging.DEBUG)
 
-def test_error_injector(prefix='gt_2k'):
+def test_inject_error_js(prefix='gt_2k'):
+    CONFIG.collection = 'test'
     dirrs = glob.glob(f"{CONFIG.archive_dir}/writes/{prefix}/*")
+    target_drrs = [
+        # 'www.quickflirt.com_c146e793eb',
+        'gamersupps.gg_5dbff9bedf'
+    ]
+    dirrs = [d for d in dirrs if any([t in d for t in target_drrs])]
 
     def _check_syntax(code):
         with tempfile.NamedTemporaryFile(suffix=".js", delete=False) as temp_file:
@@ -44,9 +54,8 @@ def test_error_injector(prefix='gt_2k'):
                 return False, result.stderr, temp_file_path
     original_issue = []
     injection_issue = []
-    dirrs = dirrs[0:500]
-    random.shuffle(dirrs)
-    for dirr in dirrs:
+    # random.shuffle(dirrs)
+    for dirr in dirrs[:100]:
         print("directory", dirr)
         ei = error_inject.ErrorInjector(dirr)
         ei.read_exceptions('interaction_20')
@@ -83,6 +92,56 @@ def test_error_injector(prefix='gt_2k'):
     print("original_issue", json.dumps(original_issue, indent=2))
     print("injection_issue", json.dumps(injection_issue, indent=2))
 
+def test_error_injector(record=False):
+    global PREFIX
+    if record:
+        PREFIX = 'test'
+        test_utils.init_test()
+    CONFIG.collection = PREFIX
+    write_dir = f'{CONFIG.archive_dir}/writes/{PREFIX}'
+    urls = [
+        'https://anota.ai/home/', # Type Error
+        # 'https://www.sjny.edu/', # Type Error Seen no diffs some time
+        # 'https://www.quickflirt.com/', # Reference Error
+        # 'https://gamersupps.gg/', # Syntax Error
+    ]
+    if record:
+        urls_copy = urls.copy()
+        arguments = ['-w', '-t', '-s', '--scroll', '-i', '--headless', '-e']
+        metadata = autorun.record_replay_all_urls_multi(urls_copy, min(16, len(urls_copy)), 
+                                    chrome_data_dir=chrome_data_dir,
+                                    metadata_prefix='metadata/test',
+                                    pw_archive='test',
+                                    proxy=True,
+                                    archive=True,
+                                    arguments=arguments)
+        urls = [metadata[u]['req_url'] if u in metadata else u for u in urls]
+    host_url = {url_utils.calc_hostname(url): url for url in urls}
+
+    test_results = pd.DataFrame(columns=['url', 'correct?', 'frac_diff_eliminated'])
+
+    for host, url in host_url.items():
+        print(host)
+        dirr = f'{write_dir}/{host}'
+        if os.path.exists(f'{dirr}/live_writes.json') and os.path.exists(f'{dirr}/archive_writes.json'):
+            fidelity_result = fidelity_detect.fidelity_issue_all(dirr, 'live', 'archive', screenshot=False, meaningful=True)
+            if not fidelity_result.info['diff']:
+                print(f'No diff for {host}')
+                test_results.loc[len(test_results)] = {'url': url, 'correct?': 'No diff', 'frac_diff_eliminated': 'N/A'}
+                continue
+            inject_result = error_inject.inject_errors(dirr, 0, 'proxy', 'archive', meaningful=True)
+            if inject_result.mut_fidelity_result is None:
+                test_results.loc[len(test_results)] = {'url': url, 'correct?': 'Wrong', 'frac_diff_eliminated': 'N/A'}
+            else:
+                num_diffs = pinpoint.sum_diffs(inject_result.fidelity_result.live_unique, inject_result.fidelity_result.archive_unique)
+                num_diffs_mut = pinpoint.sum_diffs(inject_result.mut_fidelity_result.live_unique, inject_result.mut_fidelity_result.archive_unique)
+                test_results.loc[len(test_results)] = {'url': url, 'correct?': 
+                                                       'Correct' if num_diffs > num_diffs_mut else 'Wrong',
+                                                       'frac_diff_eliminated': 1 - num_diffs_mut / num_diffs}
+        else:
+            print(f'No writes for {host}')
+            test_results.loc[len(test_results)] = {'url': url, 'correct?': 'No writes', 'frac_diff_eliminated': 'N/A'}
+    print(test_results)
 
 
 def test_syntax_error(record=False):
@@ -260,7 +319,9 @@ def test_common_issues(record=False):
         'https://lightwidget.com/', # svg use issues
     ]
 
-test_error_injector()
+
+# test_inject_error_js('test')
+test_error_injector(record=True)
 # test_syntax_error(record=True)
 # test_exception_error(record=False)
 # test_mutation(record=True)
