@@ -3,6 +3,7 @@ from urllib.parse import unquote
 from collections import namedtuple
 import re, os
 import json, time
+import html
 import functools
 
 from fidex.fidelity_check import js_writes
@@ -35,10 +36,12 @@ FILTERED_STYLES = CSS_ANIMATION_STYLES + [
 def _filter_style(style, filter_keys=FILTERED_STYLES):
     """Add style and throw away certain attr"""
     # Strip the ending ;
+    style = html.unescape(style)
     style = re.sub(r';\s+', ';', style.strip(';'))
     new_style = []
     filter_keys = [re.compile(k) for k in filter_keys]
-    for s in sorted(style.split(';')):
+    pattern = r';(?=(?:[^\'"]|\'[^\']*\'|"[^"]*")*$)'
+    for s in sorted(re.split(pattern, style)):
         # Replace all :\s+ with :
         s = re.sub(r':\s+', ':', s)
         to_filter = False
@@ -128,7 +131,7 @@ class LayoutElement:
             i += 1
         if href.endswith('#'):
             href = href[:-1]
-        return href
+        return url_utils.unescape_url(href)
 
     def _norm_rgb(color) -> str:
         if color[0] == '#':

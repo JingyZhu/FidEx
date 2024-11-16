@@ -1,5 +1,5 @@
 import re, os
-from urllib.parse import urlsplit, parse_qsl, urlunsplit, urljoin, unquote
+from urllib.parse import urlsplit, parse_qsl, urlunsplit, urljoin, unquote, urlparse
 from publicsuffixlist import PublicSuffixList
 import hashlib
 import requests
@@ -104,6 +104,23 @@ def archive_split(archive_url):
     else:
         raise Exception(f"Invalid archive url: {archive_url}")
     return result
+
+def unescape_url(url):
+        # Decode the percent-encoded parts of the URL
+    decoded_url = unquote(url)
+    
+    # Parse the URL into components
+    parsed_url = urlparse(decoded_url)
+    
+    # Decode the domain name (punycode) if necessary
+    try:
+        netloc = parsed_url.netloc.encode("idna").decode("idna")  # Safely decode to Unicode
+    except UnicodeError:
+        netloc = parsed_url.netloc  # Use the original if no punycode present
+    
+    # Reconstruct the URL with the decoded domain
+    unescaped_url = parsed_url._replace(netloc=netloc).geturl()
+    return unescaped_url
 
 def url_norm(url, case=False, ignore_scheme=False, ignore_netloc=False, \
              trim_www=False, trim_slash=False, sort_query=True, archive=False):
