@@ -28,13 +28,16 @@ def next_token(code, pos):
     return ''
 
 class ErrorInjector:
-    def __init__(self, dirr, left_prefix='live', right_prefix='archive'):
+    def __init__(self, dirr, left_prefix='live', right_prefix='archive', excep_selector=None):
         self.dirr = dirr
         self.left_prefix = left_prefix
         self.right_prefix = right_prefix
+        self.excep_selector = excep_selector
     
     def read_exceptions(self, stage):
         self.exceptions = js_exceptions.read_exceptions(self.dirr, self.right_prefix, stage)
+        if self.excep_selector:
+            self.exceptions = [e for e in self.exceptions if self.excep_selector.match(e)]
         return self.exceptions
     
     @staticmethod
@@ -213,23 +216,30 @@ class ErrorInjector:
                 })
                 # self.print_injection(url, exception, original_code, original_pos, injected_code)
         override_map = ErrorInjector.merge_override(original_map, override_map)
-        json.dump(override_map, open(f"{self.dirr}/overrides.json", 'w'), indent=2)
-        json.dump(original_map, open(f"{self.dirr}/originals.json", 'w'), indent=2)
+        SUFFIX = '' if not self.excep_selector else f'-{self.excep_selector.md5()}'
+        json.dump(override_map, open(f"{self.dirr}/overrides{SUFFIX}.json", 'w'), indent=2)
+        json.dump(original_map, open(f"{self.dirr}/originals{SUFFIX}.json", 'w'), indent=2)
         return override_map
 
-def inject_errors(dirr, idx=0, left_prefix='proxy', right_prefix='archive', meaningful=True):
+def inject_errors(dirr, idx=0, left_prefix='proxy', right_prefix='archive', meaningful=True, excep_selector: js_exceptions.JSExcepSelector=None):
+    """
+    excep_selector: If available, only inject error for the selected exception
+    """
     global CHROME_DATA_INIT
     arguments = ['-w', '-t', '-s', '--scroll', '--proxy', PROXYHOST, '-e', '--headless', '--override']
+    SUFFIX = '' if not excep_selector else f'-{excep_selector.md5()}'
+    if SUFFIX:
+        arguments.append(f'overrides{SUFFIX}.json')
     fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix, screenshot=False, meaningful=meaningful)
     if not fidelity_result.info['diff']:
         return PinpointResult(fidelity_result=fidelity_result,
                               mut_fidelity_result=None,
                               diff_writes=[], 
                               pinpointed_errors=[])
-    error_injector = ErrorInjector(dirr, left_prefix, right_prefix)
+    error_injector = ErrorInjector(dirr, left_prefix, right_prefix, excep_selector=excep_selector)
     error_injector.read_exceptions(fidelity_result.info['diff_stage'])
     error_injector.inject_error_js()
-    overrides = json.load(open(f"{dirr}/overrides.json"))
+    overrides = json.load(open(f"{dirr}/overrides{SUFFIX}.json"))
     if len(overrides) == 0:
         return PinpointResult(fidelity_result=fidelity_result,
                               mut_fidelity_result=fidelity_result,
@@ -253,10 +263,10 @@ def inject_errors(dirr, idx=0, left_prefix='proxy', right_prefix='archive', mean
     autorun.replay(proxy_url, archive_name,
                     chrome_data=f'{chrome_data_dir}/error_inject_{common.get_hostname()}_{idx}',
                     write_path=write_path,
-                    filename='proxy-inject',
+                    filename=f'proxy-inject{SUFFIX}',
                     arguments=arguments)
     fidelity_result_mut = fidelity_detect.fidelity_issue_all(dirr, 
-                                                             'proxy-inject', 
+                                                             f'proxy-inject{SUFFIX}', 
                                                              right_prefix, 
                                                              screenshot=False,
                                                              need_exist=False)
@@ -283,4 +293,3 @@ def inject_errors(dirr, idx=0, left_prefix='proxy', right_prefix='archive', mean
                             mut_fidelity_result=fidelity_result,
                             diff_writes=[], 
                             pinpointed_errors=[])
-    

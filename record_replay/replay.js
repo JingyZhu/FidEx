@@ -74,7 +74,8 @@ const TIMEOUT = 60*1000;
         }
 
         if (options.override) {
-            const overrideInfos = override.readOverrideInfo(`${dirname}/overrides.json`);
+            let overrideName = options.override === true ? 'overrides.json': options.override;
+            const overrideInfos = override.readOverrideInfo(`${dirname}/${overrideName}`);
             await override.overrideResources(client, overrideInfos);
         }
         

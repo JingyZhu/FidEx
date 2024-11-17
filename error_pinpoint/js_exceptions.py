@@ -1,8 +1,9 @@
 import functools
 import re
 import json
+import hashlib
 
-from fidex.utils import execution, common
+from fidex.utils import execution, common, url_utils
 
 class JSException:
     def __init__(self, excep: dict):
@@ -52,6 +53,33 @@ class JSException:
             'scriptURL': self.scriptURL,
             'line': self.line,
             'column': self.column,
+        }
+
+class JSExcepSelector:
+    """Generate exception selector from dict"""
+    def __init__(self, excep: dict):
+        self.description = excep.get('description', '')
+        if url_utils.is_archive(excep.get('scriptURL')):
+            self.scriptURL = url_utils.filter_archive(excep.get('scriptURL'))
+        else:
+            self.scriptURL = excep.get('scriptURL')
+    
+    def match(self, excep: JSException):
+        return self.description == excep.description and self.scriptURL == url_utils.filter_archive(excep.scriptURL)
+
+    def __hash__(self):
+        return hash(self.to_tuple())
+
+    def md5(self, digit=10):
+        return hashlib.md5(','.join([self.scriptURL, self.description]).encode()).hexdigest()[:digit]
+    
+    def to_tuple(self):
+        return (self.description, self.scriptURL)
+
+    def to_dict(self):
+        return {
+            'description': self.description,
+            'scriptURL': self.scriptURL,
         }
 
 def read_exceptions(dirr, base, stage):

@@ -83,7 +83,7 @@ def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=
                                                                             right_img, right_unique, right_info.elements)
         else:
             logging.warning("Warning: diff layout tree but no screenshots found")
-    return len(left_unique) + len(right_unique) > 0, (left_unique, right_unique)
+    return len(left_unique) > 0, (left_unique, right_unique)
 
 
 def fidelity_issue_screenshot(dirr, left_file='live', right_file='archive') -> "(float, numpy.NDArray)":
@@ -109,7 +109,7 @@ def fidelity_issue_more_errs(dirr, left_file='live', right_file='archive', stage
     right_exceptions = [e for exceptions in right_exceptions if common.stage_nolater(exceptions['stage'], stage) for e in exceptions['exceptions']]
     left_exceptions = set([(e.get('description', ''), url_utils.filter_archive(e.get('scriptURL', ''))) for e in left_exceptions])
     right_exceptions = set([(e.get('description', ''), url_utils.filter_archive(e.get('scriptURL', ''))) for e in right_exceptions])
-    more_errs = right_exceptions - left_exceptions
+    more_errs = [{'description': e[0], 'scriptURL': e[1]} for e in right_exceptions - left_exceptions]
     return len(more_errs) > 0, list(more_errs)
 
 @dataclass
@@ -117,12 +117,15 @@ class FidelityResult:
     info: dict
     live_unique: list
     archive_unique: list
+    more_errs: list = None
 
 class FidelityDetector:
-    def __init__(self, dirr, left_prefix='live', right_prefix='archive', screenshot=False, more_errs=False, meaningful=True):
+    def __init__(self, dirr, left_prefix='live', right_prefix='archive', 
+                 fidex_check=True, screenshot=False, more_errs=False, meaningful=True):
         self.dirr = dirr
         self.left_prefix = left_prefix
         self.right_prefix = right_prefix
+        self.fidex_check = fidex_check
         self.screenshot = screenshot
         self.more_errs = more_errs
         self.meaningful = meaningful
@@ -134,6 +137,7 @@ class FidelityDetector:
         self.more_errs_diff = False
         self.more_errs_diff_stage = None
         self.more_errs_num = None
+        self.more_errs_list = None
 
         self.left_unique = []
         self.right_unique = []
@@ -141,7 +145,7 @@ class FidelityDetector:
     def detect_stage(self, left_stage, right_stage) -> "Tuple(bool, bool, bool)":
         left = self.left_prefix if left_stage == 'onload' else f'{self.left_prefix}_{left_stage.split("_")[1]}'
         right = self.right_prefix if right_stage == 'onload' else f'{self.right_prefix}_{right_stage.split("_")[1]}'
-        if not self.diff:
+        if self.fidex_check and not self.diff:
             # Only check fidelity issue if no diff found so far
             diff, (left_unique, right_unique) = fidelity_issue(self.dirr, left, right, meaningful=self.meaningful)
             self.diff = self.diff or diff
@@ -165,7 +169,8 @@ class FidelityDetector:
             if self.more_errs_diff:
                 self.more_errs_diff_stage = left_stage
                 self.more_errs_num = len(m_errs)
-        return self.diff, (not self.screenshot or self.screenshot_diff), (not self.more_errs or self.more_errs_diff)
+                self.more_errs_list = m_errs
+        return (not self.fidex_check or self.diff), (not self.screenshot or self.screenshot_diff), (not self.more_errs or self.more_errs_diff)
     
     def extra_interaction(self, need_exist=True):
         left_info = LoadInfo(self.dirr, self.left_prefix)
@@ -187,7 +192,7 @@ class FidelityDetector:
         return len(left_unique_events) > 0
     
     def generate_result(self) -> FidelityResult:
-        return FidelityResult({
+        return FidelityResult(info={
             'hostname': self.dirr,
             'diff': self.diff,
             'screenshot_diff': self.screenshot_diff,
@@ -197,16 +202,20 @@ class FidelityDetector:
             'more_errs_diff_stage': self.more_errs_diff_stage,
             'similarity': self.screenshot_simi,
             'more_errs_num': self.more_errs_num,
-        }, self.left_unique, self.right_unique)
+        }, live_unique=self.left_unique,
+           archive_unique=self.right_unique,
+           more_errs=self.more_errs_list)
 
 def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', 
-                       screenshot=False, more_errs=False, meaningful=True, need_exist=True) -> FidelityResult:
+                       fidex_check=True, screenshot=False, more_errs=False, 
+                       meaningful=True, need_exist=True) -> FidelityResult:
     """
     Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
     """
     start = time.time()
     fidelity_detector = FidelityDetector(dirr, left_prefix=left_prefix, 
                                                right_prefix=right_prefix, 
+                                               fidex_check=fidex_check,
                                                screenshot=screenshot,
                                                more_errs=more_errs, 
                                                meaningful=meaningful)

@@ -19,7 +19,7 @@ def filter_archive(archive_url):
         else:
             return 'https://' + url
     else:
-        return None
+        return archive_url
 
 def is_archive(url):
     return re.search(ARCHIVE_PATTERN, url) is not None

@@ -19,7 +19,7 @@ function recordReplayArgs() {
         .option('-p --proxy <proxy>', "Proxy server to use. Note that is chrome is installed with extensions that controls proxy, this could not work.")
         .option('-e --exetrace', "Enable execution trace for both js run and network fetches")
         .option('--minimal', "Minimal mode for record and replay")
-        .option('-o --override', "Override resources (used for proxy error injection currently)")
+        .option('-o --override [override]', "Override resources (used for proxy error injection currently)")
     return program
 }
 
