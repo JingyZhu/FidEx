@@ -5,9 +5,11 @@ import numpy as np
 import random
 import bisect
 
+from fidex.fidelity_check import fidelity_detect
+
 # HTML tag that are important for the content
 content_tag = ['img', 'video', 'audio', 'canvas', 'map']
-resolution = (1000, 1000)
+RESOLUTION = (1000, 1000)
 
 def diff_rectangle(left, right):
     ll, lt, lw, lh = left['left'], left['top'], left['width'], left['height']
@@ -215,241 +217,80 @@ def calc_diff_dimensions_heatmap(left_dimensions, left_unique, right_dimensions,
     return left_total_diffs, right_total_diffs
 
 
-def total_space(elements):
+def total_space(dimensions: list) -> tuple:
+    """Returns total space, (width, height)"""
     max_width, max_height = 0, 0
-    for e in elements:
-        if e['dimension']:
-            max_width = max(max_width, e['dimension']['width'] + e['dimension']['left'])
-            max_height = max(max_height, e['dimension']['height'] + e['dimension']['top'])
+    for d in dimensions:
+        max_width = max(max_width, d['width'] + d['left'])
+        max_height = max(max_height, d['height'] + d['top'])
     return max_width * max_height, (max_width, max_height)
 
 
 def fidelity_issue_impact(dirr, left_prefix='live', right_prefix='archive') -> float:
-    """Returns: fraction of pages with fidelity issue"""
-    left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
-    right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
-    left_unique, right_unique = check_utils.diff(left_element, right_element)
-    # * Meaningful diff
-    left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
-
-    left_dimensions = {e['xpath']: e['dimension'] for e in left_element if e['dimension']}
-    right_dimensions = {e['xpath']: e['dimension'] for e in right_element if e['dimension']}
-    left_diffs, right_diffs = calc_diff_dimensions(left_dimensions, left_unique, right_dimensions, right_unique)
+    """Returns: Rectangle area of the fidelity issue"""
+    fidelity_result = fidelity_detect.FidelityResult(info={}, live_unique=[], archive_unique=[], more_errs=None)
+    if os.path.exists(f'{dirr}/diff_{left_prefix}_{right_prefix}.json'):
+        diff_dict = json.load(open(f'{dirr}/diff_{left_prefix}_{right_prefix}.json'))
+        fidelity_result.load_from_dict(diff_dict)
+    else:
+        fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix)
+    if not fidelity_result.info['diff']:
+        return 0, 0
+    diff_stage = fidelity_result.info['diff_stage']
+    stage_suffix = '' if diff_stage in ['onload', 'extraInteraction'] else diff_stage.replace('interaction', '')
+    left, right = left_prefix + stage_suffix, right_prefix + stage_suffix
+    left_info = fidelity_detect.LoadInfo(dirr, left)
+    right_info = fidelity_detect.LoadInfo(dirr, right)
+    left_info.gen_xpath_map(), right_info.gen_xpath_map()
+    left_dimensions = {xpath: e['dimension'] for xpath, e in left_info.elements_map.items() if e['dimension']}
+    right_dimensions = {xpath: e['dimension'] for xpath, e in right_info.elements_map.items() if e['dimension']}
+    left_diffs, right_diffs = calc_diff_dimensions(left_dimensions, fidelity_result.live_unique, 
+                                                   right_dimensions, fidelity_result.archive_unique)
     left_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left'], e.get('scale', 1)) for e in left_diffs])
     right_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left'], e.get('scale', 1)) for e in right_diffs])
-    left_total_area, _ = total_space(left_element)
-    right_total_area, _ = total_space(right_element)
+    left_total_area, _ = total_space(list(left_dimensions.values()))
+    right_total_area, _ = total_space(list(right_dimensions.values()))
     return left_diffs_area, right_diffs_area
 
 def fidelity_issue_impact_heatmap(dirr, left_prefix='live', right_prefix='archive') -> np.ndarray:
-    """Returns: Rectangle area of the fidelity issue"""
-    left_element = json.load(open(f"{dirr}/{left_prefix}_elements.json"))
-    right_element = json.load(open(f"{dirr}/{right_prefix}_elements.json"))
-    left_unique, right_unique = check_utils.diff(left_element, right_element)
-    # * Meaningful diff
-    left_unique, right_unique = check_utils.meaningful_diff(left_element, left_unique, right_element, right_unique)
-    
-    
-    left_dimensions = {e['xpath']: e['dimension'] for e in left_element if e['dimension']}
-    right_dimensions = {e['xpath']: e['dimension'] for e in right_element if e['dimension']}
-    
-    left_diffs, right_diffs = calc_diff_dimensions_heatmap(left_dimensions, left_unique, right_dimensions, right_unique)
+    """Returns: Heatmap array of the fidelity issue"""
+    fidelity_result = fidelity_detect.FidelityResult(info={}, live_unique=[], archive_unique=[], more_errs=None)
+    if os.path.exists(f'{dirr}/diff_{left_prefix}_{right_prefix}.json'):
+        diff_dict = json.load(open(f'{dirr}/diff_{left_prefix}_{right_prefix}.json'))
+        fidelity_result.load_from_dict(diff_dict)
+    else:
+        fidelity_result = fidelity_detect.fidelity_issue_all(dirr, left_prefix, right_prefix)
+    if not fidelity_result.info['diff']:
+        return np.zeros(RESOLUTION)
+    diff_stage = fidelity_result.info['diff_stage']
+    stage_suffix = '' if diff_stage in ['onload', 'extraInteraction'] else diff_stage.replace('interaction', '')
+    left, right = left_prefix + stage_suffix, right_prefix + stage_suffix
+    left_info = fidelity_detect.LoadInfo(dirr, left)
+    right_info = fidelity_detect.LoadInfo(dirr, right)
+    left_info.gen_xpath_map(), right_info.gen_xpath_map()
+    left_dimensions = {xpath: e['dimension'] for xpath, e in left_info.elements_map.items() if e['dimension']}
+    right_dimensions = {xpath: e['dimension'] for xpath, e in right_info.elements_map.items() if e['dimension']}
+
+    left_diffs, right_diffs = calc_diff_dimensions(left_dimensions, fidelity_result.live_unique, 
+                                                   right_dimensions, fidelity_result.archive_unique)
     left_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left'], e.get('scale', 1)) for e in left_diffs])
     right_diffs_area = calculate_total_area([(e['width'], e['height'], e['top'], e['left'], e.get('scale', 1)) for e in right_diffs])
-    _, (total_left_w, total_left_h) = total_space(left_element)
-    _, (total_right_w, total_right_h) = total_space(right_element)
+    _, (total_left_w, total_left_h) = total_space(list(left_dimensions.values()))
+    _, (total_right_w, total_right_h) = total_space(list(right_dimensions.values()))
     target_diffs = left_diffs if left_diffs_area >= right_diffs_area else right_diffs
     target_w, target_h = (total_left_w, total_left_h) if left_diffs_area >= right_diffs_area else (total_right_w, total_right_h)
-    target_diffs = [(e['width'] / target_w * resolution[0],
-        e['height'] / target_h * resolution[1],
-        e['top'] / target_h * resolution[1],
-        e['left'] / target_w * resolution[0],
+    target_diffs = [(e['width'] / target_w * RESOLUTION[0],
+        e['height'] / target_h * RESOLUTION[1],
+        e['top'] / target_h * RESOLUTION[1],
+        e['left'] / target_w * RESOLUTION[0],
         1
     ) for e in target_diffs]
     def in_rect(x, y, rect):
         if rect[3] <= x <= rect[3] + rect[0] and rect[2] <= y <= rect[2] + rect[1]:
             return rect[4]
         return 0
-    array = np.zeros(resolution)
-    for x in range(resolution[1]):
-        for y in range(resolution[0]):
+    array = np.zeros(RESOLUTION)
+    for x in range(RESOLUTION[1]):
+        for y in range(RESOLUTION[0]):
             array[y, x] = min(1, sum([in_rect(x, y, rect) for rect in target_diffs]))
     return array
-
-
-def _worker(base, hostname, left, right):
-    dirr = os.path.join(base, hostname)
-    try:
-        left_impact, right_impact = fidelity_issue_impact(dirr, left, right)
-    except Exception as e:
-        print(str(e))
-        return
-    impact = max(left_impact, right_impact)
-    return {
-        'hostname': hostname,
-        'impact': impact,
-    }
-
-def fidelity_impact_ground_truth(base, hostnames):
-    results = []
-    with multiprocessing.Pool(31) as pool:
-        results = pool.starmap(_worker, [(base, h, 'live', 'archive') for h in hostnames])
-        results = [r for r in results if r]
-    json.dump(results, open('fidelity_impact_gt.json', 'w+'), indent=2)
-
-def fidelity_impact_detection(bases, target_hostnames=None, sample_size=0):
-    results = []
-    inputs = []
-    for base in bases:
-        hostnames = os.listdir(base)
-        for hostname in hostnames:
-            if target_hostnames and hostname not in target_hostnames:
-                continue
-            dirr = os.path.join(base, hostname)
-            if not os.path.exists(os.path.join(dirr, 'results.json')):
-                continue
-            results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
-            stage, fixedIdx = None, None
-            for stage, result in results.items():
-                if result['fixedIdx'] == -1:
-                    continue
-                fixedIdx = result['fixedIdx']
-                break
-            if fixedIdx is None:
-                continue
-            inputs.append((base, hostname, f'{stage}_initial', f'{stage}_exception_{fixedIdx}'))
-    if sample_size > 0:
-        inputs = random.sample(inputs, min(sample_size, len(inputs)))
-    with multiprocessing.Pool(31) as pool:
-        results = pool.starmap(_worker, inputs)
-        results = [r for r in results if r]
-    json.dump(results, open('fidelity_impact.json', 'w+'), indent=2)
-
-def _worker_heatmap(base, hostname, left, right):
-    print(hostname)
-    dirr = os.path.join(base, hostname)
-    try:
-        heatmap = fidelity_issue_impact_heatmap(dirr, left, right)
-    except Exception as e:
-        print(str(e))
-        return
-    return heatmap
-
-def fidelity_impact_heatmap_ground_truth(base, hostnames):
-    results = []
-    print("Total inputs", len(hostnames))
-    with multiprocessing.Pool(31) as pool:
-        results = pool.starmap(_worker_heatmap, [(base, h, 'live', 'archive') for h in hostnames])
-        results = [r for r in results if r is not None]
-    total_heatmap = np.zeros(resolution)
-    print("Total length", len(results))
-    for heatmap in results:
-        total_heatmap += heatmap
-    total_heatmap /= len(results)
-    # Store the heatmap
-    np.save('fidelity_impact_heatmap_gt.npy', total_heatmap)
-
-def fidelity_impact_heatmap_detection(bases, target_hostnames=None, sample_size=0):
-    results = []
-    inputs = []
-    for base in bases:
-        hostnames = os.listdir(base)
-        for hostname in hostnames:
-            if target_hostnames and hostname not in target_hostnames:
-                continue
-            dirr = os.path.join(base, hostname)
-            if not os.path.exists(os.path.join(dirr, 'results.json')):
-                continue
-            results = json.load(open(os.path.join(dirr, 'results.json'), 'r'))
-            stage, fixedIdx = None, None
-            for stage, result in results.items():
-                if result['fixedIdx'] == -1:
-                    continue
-                fixedIdx = result['fixedIdx']
-                break
-            if fixedIdx is None:
-                continue
-            inputs.append((base, hostname, f'{stage}_initial', f'{stage}_exception_{fixedIdx}'))
-    # inputs = [i for i in inputs if i[1] in ['miami.va.gov_5576']]
-    
-    if sample_size > 0:
-        inputs = random.sample(inputs, min(sample_size, len(inputs)))
-    print("Total inputs", len(inputs))
-    with multiprocessing.Pool(31) as pool:
-        results = pool.starmap(_worker_heatmap, inputs)
-        results = [r for r in results if r is not None]
-    total_heatmap = np.zeros(resolution)
-    print("Total length", len(results))
-    for heatmap in results:
-        total_heatmap += heatmap
-    total_heatmap /= len(results)
-    # Store the heatmap
-    np.save('fidelity_impact_heatmap.npy', total_heatmap)
-
-if __name__ == "__main__":
-    import fidelity_detect
-    import check_utils
-    # base = '../../fidelity-files/writes/ground_truth/'
-    # dirr = 'www.eac.gov_78a0be245c'
-    # dirr = base + dirr
-    # left_impact, right_impact = fidelity_issue_impact(dirr)
-    # _, simi = fidelity_detect.fidelity_issue_screenshot(dirr)
-    # print(left_impact, right_impact, 1- simi)
-
-
-    # * Ground-truth impact
-    # gt_diff = json.load(open('../datacollect/ground-truth/gt_diff.json'))
-    # hostnames = [g['hostname'] for g in gt_diff if g['diff']]
-    # gt_500 = json.load(open('../revert_rewrite/gt_diff.json'))
-    # hostnames = [h for h in hostnames if h in gt_500 if gt_500[h]]
-    # fidelity_impact_ground_truth('../../fidelity-files/writes/ground_truth/', hostnames)
-
-    # * Detection impact
-    fidelity_impact_detection('../revert_rewrite/writes_gt/', sample_size=0)
-
-    # * Ground-truth heatmap
-    # gt_diff = json.load(open('../datacollect/ground-truth/gt_diff.json'))
-    # hostnames = [g['hostname'] for g in gt_diff if g['diff']]
-    # fidelity_impact_heatmap_ground_truth('../../fidelity-files/writes/ground_truth/', hostnames)
-
-    # * Detection heatmap
-    fidelity_impact_heatmap_detection([
-                                        # '../revert_rewrite/writes_gt/'
-                                        '../revert_rewrite/writes_eot_2016/',
-                                        '../revert_rewrite/writes_eot_2020/',
-                                        '../revert_rewrite/writes_carta/'
-                                       ], sample_size=200)
-
-    # * Single impact
-    # result = _worker('../../fidelity-files/writes/ground_truth/', 'www.nhtsa.gov_522ad71962', 'live', 'archive')
-    # print(result)
-
-    # * Comp of heatmap between ground-truth and detection
-    # dirr = '../revert_rewrite/writes_multiproc/'
-    # # dirr = '../revert_rewrite/test/load_override/writes/'
-    # base = 'oklahoma.gov_fbd26c5dd5'
-    # gt_heatmap = _worker_heatmap('../../fidelity-files/writes/ground_truth/', base, 'live', 'archive')
-    # if not os.path.exists(os.path.join(dirr+base, 'results.json')):
-    #     print("No results")
-    #     exit(0)
-    # results = json.load(open(os.path.join(dirr+base, 'results.json'), 'r'))
-    # stage, fixedIdx = None, None
-    # for stage, result in results.items():
-    #     if result['fixedIdx'] == -1:
-    #         continue
-    #     fixedIdx = result['fixedIdx']
-    #     break
-    # if fixedIdx is None:
-    #     print("No fidelity issue detected")
-    #     exit(0)
-    # detection_heatmap = _worker_heatmap(dirr, base, f'{stage}_initial', f'{stage}_exception_{fixedIdx}')
-    # np.save('fidelity_impact_heatmap_gt.npy', gt_heatmap)
-    # np.save('fidelity_impact_heatmap.npy', detection_heatmap)
-
-else:
-    import sys, os
-    # * To make it available to be imported from another directory
-    script_path = os.path.abspath(__file__)
-    dir_path = os.path.dirname(script_path)
-    sys.path.append(dir_path)
-    import check_utils

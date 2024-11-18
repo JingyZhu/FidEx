@@ -119,6 +119,12 @@ class FidelityResult:
     archive_unique: list
     more_errs: list = None
 
+    def load_from_dict(self, d: dict):
+        self.info = d['info']
+        self.live_unique = d['live_unique']
+        self.archive_unique = d['archive_unique']
+        self.more_errs = d.get('more_errs', None)
+
 class FidelityDetector:
     def __init__(self, dirr, left_prefix='live', right_prefix='archive', 
                  fidex_check=True, screenshot=False, more_errs=False, meaningful=True):
@@ -191,8 +197,8 @@ class FidelityDetector:
             self.right_unique = [[e.xpath] for e in right_unique_events]
         return len(left_unique_events) > 0
     
-    def generate_result(self) -> FidelityResult:
-        return FidelityResult(info={
+    def generate_result(self, writedown=True) -> FidelityResult:
+        info = {
             'hostname': self.dirr,
             'diff': self.diff,
             'screenshot_diff': self.screenshot_diff,
@@ -202,9 +208,18 @@ class FidelityDetector:
             'more_errs_diff_stage': self.more_errs_diff_stage,
             'similarity': self.screenshot_simi,
             'more_errs_num': self.more_errs_num,
-        }, live_unique=self.left_unique,
-           archive_unique=self.right_unique,
-           more_errs=self.more_errs_list)
+        }
+        if writedown:
+            json.dump({
+                'info': info,
+                'live_unique': self.left_unique,
+                'archive_unique': self.right_unique,
+                'more_errs': self.more_errs_list
+            }, open(f"{self.dirr}/diff_{self.left_prefix}_{self.right_prefix}.json", 'w'))
+        return FidelityResult(info=info, 
+            live_unique=self.left_unique,
+            archive_unique=self.right_unique,
+            more_errs=self.more_errs_list)
 
 def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', 
                        fidex_check=True, screenshot=False, more_errs=False, 

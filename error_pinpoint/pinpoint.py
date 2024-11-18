@@ -2,13 +2,14 @@ import json
 import time
 import os
 import bs4
+import logging
 from dataclasses import dataclass
 from subprocess import call
 
 from fidex.record_replay import autorun
 from fidex.fidelity_check import fidelity_detect, layout_tree, js_writes
 from fidex.error_pinpoint import js_exceptions, js_initiators
-from fidex.utils import url_utils, common, execution
+from fidex.utils import url_utils, common, execution, logger
 from fidex.config import CONFIG
 
 
@@ -294,39 +295,44 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
     pinpointer.add_fidelity_result(fidelity_result)
     diff_writes = pinpointer.extra_writes()
     pinpointer.read_related_info()
-    print(dirr, 'finished pinpoint preparation', time.time()-start)
+    logging.info(f'{dirr} pinpoint preparation {time.time()-start}')
     
     syntax_errors = pinpointer.pinpoint_syntax_errors()
     if len(syntax_errors) > 0:
+        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
         return PinpointResult(fidelity_result=fidelity_result, 
                               mut_fidelity_result=None, 
                               diff_writes=diff_writes, 
                               pinpointed_errors=syntax_errors)
-    print(dirr, 'finished syntax error pinpoint', time.time()-start)
+    logging.info(f'{dirr} syntax error pinpoint {time.time()-start}')
     
     exceptions = pinpointer.pinpoint_exceptions()
     if len(exceptions) > 0:
+        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
         return PinpointResult(fidelity_result=fidelity_result, 
                               mut_fidelity_result=None, 
                               diff_writes=diff_writes, 
                               pinpointed_errors=exceptions)
-    print(dirr, 'finished exception pinpoint', time.time()-start)
+    logging.info(f'{dirr} exception pinpoint {time.time()-start}')
     
     mutation_errors, mut_fidelity_result = pinpointer.pinpoint_mutations()
     if len(mutation_errors) > 0:
+        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
         return PinpointResult(fidelity_result=fidelity_result, 
                               mut_fidelity_result=mut_fidelity_result, 
                               diff_writes=diff_writes, 
                               pinpointed_errors=mutation_errors)
-    print(dirr, 'finished mutation pinpoint', time.time()-start)
-
+    logging.info(f'{dirr} mutation pinpoint {time.time()-start}')
+    
     common_issues = pinpointer.pinpoint_common()
     if len(common_issues) > 0:
+        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
         return PinpointResult(fidelity_result=fidelity_result, 
                               mut_fidelity_result=None,
                               diff_writes=[],
                               pinpointed_errors=common_issues)
-    print(dirr, 'finished common pinpoint', time.time()-start)
+    logging.info(f'{dirr} common pinpoint {time.time()-start}')
+    logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
     return PinpointResult(fidelity_result=fidelity_result,
                           mut_fidelity_result=None,
                           diff_writes=diff_writes, 
