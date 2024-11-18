@@ -46,9 +46,9 @@ class ErrorInjector:
         html_tags = re.compile(r'</?([a-zA-Z]+)>')
         is_html = html_tags.search(code)
         if not is_html:
-            return "@#$%^&SyntaxError For Fidex" + code
+            return "\n@#$%^&SyntaxError For Fidex" + code
         else:
-            return code[:pos] + "@#$%^&SyntaxError For Fidex" + code[pos:]
+            return code[:pos] + "\n@#$%^&SyntaxError For Fidex" + code[pos:]
     
     @staticmethod
     def inject_runtime_error(code, pos):

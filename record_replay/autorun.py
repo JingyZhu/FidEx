@@ -137,8 +137,9 @@ def record_replay(url, archive_name,
         download_path = f'{chrome_data}/Downloads'
     if not os.path.exists(f'{download_path}/{wr_archive}.warc'):
         return '', record_url
-    check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_FILEDIR)
-    client.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
+    if archive or proxy:
+        check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}.warc'], cwd=_FILEDIR)
+        client.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
 
     ts = ts.strip()
     if archive:
@@ -175,7 +176,8 @@ def record_replay(url, archive_name,
             'archive_host': AHOST if archive else None,
         }, open(f'{write_path}/{archive_name}/metadata.json', 'w+'), indent=2)
     
-    client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
+    if archive or proxy:
+        client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
     if temp_client:
         sshclient.close()
     return ts, record_url
