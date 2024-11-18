@@ -15,7 +15,7 @@ from fidex.config import CONFIG
 def sum_diffs(left_unique, right_unique):
     left_sum = sum([len(branch) for branch in left_unique])
     right_sum = sum([len(branch) for branch in right_unique])
-    return max(left_sum, right_sum)
+    return left_sum
 
 def extra_writes(dirr, left_diffs, right_diffs, left_prefix='live', right_prefix='archive') -> "list[js_writes.JSWrite]":
     """Get extra writes from left to right, or right to left, depending on the side"""

@@ -110,7 +110,7 @@ def fidelity_issue_more_errs(dirr, left_file='live', right_file='archive', stage
     left_exceptions = set([(e.get('description', ''), url_utils.filter_archive(e.get('scriptURL', ''))) for e in left_exceptions])
     right_exceptions = set([(e.get('description', ''), url_utils.filter_archive(e.get('scriptURL', ''))) for e in right_exceptions])
     more_errs = [{'description': e[0], 'scriptURL': e[1]} for e in right_exceptions - left_exceptions]
-    return len(more_errs) > 0, list(more_errs)
+    return len(more_errs) > 0, more_errs
 
 @dataclass
 class FidelityResult:
@@ -208,7 +208,7 @@ class FidelityDetector:
 
 def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', 
                        fidex_check=True, screenshot=False, more_errs=False, 
-                       meaningful=True, need_exist=True) -> FidelityResult:
+                       meaningful=True, need_exist=True, finish_all=False) -> FidelityResult:
     """
     Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
     """
@@ -220,13 +220,13 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
                                                more_errs=more_errs, 
                                                meaningful=meaningful)
     diff, s_diff, m_diff = fidelity_detector.detect_stage('onload', 'onload')
-    if diff and s_diff and m_diff:
+    if not finish_all and diff and s_diff and m_diff:
         return fidelity_detector.generate_result()
     logging.info(f'{dirr.split("/")[-1]} onload elasped: {time.time()-start}')
     
     # * Check extraInteraction
     extra_intact = fidelity_detector.extra_interaction(need_exist=need_exist)
-    if extra_intact:
+    if not finish_all and extra_intact:
         return fidelity_detector.generate_result()
 
     # * Check for each interaction
@@ -239,6 +239,6 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
         i, j = left_e.idx, right_e.idx
         diff, s_diff, m_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
         logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(fidelity_detector.left_common_events)} elasped: {time.time()-start}')
-        if diff and s_diff:
+        if not finish_all and diff and s_diff and m_diff:
             return fidelity_detector.generate_result()
     return fidelity_detector.generate_result()
