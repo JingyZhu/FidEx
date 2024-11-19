@@ -17,6 +17,7 @@ const { startChrome,
       } = require('../utils/load');
 const { recordReplayArgs } = require('../utils/argsparse');
 const { loggerizeConsole } = require('../utils/logger');
+const { exec } = require('child_process');
 
 loggerizeConsole();
 const TIMEOUT = 60*1000;
@@ -73,6 +74,11 @@ const TIMEOUT = 60*1000;
             client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
         }
 
+        // * Step 1.5: Collect all execution contexts (for replayweb.page)
+        let executionContexts = [];
+        client.on('Runtime.executionContextCreated', params => { executionContexts.push(params) });
+        let replaywebPage = urlStr.includes('replayweb.page')
+
         if (options.override) {
             let overrideName = options.override === true ? 'overrides.json': options.override;
             const overrideInfos = override.readOverrideInfo(`${dirname}/${overrideName}`);
@@ -99,10 +105,32 @@ const TIMEOUT = 60*1000;
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            await eventSync.waitTimeout(networkIdle, TIMEOUT); 
+            const timeoutDur = replaywebPage ? 3000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
+            await eventSync.waitTimeout(networkIdle, timeoutDur); 
         } catch {}
         if (options.minimal)
             return;
+
+        let evalIframe = page.mainFrame();
+        let evalIframeExecCtxId = null;
+        if (replaywebPage) {
+
+            await page.evaluate(`document.querySelector("body > replay-app-main").shadowRoot.querySelector("nav").style.display = "none";`);
+            await page.evaluate(`document.querySelector("body > replay-app-main").shadowRoot.querySelector("wr-item").shadowRoot.querySelector("nav").style.display = "none"`);
+        
+            evalIframe = await measure.getEvalIframeFromPage(page);
+
+            for (let execCtx of executionContexts) {
+                if (!(execCtx && execCtx.context && execCtx.context.auxData && execCtx.context.auxData.frameId)) {
+                    continue
+                }
+                if (execCtx.context.auxData.frameId === evalIframe._id && !execCtx.context.origin.includes("puppeteer")) {
+                    evalIframeExecCtxId = execCtx.context.id;
+                    break;
+                }
+            }
+            global.__eval_iframe_exec_ctx_id = evalIframeExecCtxId;
+        }
         if (scroll)
             await measure.scroll(page);
         
@@ -136,8 +164,8 @@ const TIMEOUT = 60*1000;
         // * Step 6: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
-            await loadToChromeCTXWithUtils(page, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await page.evaluate(() => { 
+            await loadToChromeCTXWithUtils(evalIframe, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await evalIframe.evaluate(() => { 
                 collect_writes();
                 return __write_log_processed;
             });
