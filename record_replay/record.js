@@ -293,6 +293,7 @@ async function getActivePage(browser) {
         if (options.remove)
             await removeRecordings(page, 0)
 
+        fs.writeFileSync(`${dirname}/${filename}_done`, "");
         // ! Signal of the end of the program
         console.log("recorded page:", JSON.stringify({ts: ts, url: recordURL}));
     } catch (err) {

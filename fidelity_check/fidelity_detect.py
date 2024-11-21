@@ -215,7 +215,7 @@ class FidelityDetector:
                 'live_unique': self.left_unique,
                 'archive_unique': self.right_unique,
                 'more_errs': self.more_errs_list
-            }, open(f"{self.dirr}/diff_{self.left_prefix}_{self.right_prefix}.json", 'w'))
+            }, open(f"{self.dirr}/diff_{self.left_prefix}_{self.right_prefix}.json", 'w'), indent=2)
         return FidelityResult(info=info, 
             live_unique=self.left_unique,
             archive_unique=self.right_unique,

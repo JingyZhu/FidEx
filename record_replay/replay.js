@@ -150,6 +150,8 @@ const TIMEOUT = 60*1000;
             fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacksToList(), null, 2));
             fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacksToList(), null, 2));
         }
+
+        fs.writeFileSync(`${dirname}/${filename}_done`, "");
         
     } catch (err) {
         console.error(`Replay proxy=${options.proxy?true:false} exception on ${urlStr}: ${err.stack}`);

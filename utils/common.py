@@ -43,8 +43,7 @@ def get_img_src(img_tag) -> set:
     return srcs
 
 def finished_record_replaY(write_dir, check_prefix):
-    return os.path.exists(f"{write_dir}/{check_prefix}_dom.json") \
-        and os.path.exists(f"{write_dir}/{check_prefix}_events.json")
+    return os.path.exists(f"{write_dir}/{check_prefix}_done")
 
 def merge_strings(original: str, new_strs: list) -> str:
     """Merge the strings in news from the original string"""
