@@ -142,9 +142,9 @@ def record_replay(url, archive_name,
         client.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
 
     ts = ts.strip()
+    a_pw_archive = wb_manager.collection(pw_archive)
     if archive:
         AHOST = archive if isinstance(archive, str) else HOST
-        a_pw_archive = wb_manager.collection(pw_archive)
         archive_url = f"{AHOST}/{a_pw_archive}/{ts}/{record_url}"
         replay(archive_url, archive_name, 
                 chrome_data=chrome_data,
@@ -170,7 +170,9 @@ def record_replay(url, archive_name,
             'ts': ts,
             'url': record_url,
             'req_url': url,
-            'archive_url': f'{HOST}/{pw_archive}/{ts}/{record_url}',
+            'archive_url': f'{HOST}/{a_pw_archive}/{ts}/{record_url}',
+            'archive': pw_archive,
+            'sub_archive': a_pw_archive,
             'directory': archive_name,
             'proxy_host': PHOST if proxy else None,
             'archive_host': AHOST if archive else None,
@@ -237,11 +239,15 @@ def record_replay_all_urls(urls,
             logging.error(f"Issue when record_replay URL {url}: {str(e)}")
             continue
         seen_dir.add(archive_name)
+        wb_manager = upload.WBManager(split=SPLIT_ARCHIVE and (worker_id is not None), worker_id=worker_id)
+        a_pw_archive = wb_manager.collection(pw_archive)
         metadata[url] = {
             'ts': ts,
             'url': record_url,
             'req_url': req_url,
-            'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
+            'archive_url': f'{HOST}/{a_pw_archive}/{ts}/{record_url}',
+            'archive': pw_archive,
+            'sub_archive': a_pw_archive,
             'directory': archive_name,
         }
         finished_urls.add(url)
