@@ -39,6 +39,11 @@ def get_img_src(img_tag) -> set:
             if term.match(attr):
                 src = img.attrs[attr]
                 srcs.append(src)
+    # Parse srcset
+    if 'srcset' in img.attrs:
+        srcset = img.attrs['srcset']
+        parts = [src.strip() for src in srcset.split(',')]
+        srcs += [part.split(' ')[0] for part in parts]
     srcs = set([url_utils.url_norm(src, ignore_scheme=True, ignore_netloc=True, trim_slash=True, archive=True) for src in srcs])
     return srcs
 
