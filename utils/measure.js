@@ -141,6 +141,7 @@ async function collectNaiveInfo(page, dirname,
             height: height,
         },
         optimizeForSpeed: true,
+        // quality: 50,
     })
     const end = new Date().getTime();
     console.log(`Measure: Collect Naive Info, Time: ${(end - start)/1000}s, width: ${width}, height: ${height}`);
@@ -150,7 +151,7 @@ async function collectNaiveInfo(page, dirname,
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
     // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    const {exceptionDetails } = await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true, returnByValue: true});
+    const {exceptionDetails } = await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator({grouping: true});", includeCommandLineAPI:true, returnByValue: true});
     if (exceptionDetails) {
         console.error(`Exception: Interaction on Runtime.evaluate ${exceptionDetails.text}`);
         return []
