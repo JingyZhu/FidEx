@@ -73,7 +73,24 @@ async function getEvalIframeFromPage(page) {
     return evalIframe;
 }
 
+async function getOriPage(evalIframe) {
+    try{
+        if (evalIframe.parentFrame() === null) {
+            return evalIframe;
+        }
+    } catch {
+        return evalIframe;
+    }
+    return evalIframe.page()
+    // const associatedPage = evalIframe.parentFrame()
+    // const browser = associatedPage.browser();
+    // const pages = await browser.pages(); // Get all open pages
+    // const originalPage = pages.find(page => page.target() === associatedPage.target());
+}
+
 async function getDimensions(page) {
+    page = await getOriPage(page);
+
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
     let evalIframe = await getEvalIframeFromPage(page);
     const result = await evalIframe.evaluate(() => JSON.stringify(getDimensions()))
@@ -94,9 +111,11 @@ async function maxWidthHeight(dimen) {
 }
 
 async function getPageDimension(page) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
-    let evalIframe = await getEvalIframeFromPage(page);
-    const result = await evalIframe.evaluate(() => getPageDimension())
+    let ori_page = await getOriPage(page);
+    console.log(ori_page);
+
+    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    const result = await page.evaluate(() => getPageDimension())
     return result;
 }
 
@@ -110,12 +129,11 @@ async function scroll(page) {
     The JS is stuck in the page, so here there is the timeout.
     */
     let { height } = await getPageDimension(page);
-    let evalIframe = await getEvalIframeFromPage(page);
     for (let i = 1; i * 1080 < height; i += 1) {
-        await evalIframe.evaluate(() => window.scrollBy(0, 1080));
+        await page.evaluate(() => window.scrollBy(0, 1080));
         await new Promise(resolve => setTimeout(resolve, 500));
     }
-    await evalIframe.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => window.scrollTo(0, 0));
     await new Promise(resolve => setTimeout(resolve, 500));
 }
 
@@ -136,8 +154,7 @@ async function collectNaiveInfo(page, dirname,
     const { width, height } = await getPageDimension(page);
     
     if (options.html) {
-        let evalIframe = await getEvalIframeFromPage(page);    
-        const html = await evalIframe.evaluate(() => {
+        const html = await page.evaluate(() => {
             return document.documentElement.outerHTML;
         });
         fs.writeFileSync(`${dirname}/${filename}.html`, html);
@@ -152,12 +169,13 @@ async function collectNaiveInfo(page, dirname,
     // await page.evaluate(() => window.scrollTo(0, 0));
     // await new Promise(resolve => setTimeout(resolve, 2000));
 
-    await page.setViewport({
+    ori_page = await getOriPage(page);
+    await ori_page.setViewport({
         width: Math.max(width, 1920),
         height: Math.max(height, 1080)
     });
 
-    await page.screenshot({
+    await ori_page.screenshot({
         path: `${dirname}/${filename}.jpg`,
         clip: {
             x: 0,
@@ -173,13 +191,15 @@ async function collectNaiveInfo(page, dirname,
 
 
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
-    // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    const urlStr = await page.evaluate(() => location.href);
-    let contextId = null;
-    if (urlStr.includes('replayweb.page')) 
-        contextId = 5;
+    const ori_page = await getOriPage(page);
 
+    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/interaction.js`)
+    // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
+    // const urlStr = await page.evaluate(() => location.href);
+    // let contextId = null;
+    // if (urlStr.includes('replayweb.page')) 
+    //     contextId = global;
+    let contextId = global.__eval_iframe_exec_ctx_id;
     const { exceptionDetails } = await cdp.send("Runtime.evaluate", {
         expression: "let eli = new eventListenersIterator();",
         includeCommandLineAPI: true,
@@ -191,39 +211,6 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         return [];
     }
 
-    if (contextId) {
-        const { result: eliDataResult } = await cdp.send("Runtime.evaluate", {
-            expression: `
-                (function() {
-                    return {
-                        listeners: eli.listeners,
-                        origPath: eli.origPath
-                    };
-                })()
-            `,
-            contextId,
-            returnByValue: true,
-        });
-
-        const eliData = eliDataResult.value;
-        await page.evaluate(({ listeners, origPath }) => {
-            window.eli = {
-                listeners,
-                origPath,
-            };
-        }, eliData);
-
-        const { result: getElemIdCodeResult } = await cdp.send("Runtime.evaluate", {
-            expression: `getElemId.toString()`, 
-            contextId: global.__eval_iframe_exec_ctx_id, 
-            returnByValue: true, 
-        });
-
-        const getElemIdCode = getElemIdCodeResult.value;
-        await page.evaluate((funcCode) => {
-            window.getElemId = eval(`(${funcCode})`);
-        }, getElemIdCode);
-    }
     const allEvents = await page.evaluate(() => {
         let serializedEvents = [];
         for (let idx = 0; idx < eli.listeners.length; idx++) {
@@ -269,7 +256,13 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // if (options.scroll)
         //     await measure.scroll(page);
         if (options.rendertree) {
-            const rootFrame = page.mainFrame();
+            // const rootFrame = page.mainFrame();
+            let rootFrame;
+            try {
+                rootFrame = await page.mainFrame();
+            } catch {
+                rootFrame = page;
+            }
             const renderInfoRaw = await collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));    
@@ -308,8 +301,6 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
     //     while (document.body === null)
     //         await new Promise(resolve => setTimeout(resolve, 200));
     // });
-    iframe = await getEvalIframeFromPage(iframe);
-
     await loadToChromeCTXWithUtils(iframe, `${__dirname}/../chrome_ctx/render_tree_collect.js`);
     let renderTree = await iframe.evaluate(async (visibleOnly) => {
         let waitCounter = 0;
