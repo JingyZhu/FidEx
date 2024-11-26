@@ -17,7 +17,6 @@ const { startChrome,
       } = require('../utils/load');
 const { recordReplayArgs } = require('../utils/argsparse');
 const { loggerizeConsole } = require('../utils/logger');
-const { exec } = require('child_process');
 
 loggerizeConsole();
 const TIMEOUT = 60*1000;
@@ -33,6 +32,7 @@ const TIMEOUT = 60*1000;
     let dirname = options.dir;
     let filename = options.file;
     let scroll = options.scroll == true;
+    let replayweb = options.replayweb == true;
     
     const headless = options.headless ? "new": false;
     const { browser } = await startChrome(options.chrome_data, headless, options.proxy);
@@ -75,9 +75,10 @@ const TIMEOUT = 60*1000;
         }
 
         // * Step 1.5: Collect all execution contexts (for replayweb.page)
-        let executionContexts = [];
-        client.on('Runtime.executionContextCreated', params => { executionContexts.push(params) });
-        let replaywebPage = urlStr.includes('replayweb.page')
+        if (replayweb) {
+            var executionContexts = [];
+            client.on('Runtime.executionContextCreated', params => { executionContexts.push(params) });
+        }
 
         if (options.override) {
             let overrideName = options.override === true ? 'overrides.json': options.override;
@@ -105,21 +106,18 @@ const TIMEOUT = 60*1000;
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            const timeoutDur = replaywebPage ? 3000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
+            const timeoutDur = replayweb ? 3000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
             await eventSync.waitTimeout(networkIdle, timeoutDur); 
         } catch {}
         if (options.minimal)
             return;
 
-        let evalIframe = page.mainFrame();
+        let evalIframe = await measure.getEvalIframeFromPage(page);
         let evalIframeExecCtxId = null;
-        if (replaywebPage) {
-
+        if (replayweb) {
             await page.evaluate(`document.querySelector("body > replay-app-main").shadowRoot.querySelector("nav").style.display = "none";`);
             await page.evaluate(`document.querySelector("body > replay-app-main").shadowRoot.querySelector("wr-item").shadowRoot.querySelector("nav").style.display = "none"`);
         
-            evalIframe = await measure.getEvalIframeFromPage(page);
-
             for (let execCtx of executionContexts) {
                 if (!(execCtx && execCtx.context && execCtx.context.auxData && execCtx.context.auxData.frameId)) {
                     continue
@@ -130,9 +128,11 @@ const TIMEOUT = 60*1000;
                 }
             }
             global.__eval_iframe_exec_ctx_id = evalIframeExecCtxId;
+        } else {
+            global.__eval_iframe_exec_ctx_id = null;
         }
         if (scroll)
-            await measure.scroll(page);
+            await measure.scroll(evalIframe);
         
         // * Step 3: Wait for the page to be loaded
         if (options.manual)
@@ -144,18 +144,23 @@ const TIMEOUT = 60*1000;
 
         // * Step 4: Collect the screenshot and other measurements
         if (options.rendertree){
-            const rootFrame = page.mainFrame();
-            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+            let frameRenderTree;
+            if (replayweb) {
+                frameRenderTree = evalIframe;
+            } else {
+                frameRenderTree = page.mainFrame();
+            }
+            const renderInfoRaw = await measure.collectRenderTree(frameRenderTree,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         if (options.screenshot)
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectNaiveInfo(page, dirname, filename);
+            await measure.collectNaiveInfo(evalIframe, dirname, filename);
 
         // * Step 5: Interact with the webpage
         if (options.interaction){
-            const allEvents = await measure.interaction(page, client, excepFF, url, dirname, filename, options);
+            const allEvents = await measure.interaction(evalIframe, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
