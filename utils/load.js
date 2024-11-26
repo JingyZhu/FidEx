@@ -93,10 +93,7 @@ async function loadToChromeCTX(page, file) {
     const cdp = await page.target().createCDPSession();
     const script = fs.readFileSync(file, 'utf8');
 
-    const urlStr = await page.evaluate(() => location.href);
-    let contextId = null;
-    if (urlStr.includes('replayweb.page')) 
-        contextId = global.__eval_iframe_exec_ctx_id;
+    contextId = global.__eval_iframe_exec_ctx_id;
     await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, ...(contextId && { contextId })});
     
     if (urlStr.includes('replayweb.page')) {

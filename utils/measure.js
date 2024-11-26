@@ -81,19 +81,14 @@ async function getOriPage(evalIframe) {
     } catch {
         return evalIframe;
     }
-    return evalIframe.page()
-    // const associatedPage = evalIframe.parentFrame()
-    // const browser = associatedPage.browser();
-    // const pages = await browser.pages(); // Get all open pages
-    // const originalPage = pages.find(page => page.target() === associatedPage.target());
+    return evalIframe.page();
 }
 
 async function getDimensions(page) {
     page = await getOriPage(page);
 
     await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
-    let evalIframe = await getEvalIframeFromPage(page);
-    const result = await evalIframe.evaluate(() => JSON.stringify(getDimensions()))
+    const result = await page.evaluate(() => JSON.stringify(getDimensions()))
     return result;
 }
 
@@ -112,7 +107,6 @@ async function maxWidthHeight(dimen) {
 
 async function getPageDimension(page) {
     let ori_page = await getOriPage(page);
-    console.log(ori_page);
 
     await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
     const result = await page.evaluate(() => getPageDimension())
@@ -195,10 +189,6 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
 
     await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/interaction.js`)
     // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    // const urlStr = await page.evaluate(() => location.href);
-    // let contextId = null;
-    // if (urlStr.includes('replayweb.page')) 
-    //     contextId = global;
     let contextId = global.__eval_iframe_exec_ctx_id;
     const { exceptionDetails } = await cdp.send("Runtime.evaluate", {
         expression: "let eli = new eventListenersIterator();",
