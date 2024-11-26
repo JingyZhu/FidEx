@@ -85,9 +85,9 @@ async function getOriPage(evalIframe) {
 }
 
 async function getDimensions(page) {
-    page = await getOriPage(page);
+    ori_page = await getOriPage(page);
 
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
     const result = await page.evaluate(() => JSON.stringify(getDimensions()))
     return result;
 }

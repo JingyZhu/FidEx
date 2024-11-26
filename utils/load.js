@@ -96,7 +96,7 @@ async function loadToChromeCTX(page, file) {
     contextId = global.__eval_iframe_exec_ctx_id;
     await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, ...(contextId && { contextId })});
     
-    if (urlStr.includes('replayweb.page')) {
+    if (contextId) {
         const { result: loadUtilsResult } = await cdp.send('Runtime.evaluate', {
             expression: 'loadUtils',
             contextId: global.__eval_iframe_exec_ctx_id,
