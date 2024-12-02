@@ -106,8 +106,11 @@ const TIMEOUT = 60*1000;
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            const timeoutDur = replayweb ? 3000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
+            const timeoutDur = replayweb ? 5000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
+            start = Date.now();
             await eventSync.waitTimeout(networkIdle, timeoutDur); 
+            if (replayweb) 
+                await eventSync.sleep(5000-Date.now()+start);
         } catch {}
         if (options.minimal)
             return;
