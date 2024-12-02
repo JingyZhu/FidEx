@@ -4,6 +4,7 @@ import os
 import logging
 import cv2
 from dataclasses import dataclass
+from Levenshtein import distance
 
 from fidex.fidelity_check import check_utils, check_meaningful
 from fidex.utils import common, logger, url_utils
@@ -97,20 +98,37 @@ def fidelity_issue_screenshot(dirr, left_file='live', right_file='archive') -> "
     simi, diff = check_utils.compare_screenshot(left_screenshot, right_screenshot)
     return simi, diff
 
-def fidelity_issue_more_errs(dirr, left_file='live', right_file='archive', stage='onload') -> (bool, int):
+def fidelity_issue_more_errs(dirr, left_prefix='live', right_prefix='archive', stage='onload') -> (bool, int):
     """More error based method to check fidelity issue
 
     Returns:
         (if fidelity issue, number of more errors in right than left)
     """
-    left_exceptions = LoadInfo(dirr, left_file).read_excep_ff()
+    left_exceptions = LoadInfo(dirr, left_prefix).read_excep_ff()
     left_exceptions = [e for exceptions in left_exceptions if common.stage_nolater(exceptions['stage'], stage) for e in exceptions['exceptions']]
-    right_exceptions = LoadInfo(dirr, right_file).read_excep_ff()
+    right_exceptions = LoadInfo(dirr, right_prefix).read_excep_ff()
     right_exceptions = [e for exceptions in right_exceptions if common.stage_nolater(exceptions['stage'], stage) for e in exceptions['exceptions']]
     left_exceptions = set([(e.get('description', ''), url_utils.filter_archive(e.get('scriptURL', ''))) for e in left_exceptions])
     right_exceptions = set([(e.get('description', ''), url_utils.filter_archive(e.get('scriptURL', ''))) for e in right_exceptions])
     more_errs = [{'description': e[0], 'scriptURL': e[1]} for e in right_exceptions - left_exceptions]
     return len(more_errs) > 0, more_errs
+
+def fidelity_issue_text(dirr, left_prefix='live', right_prefix='archive') -> (bool, float):
+    """Text-based method to check fidelity issue
+
+    Returns:
+        (if fidelity issue, similarity score between left and right text)
+    """
+    left_dom = json.load(open(f"{dirr}/{left_prefix}_dom.json"))
+    right_dom = json.load(open(f"{dirr}/{right_prefix}_dom.json"))
+    left_text = check_utils.extract_text(left_dom)
+    right_text = check_utils.extract_text(right_dom)
+    lev_dist = distance(left_text, right_text)
+    max_len = max(len(left_text), len(right_text))
+    if max_len == 0:
+        return False, 1
+    score = (max_len - lev_dist) / max_len
+    return score < 1, score
 
 @dataclass
 class FidelityResult:
@@ -127,13 +145,15 @@ class FidelityResult:
 
 class FidelityDetector:
     def __init__(self, dirr, left_prefix='live', right_prefix='archive', 
-                 fidex_check=True, screenshot=False, more_errs=False, meaningful=True):
+                 fidex_check=True, screenshot=False, more_errs=False, html_text=False, 
+                 meaningful=True):
         self.dirr = dirr
         self.left_prefix = left_prefix
         self.right_prefix = right_prefix
         self.fidex_check = fidex_check
         self.screenshot = screenshot
         self.more_errs = more_errs
+        self.html_text = html_text
         self.meaningful = meaningful
         self.diff = False
         self.diff_stage = None
@@ -144,11 +164,14 @@ class FidelityDetector:
         self.more_errs_diff_stage = None
         self.more_errs_num = None
         self.more_errs_list = None
+        self.html_text_diff = False
+        self.html_text_diff_stage = None
+        self.html_text_simi = None
 
         self.left_unique = []
         self.right_unique = []
     
-    def detect_stage(self, left_stage, right_stage) -> "Tuple(bool, bool, bool)":
+    def detect_stage(self, left_stage, right_stage) -> "Tuple(bool, bool, bool, bool)":
         left = self.left_prefix if left_stage == 'onload' else f'{self.left_prefix}_{left_stage.split("_")[1]}'
         right = self.right_prefix if right_stage == 'onload' else f'{self.right_prefix}_{right_stage.split("_")[1]}'
         if self.fidex_check and not self.diff:
@@ -176,7 +199,16 @@ class FidelityDetector:
                 self.more_errs_diff_stage = left_stage
                 self.more_errs_num = len(m_errs)
                 self.more_errs_list = m_errs
-        return (not self.fidex_check or self.diff), (not self.screenshot or self.screenshot_diff), (not self.more_errs or self.more_errs_diff)
+        if self.html_text and not self.html_text_diff:
+            t_diff, t_simi = fidelity_issue_text(self.dirr, left, right)
+            self.html_text_diff = self.html_text_diff or t_diff
+            if self.html_text_diff:
+                self.html_text_diff_stage = left_stage
+                self.html_text_simi = t_simi
+        return (not self.fidex_check or self.diff), \
+                (not self.screenshot or self.screenshot_diff), \
+                (not self.more_errs or self.more_errs_diff), \
+                (not self.html_text or self.html_text_diff)
     
     def extra_interaction(self, need_exist=True):
         left_info = LoadInfo(self.dirr, self.left_prefix)
@@ -203,11 +235,14 @@ class FidelityDetector:
             'diff': self.diff,
             'screenshot_diff': self.screenshot_diff,
             'more_errs_diff': self.more_errs_diff,
+            'html_text_diff': self.html_text_diff,
             'diff_stage': self.diff_stage,
             'screenshot_diff_stage': self.screenshot_diff_stage,
             'more_errs_diff_stage': self.more_errs_diff_stage,
+            'html_text_diff_stage': self.html_text_diff_stage,
             'similarity': self.screenshot_simi,
             'more_errs_num': self.more_errs_num,
+            'text_similarity': self.html_text_simi,
         }
         if writedown:
             json.dump({
@@ -222,7 +257,7 @@ class FidelityDetector:
             more_errs=self.more_errs_list)
 
 def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', 
-                       fidex_check=True, screenshot=False, more_errs=False, 
+                       fidex_check=True, screenshot=False, more_errs=False, html_text=False,
                        meaningful=True, need_exist=True, finish_all=False) -> FidelityResult:
     """
     Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
@@ -233,9 +268,10 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
                                                fidex_check=fidex_check,
                                                screenshot=screenshot,
                                                more_errs=more_errs, 
+                                               html_text=html_text,
                                                meaningful=meaningful)
-    diff, s_diff, m_diff = fidelity_detector.detect_stage('onload', 'onload')
-    if not finish_all and diff and s_diff and m_diff:
+    diff, s_diff, m_diff, t_diff = fidelity_detector.detect_stage('onload', 'onload')
+    if not finish_all and diff and s_diff and m_diff and t_diff:
         return fidelity_detector.generate_result()
     logging.info(f'{dirr.split("/")[-1]} onload elasped: {time.time()-start}')
     
@@ -252,8 +288,8 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
             assert(not need_exist), f"Interaction {left_e.idx} or {right_e.idx} not found and need_exist is True"
             continue
         i, j = left_e.idx, right_e.idx
-        diff, s_diff, m_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
+        diff, s_diff, m_diff, t_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
         logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(fidelity_detector.left_common_events)} elasped: {time.time()-start}')
-        if not finish_all and diff and s_diff and m_diff:
+        if not finish_all and diff and s_diff and m_diff and t_diff:
             return fidelity_detector.generate_result()
     return fidelity_detector.generate_result()

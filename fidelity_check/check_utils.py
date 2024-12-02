@@ -16,9 +16,11 @@ warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 def compare_screenshot(live_img, archive_img):
     if not os.path.exists(live_img) or not os.path.exists(archive_img):
-        return -1
+        return 1, None
     img1 = cv2.imread(live_img)
     img2 = cv2.imread(archive_img)
+    if img1 is None or img2 is None:
+        return 1, None
     height = min(img1.shape[0], img2.shape[0])
     width = min([img1.shape[1], img2.shape[1]])
     img1 = img1[:height,:width,:]
@@ -295,8 +297,10 @@ def filter_same_visual_part(left_img, left_unique, left_elements,
             crop_area = update_crop(crop_area, xpaths_map[xpath], img_dimen)
         return crop_area
     img1 = cv2.imread(left_img)
-    img1_dimen = img1.shape[:2]
     img2 = cv2.imread(right_img)
+    if img1 is None or img2 is None:
+        return left_unique, right_unique
+    img1_dimen = img1.shape[:2]
     img2_dimen = img2.shape[:2]
     img_dimen = [min(img1_dimen[0], img2_dimen[0]), min(img1_dimen[1], img2_dimen[1])]
     left_crops, right_crops = [], []
@@ -326,3 +330,32 @@ def filter_same_visual_part(left_img, left_unique, left_elements,
             new_left_unique.append(left_unique[i])
     new_right_unique = right_unique
     return new_left_unique, new_right_unique
+
+def extract_text(elements) -> str:
+    SKIPPED_NODES = [
+      "SCRIPT",
+      "STYLE",
+      "HEADER",
+      "FOOTER",
+      "BANNER-DIV",
+      "NOSCRIPT",
+      "TITLE",
+    ]
+    skip_prefix = set()
+    extracted_text = []
+    for element in elements:
+        tag = common.tagname_from_xpath(element['xpath'])
+        if tag.upper() in SKIPPED_NODES:
+            skip_prefix.add(element['xpath'])
+            continue
+        under_skip = False
+        for prefix in skip_prefix:
+            if element['xpath'].startswith(prefix):
+                under_skip = True
+                break
+        if under_skip:
+            continue
+        if tag != '#text':
+            continue
+        extracted_text.append(element['text'])
+    return '\n'.join(extracted_text)

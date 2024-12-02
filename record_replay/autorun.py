@@ -234,6 +234,8 @@ def record_replay_all_urls(urls,
                                     arguments=arguments)
             logging.info(f"Finished {url} {ts}")
             if ts == '':
+                if worker_id is not None: # Only remove chrome_data in multiprocess mode, since there might something wrong with the chrome_data
+                    call(['rm', '-rf', chrome_data])
                 continue
         except Exception as e:
             logging.error(f"Issue when record_replay URL {url}: {str(e)}")
