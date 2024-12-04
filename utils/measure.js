@@ -61,7 +61,7 @@ class IframeIDs {
 async function getEvalIframeFromPage(page) {
     let evalIframe = page;
     const urlStr = await page.evaluate(() => location.href);
-    if (urlStr.includes('replayweb.page')) {
+    if (urlStr.includes('replayweb.page')||urlStr.includes('localhost:9990')) {
         evalIframe = await page.evaluateHandle(() => 
             document.querySelector("body > replay-app-main")
                 .shadowRoot.querySelector("wr-item")
