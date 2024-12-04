@@ -21,18 +21,18 @@ import time
 import logging
 
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(_FILEDIR))
+sys.path.append(os.path.dirname(os.path.dirname(_FILEDIR)))
 _CURDIR = os.getcwd()
 # from fidex.utils import upload, url_utils, logger, common
-from utils import url_utils
-from config import CONFIG
+from fidex.utils import url_utils, common
+from fidex.config import CONFIG
 
 REMOTE = False
 HOST = f'http://{CONFIG.host}'
 PROXYHOST = f'http://{CONFIG.host_proxy}'
 HOME = os.path.expanduser("~")
 default_archive = 'test'
-DEFAULTARGS = ['-w', '-s', '--scroll']
+DEFAULTARGS = ['-w', '-s', '--scroll', '-e', '-t']
 SPLIT_ARCHIVE = True
 
 DEFAULT_CHROMEDATA = CONFIG.chrome_data_dir
@@ -174,8 +174,10 @@ def record_replay(url, archive_name,
     #         return '', record_url
     
     serve_process, port = start_http_warc_server(download_path)
-    archive_url = f"https://replayweb.page/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
+    # archive_url = f"https://replayweb.page/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
+    archive_url = f"http://localhost:9990/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
     arguments += ['--replayweb']
+    time.sleep(20)
     replay(archive_url, archive_name, 
             chrome_data=chrome_data,
             write_path=write_path, 
@@ -287,7 +289,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         arguments = DEFAULTARGS
     # random.shuffle(urls)
     active_ids = set()
-    pywb_servers = []
+    # pywb_servers = []
     id_lock = threading.Lock()
     urls_remain, finished_urls = urls.copy(), set()
 
@@ -300,17 +302,17 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                     return i, url
         return None, None
     
-    def _start_pywb_servers():
-        for i in range(num_workers):
-            wb_manager = upload.WBManager(split=SPLIT_ARCHIVE, worker_id=i)
-            pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive))
-            pywb_server_proxy = upload.PYWBServer(archive=wb_manager.collection(pw_archive), proxy=True)
-            if proxy:
-                pywb_server_proxy.start()
-            if archive:
-                pywb_server.start()
-            pywb_servers.append((pywb_server, pywb_server_proxy))
-    _start_pywb_servers()
+    # def _start_pywb_servers():
+    #     for i in range(num_workers):
+    #         wb_manager = upload.WBManager(split=SPLIT_ARCHIVE, worker_id=i)
+    #         pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive))
+    #         pywb_server_proxy = upload.PYWBServer(archive=wb_manager.collection(pw_archive), proxy=True)
+    #         if proxy:
+    #             pywb_server_proxy.start()
+    #         if archive:
+    #             pywb_server.start()
+    #         pywb_servers.append((pywb_server, pywb_server_proxy))
+    # _start_pywb_servers()
 
     def _replace_port(url, port):
             us = urlsplit(url)
@@ -330,11 +332,11 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                              proxy,
                              archive,
                              arguments):
-        pywb_server, pywb_server_proxy = pywb_servers[worker_id]
-        if proxy:
-            proxy = _replace_port(PROXYHOST, pywb_server_proxy.port)
-        if archive:
-            archive = _replace_port(HOST, pywb_server.port)
+        # pywb_server, pywb_server_proxy = pywb_servers[worker_id]
+        # if proxy:
+        #     proxy = _replace_port(PROXYHOST, pywb_server_proxy.port)
+        # if archive:
+        #     archive = _replace_port(HOST, pywb_server.port)
         if not os.path.exists(chrome_data):
             # call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
@@ -374,7 +376,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                         time.sleep(sleep_time)
                 assert worker_id is not None, "Worker ID is None"
                 if url:
-                    # Submit the worker thread to the pool
+                    # Submit the worker thread to the 
                     task = executor.submit(record_replay_worker, 
                                             url=url,
                                             metadata_file=f'{metadata_prefix}_{worker_id}.json',
@@ -413,4 +415,15 @@ def record_replay_all_urls_multi(urls, num_workers=8,
 
 if __name__ == "__main__":
     # record_replay('https://www.microsoft.com/en-us', 'test', archive=False, proxy=False, download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
-    record_replay_all_urls(['https://www.microsoft.com/en-us'], 'metadata.json', download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
+    # record_replay_all_urls([
+    #     'https://www.microsoft.com/en-us',
+    #     'https://www.google.com',
+    #     'https://www.amazon.com',
+    #     'https://example.com',
+    # ], 'metadata.json', download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
+    record_replay_all_urls_multi([
+        'https://www.microsoft.com/en-us',
+        'https://www.google.com',
+        'https://www.amazon.com',
+        'https://example.com',
+    ], num_workers=4, download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
