@@ -177,7 +177,7 @@ def record_replay(url, archive_name,
     # archive_url = f"https://replayweb.page/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
     archive_url = f"http://localhost:9990/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
     arguments += ['--replayweb']
-    time.sleep(20)
+    # time.sleep(20)
     replay(archive_url, archive_name, 
             chrome_data=chrome_data,
             write_path=write_path, 
