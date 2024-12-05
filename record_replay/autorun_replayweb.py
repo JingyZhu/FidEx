@@ -23,8 +23,8 @@ import logging
 _FILEDIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(os.path.dirname(_FILEDIR)))
 _CURDIR = os.getcwd()
-# from fidex.utils import upload, url_utils, logger, common
-from fidex.utils import url_utils, common
+from fidex.utils import upload, url_utils, logger, common
+# from fidex.utils import url_utils, common
 from fidex.config import CONFIG
 
 REMOTE = False
@@ -121,16 +121,16 @@ def record_replay(url, archive_name,
     """
     if arguments is None:
         arguments = DEFAULTARGS
-    # temp_client = False
-    # client = None
-    # wb_manager = upload.WBManager(split=SPLIT_ARCHIVE and (worker_id is not None), worker_id=worker_id)
-    # if remote_host:
-    #     if sshclient is None:
-    #         temp_client = True
-    #     client = upload.SSHClientManager(wb_manager=wb_manager)
-    # else:
-    #     client = upload.LocalUploadManager(wb_manager=wb_manager)
-    # client.remove_write(f'{pw_archive}/{archive_name}')
+    temp_client = False
+    client = None
+    wb_manager = upload.WBManager(split=SPLIT_ARCHIVE and (worker_id is not None), worker_id=worker_id)
+    if remote_host:
+        if sshclient is None:
+            temp_client = True
+        client = upload.SSHClientManager(wb_manager=wb_manager)
+    else:
+        client = upload.LocalUploadManager(wb_manager=wb_manager)
+    client.remove_write(f'{pw_archive}/{archive_name}')
 
     ts, record_url = record(url, archive_name, 
                 chrome_data=chrome_data, 
@@ -197,9 +197,9 @@ def record_replay(url, archive_name,
         }, open(f'{write_path}/{archive_name}/metadata.json', 'w+'), indent=2)
     
     # if archive or proxy:
-    #     client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
-    # if temp_client:
-    #     sshclient.close()
+    client.upload_write(f'{write_path}/{archive_name}', directory=pw_archive)
+    if temp_client:
+        sshclient.close()
     return ts, record_url
 
 
@@ -414,16 +414,20 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     return metadata
 
 if __name__ == "__main__":
-    # record_replay('https://www.microsoft.com/en-us', 'test', archive=False, proxy=False, download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
+    record_replay(
+        'https://www.microsoft.com/en-us', 
+        'test', archive=False, proxy=False, 
+        download_path='/home/sunhuanchen/FidEx/record_replay/warcs'
+    )
     # record_replay_all_urls([
     #     'https://www.microsoft.com/en-us',
     #     'https://www.google.com',
     #     'https://www.amazon.com',
     #     'https://example.com',
     # ], 'metadata.json', download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
-    record_replay_all_urls_multi([
-        'https://www.microsoft.com/en-us',
-        'https://www.google.com',
-        'https://www.amazon.com',
-        'https://example.com',
-    ], num_workers=4, download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
+    # record_replay_all_urls_multi([
+    #     'https://www.microsoft.com/en-us',
+    #     'https://www.google.com',
+    #     'https://www.amazon.com',
+    #     'https://example.com',
+    # ], num_workers=4, download_path='/home/sunhuanchen/FidEx/record_replay/warcs')
