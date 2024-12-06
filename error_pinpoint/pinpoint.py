@@ -262,23 +262,16 @@ class Pinpointer:
                                                                  screenshot=False, 
                                                                  meaningful=self.meaningful,
                                                                  need_exist=False)
-        # TODO: Need to change it into actual meaningful check
-        mutation_success = [js_exceptions.JSException({
-                'ts': time.time(),
-                'description': 'Mutation success',
-                'scriptURL': 'wombat.js',
-                'line': 1,
-                'column': 1,
-            }
-            )]
+        invariant_violations = json.load(open(f'{self.dirr}/mut_invariant_violations.json'))
+        invariant_violations = [js_exceptions.JSException(iv) for iv in invariant_violations]
         if not fidelity_result_mut.info['diff']:
-            return mutation_success, fidelity_result_mut
+            return invariant_violations, fidelity_result_mut
         if fidelity_result_mut.info['diff_stage'] != self.fidelity_result.info['diff_stage']:
             if common.stage_later(fidelity_result_mut.info['diff_stage'], self.fidelity_result.info['diff_stage']):
-                return mutation_success, fidelity_result_mut
+                return invariant_violations, fidelity_result_mut
         elif sum_diffs(fidelity_result_mut.live_unique, fidelity_result_mut.archive_unique) \
             < sum_diffs(self.fidelity_result.live_unique, self.fidelity_result.archive_unique):
-            return mutation_success, fidelity_result_mut
+            return invariant_violations, fidelity_result_mut
         return [], None
 
 
