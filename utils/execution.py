@@ -17,6 +17,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ALL_ASTS = {} # Cache for all the ASTs {url: ASTInfo}
 ALL_SCRIPTS = {} # Cache for all the code {url: code}
+DIRR = None
 
 @dataclass
 class ASTInfo:
@@ -498,15 +499,14 @@ class Frame:
 
     @staticmethod
     def get_code(url):
-        # if "https://replayweb.page" in url or "http://localhost:9990" in url:
-        #     path_to_writes = f"<path>/{url_utils.calc_hostname(url)}"
-        #     with open(f"{path_to_writes}/live_resources.json") as f:
-        #         d = json.load(f)
-        #     ALL_SCRIPTS.update(d)
-        #     with open(f"{path_to_writes}/archive_resources.json") as f:
-        #         d = json.load(f)
-        #     ALL_SCRIPTS.update(d)
-        #     return ALL_SCRIPTS[url]
+        if DIRR is not None:
+            with open(f"{DIRR}/live_resources.json") as f:
+                d = json.load(f)
+            ALL_SCRIPTS.update(d)
+            with open(f"{DIRR}/archive_resources.json") as f:
+                d = json.load(f)
+            ALL_SCRIPTS.update(d)
+            return ALL_SCRIPTS[url]
 
         if url not in ALL_SCRIPTS:
             args = {}
