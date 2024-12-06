@@ -270,8 +270,37 @@ class ExcepFFHandler {
     }
 }
 
+
+class InvariantObserver {
+    constructor(){
+        this.violations = [];
+    }
+
+    /**
+     * 
+     * @param {object} params from Runtime.consoleAPICalled
+     */
+    onViolation(params){
+        const match = params.args[0].value && params.args[0].value.match(/^Fidex .*/);
+        if (!match)
+            return;
+        let ts = params.timestamp;
+        const violation = params.args[0].value;
+        const topFrame = params.stackTrace.callFrames[0]
+        this.violations.push({
+            ts: ts,
+            description: violation,
+            scriptURL: topFrame.url,
+            line: topFrame.lineNumber,
+            column: topFrame.columnNumber,
+            stack: parseStack(params.stackTrace)        
+        })
+    }
+}
+
 module.exports = {
     parseStack,
     ExecutionStacks,
     ExcepFFHandler,
+    InvariantObserver,
 }

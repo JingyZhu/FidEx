@@ -39,12 +39,16 @@ def get_img_src(img_tag) -> set:
             if term.match(attr):
                 src = img.attrs[attr]
                 srcs.append(src)
+    # Parse srcset
+    if 'srcset' in img.attrs:
+        srcset = img.attrs['srcset']
+        parts = [src.strip() for src in srcset.split(',')]
+        srcs += [part.split(' ')[0] for part in parts]
     srcs = set([url_utils.url_norm(src, ignore_scheme=True, ignore_netloc=True, trim_slash=True, archive=True) for src in srcs])
     return srcs
 
 def finished_record_replaY(write_dir, check_prefix):
-    return os.path.exists(f"{write_dir}/{check_prefix}_dom.json") \
-        and os.path.exists(f"{write_dir}/{check_prefix}_events.json")
+    return os.path.exists(f"{write_dir}/{check_prefix}_done")
 
 def merge_strings(original: str, new_strs: list) -> str:
     """Merge the strings in news from the original string"""

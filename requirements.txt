@@ -7,3 +7,4 @@ esprima
 requests
 pandas
 diff_match_patch
+levenshtein

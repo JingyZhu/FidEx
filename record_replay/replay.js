@@ -97,9 +97,13 @@ const TIMEOUT = 60*1000;
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");
         Error.stackTraceLimit = Infinity;
-        if (options.mutation)
+        let invarObserver = null;
+        if (options.mutation) {
             await page.evaluateOnNewDocument("__fidex_mutation = true");
-
+            invarObserver = new execution.InvariantObserver();
+            client.on('Runtime.consoleAPICalled', params => invarObserver.onViolation(params));
+        }
+            
         // * Step 2: Load the page
         try {
             console.log("Replay: Start loading the actual page");
@@ -186,6 +190,10 @@ const TIMEOUT = 60*1000;
             fs.writeFileSync(`${dirname}/${filename}_requestStacks.json`, JSON.stringify(executionStacks.requestStacksToList(), null, 2));
             fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacksToList(), null, 2));
         }
+        if (options.mutation)
+            fs.writeFileSync(`${dirname}/${filename}_invariant_violations.json`, JSON.stringify(invarObserver.violations, null, 2));
+
+        fs.writeFileSync(`${dirname}/${filename}_done`, "");
         
     } catch (err) {
         console.error(`Replay proxy=${options.proxy?true:false} exception on ${urlStr}: ${err.stack}`);

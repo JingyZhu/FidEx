@@ -675,14 +675,16 @@ class Stack:
     def after(self, other: "Stack") -> bool:
         """Check if this stack is after the other stack"""
         common_frames = self.overlap(other)
-        if len(common_frames) == 0 \
-              and len(self.serialized_flat_reverse) > 0 \
-              and len(other.serialized_flat_reverse) > 0:
-            a_base = self.serialized_flat_reverse[0]
-            b_base = other.serialized_flat_reverse[0]
-            if not a_base.same_file(b_base):
+        if len(common_frames) == 0:
+            if len(self.serialized_flat_reverse) > 0 \
+            and len(other.serialized_flat_reverse) > 0:
+                a_base = self.serialized_flat_reverse[0]
+                b_base = other.serialized_flat_reverse[0]
+                if not a_base.same_file(b_base):
+                    return False
+                return a_base.after(b_base)
+            else:
                 return False
-            return a_base.after(b_base)
         else:
             # * If the last common frame is within a loop, then with static analysis it is impossible to determine
             # * we always assume self is after 

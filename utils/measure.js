@@ -178,6 +178,7 @@ async function collectNaiveInfo(page, dirname,
             height: height,
         },
         optimizeForSpeed: true,
+        // quality: 50,
     })
     const end = new Date().getTime();
     console.log(`Measure: Collect Naive Info, Time: ${(end - start)/1000}s, width: ${width}, height: ${height}`);
@@ -191,7 +192,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
     // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
     let contextId = global.__eval_iframe_exec_ctx_id;
     const { exceptionDetails } = await cdp.send("Runtime.evaluate", {
-        expression: "let eli = new eventListenersIterator();",
+        expression: "let eli = new eventListenersIterator({grouping: true});",
         includeCommandLineAPI: true,
         returnByValue: true,
         ...(contextId && { contextId }),
