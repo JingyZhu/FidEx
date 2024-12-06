@@ -58,8 +58,36 @@ class IframeIDs {
     }
 }
 
+async function getEvalIframeFromPage(page) {
+    let evalIframe = page;
+    const urlStr = await page.evaluate(() => location.href);
+    if (urlStr.includes('replayweb.page')||urlStr.includes('localhost:9990')) {
+        evalIframe = await page.evaluateHandle(() => 
+            document.querySelector("body > replay-app-main")
+                .shadowRoot.querySelector("wr-item")
+                .shadowRoot.querySelector("#replay")
+                .shadowRoot.querySelector("div > iframe")
+        )
+        evalIframe = await evalIframe.contentFrame();
+    }
+    return evalIframe;
+}
+
+async function getOriPage(evalIframe) {
+    try{
+        if (evalIframe.parentFrame() === null) {
+            return evalIframe;
+        }
+    } catch {
+        return evalIframe;
+    }
+    return evalIframe.page();
+}
+
 async function getDimensions(page) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    ori_page = await getOriPage(page);
+
+    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
     const result = await page.evaluate(() => JSON.stringify(getDimensions()))
     return result;
 }
@@ -78,7 +106,9 @@ async function maxWidthHeight(dimen) {
 }
 
 async function getPageDimension(page) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    let ori_page = await getOriPage(page);
+
+    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
     const result = await page.evaluate(() => getPageDimension())
     return result;
 }
@@ -132,7 +162,14 @@ async function collectNaiveInfo(page, dirname,
     // }
     // await page.evaluate(() => window.scrollTo(0, 0));
     // await new Promise(resolve => setTimeout(resolve, 2000));
-    await page.screenshot({
+
+    ori_page = await getOriPage(page);
+    await ori_page.setViewport({
+        width: Math.max(width, 1920),
+        height: Math.max(height, 1080)
+    });
+
+    await ori_page.screenshot({
         path: `${dirname}/${filename}.jpg`,
         clip: {
             x: 0,
@@ -149,13 +186,22 @@ async function collectNaiveInfo(page, dirname,
 
 
 async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/interaction.js`)
+    const ori_page = await getOriPage(page);
+
+    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/interaction.js`)
     // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    const {exceptionDetails } = await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator({grouping: true});", includeCommandLineAPI:true, returnByValue: true});
+    let contextId = global.__eval_iframe_exec_ctx_id;
+    const { exceptionDetails } = await cdp.send("Runtime.evaluate", {
+        expression: "let eli = new eventListenersIterator({grouping: true});",
+        includeCommandLineAPI: true,
+        returnByValue: true,
+        ...(contextId && { contextId }),
+    });
     if (exceptionDetails) {
         console.error(`Exception: Interaction on Runtime.evaluate ${exceptionDetails.text}`);
-        return []
+        return [];
     }
+
     const allEvents = await page.evaluate(() => {
         let serializedEvents = [];
         for (let idx = 0; idx < eli.listeners.length; idx++) {
@@ -201,7 +247,13 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         // if (options.scroll)
         //     await measure.scroll(page);
         if (options.rendertree) {
-            const rootFrame = page.mainFrame();
+            // const rootFrame = page.mainFrame();
+            let rootFrame;
+            try {
+                rootFrame = await page.mainFrame();
+            } catch {
+                rootFrame = page;
+            }
             const renderInfoRaw = await collectRenderTree(rootFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));    
@@ -349,10 +401,11 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
 
 
 module.exports = {
+    getEvalIframeFromPage,
     getDimensions,
     maxWidthHeight,
     scroll,
     collectNaiveInfo,
     collectRenderTree,
-    interaction
+    interaction,
 }

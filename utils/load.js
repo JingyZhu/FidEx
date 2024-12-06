@@ -92,7 +92,24 @@ async function loadToChromeCTX(page, file) {
     await page.evaluate(() => {loadUtils = false});
     const cdp = await page.target().createCDPSession();
     const script = fs.readFileSync(file, 'utf8');
-    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true});
+
+    contextId = global.__eval_iframe_exec_ctx_id;
+    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, ...(contextId && { contextId })});
+    
+    if (contextId) {
+        const { result: loadUtilsResult } = await cdp.send('Runtime.evaluate', {
+            expression: 'loadUtils',
+            contextId: global.__eval_iframe_exec_ctx_id,
+            returnByValue: true,
+        });
+        let loadUtils = loadUtilsResult.value;
+        if (loadUtils) {
+            const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
+            await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI:true, contextId: global.__eval_iframe_exec_ctx_id});
+        }
+        return;
+    }
+
     let loadUtils = await page.evaluate(() => loadUtils);
     if (loadUtils) {
         const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
