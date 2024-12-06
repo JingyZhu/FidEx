@@ -8,6 +8,8 @@ const { loadToChromeCTX, loadToChromeCTXWithUtils} = require('./load');
 const { Puppeteer } = require('puppeteer');
 const { parse: HTMLParse } = require('node-html-parser');
 const eventSync = require('./event_sync');
+const { log } = require('console');
+const { request } = require('http');
 
 function identicalURL(liveURL, archiveURL){
     if (liveURL == archiveURL)
@@ -62,15 +64,67 @@ async function getEvalIframeFromPage(page) {
     let evalIframe = page;
     const urlStr = await page.evaluate(() => location.href);
     if (urlStr.includes('replayweb.page')||urlStr.includes('localhost:9990')) {
-        evalIframe = await page.evaluateHandle(() => 
-            document.querySelector("body > replay-app-main")
-                .shadowRoot.querySelector("wr-item")
-                .shadowRoot.querySelector("#replay")
-                .shadowRoot.querySelector("div > iframe")
-        )
+        await evalIframe.waitForSelector("body > replay-app-main");
+        evalIframe = await evalIframe.$("body > replay-app-main");
+        evalIframe = await evalIframe.evaluateHandle(el => el.shadowRoot);
+
+        await evalIframe.waitForSelector("wr-item");
+        evalIframe = await evalIframe.$("wr-item");
+        evalIframe = await evalIframe.evaluateHandle(el => el.shadowRoot);
+
+        await evalIframe.waitForSelector("#replay");
+        evalIframe = await evalIframe.$("#replay");
+        evalIframe = await evalIframe.evaluateHandle(el => el.shadowRoot);
+
+        await evalIframe.waitForSelector("div > iframe");
+        evalIframe = await evalIframe.$("div > iframe");
         evalIframe = await evalIframe.contentFrame();
     }
     return evalIframe;
+}
+
+async function collectWebResources(client, logfile) {
+    let requestIDMaps = new Map();
+    client.on('Network.requestWillBeSent', (params) => {
+        const { requestId, request } = params;
+        if (request.url.includes('chrome-extension://'))
+            return;
+        if (request.url.includes('blob:'))
+            return;
+        if (request.url.includes('https://replayweb.page') || request.url.includes('http://localhost:9990')) {
+            if (!request.url.includes('_/http'))  // hardcode to exclude replayweb.page resources
+                return;
+        }
+        // console.log(`Request: ${requestId} ${request.url}`);
+        requestIDMaps.set(requestId, request.url);
+    });
+    client.on('Network.responseReceived', (params) => {
+        const { requestId, response } = params;
+        const mimeType = response.mimeType;
+        if (!mimeType.includes('text/html') && !mimeType.includes('application/javascript')){
+            requestIDMaps.delete(requestId);
+        }
+        // if (!requestIDMaps.has(requestId))
+        //     return;
+        // const url = requestIDMaps.get(requestId);
+        // console.log(`Response: ${requestId} ${url} ${mimeType}`);
+    });
+    client.on('Network.loadingFinished', async (params) => {
+        const { requestId } = params;
+        if (!requestIDMaps.has(requestId))
+            return;
+        try{
+            const { body, base64Encoded } = await client.send('Network.getResponseBody', { requestId });
+            if (base64Encoded) // skip media
+                return;
+            if (requestIDMaps.get(requestId).includes('https://replayweb.page') || requestIDMaps.get(requestId).includes('http://localhost:9990')) {
+                if (body.includes("<p>Sorry, this page was not found in this archive:</p>"))  // real-time 404 not-found resources have html responses
+                    return;
+            }
+            // console.log(`Body: ${requestId} ${requestIDMaps.get(requestId)} ${base64Encoded} ${body.length}`);
+            logfile[requestIDMaps.get(requestId)] = body;
+        } catch (e) { console.error(`!!! ${requestId} Error: ${e}`)};
+    });
 }
 
 async function getOriPage(evalIframe) {
@@ -403,6 +457,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
 module.exports = {
     getEvalIframeFromPage,
     getDimensions,
+    collectWebResources,
     maxWidthHeight,
     scroll,
     collectNaiveInfo,

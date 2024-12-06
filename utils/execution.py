@@ -1,4 +1,5 @@
 """Python library for parsing execution traces dumped by nodeJS"""
+import json
 import sys
 import esprima
 import re
@@ -497,6 +498,16 @@ class Frame:
 
     @staticmethod
     def get_code(url):
+        # if "https://replayweb.page" in url or "http://localhost:9990" in url:
+        #     path_to_writes = f"<path>/{url_utils.calc_hostname(url)}"
+        #     with open(f"{path_to_writes}/live_resources.json") as f:
+        #         d = json.load(f)
+        #     ALL_SCRIPTS.update(d)
+        #     with open(f"{path_to_writes}/archive_resources.json") as f:
+        #         d = json.load(f)
+        #     ALL_SCRIPTS.update(d)
+        #     return ALL_SCRIPTS[url]
+
         if url not in ALL_SCRIPTS:
             args = {}
             if url_utils.is_archive(url):
