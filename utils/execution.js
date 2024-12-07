@@ -281,7 +281,7 @@ class InvariantObserver {
      * @param {object} params from Runtime.consoleAPICalled
      */
     onViolation(params){
-        const match = params.args[0].value && params.args[0].value.match(/^Fidex .*/);
+        const match = params.args[0].value && params.args[0].value.toString().match(/^Fidex .*/);
         if (!match)
             return;
         let ts = params.timestamp;
