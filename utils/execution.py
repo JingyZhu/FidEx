@@ -1,4 +1,5 @@
 """Python library for parsing execution traces dumped by nodeJS"""
+import json
 import sys
 import esprima
 import re
@@ -16,6 +17,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ALL_ASTS = {} # Cache for all the ASTs {url: ASTInfo}
 ALL_SCRIPTS = {} # Cache for all the code {url: code}
+DIRR = None
 
 @dataclass
 class ASTInfo:
@@ -497,6 +499,15 @@ class Frame:
 
     @staticmethod
     def get_code(url):
+        if DIRR is not None:
+            with open(f"{DIRR}/live_resources.json") as f:
+                d = json.load(f)
+            ALL_SCRIPTS.update(d)
+            with open(f"{DIRR}/archive_resources.json") as f:
+                d = json.load(f)
+            ALL_SCRIPTS.update(d)
+            return ALL_SCRIPTS[url]
+
         if url not in ALL_SCRIPTS:
             args = {}
             if url_utils.is_archive(url):

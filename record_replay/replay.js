@@ -78,6 +78,8 @@ const TIMEOUT = 60*1000;
         if (replayweb) {
             var executionContexts = [];
             client.on('Runtime.executionContextCreated', params => { executionContexts.push(params) });
+            var web_resources = new Map();
+            await measure.collectWebResources(client, web_resources);
         }
 
         if (options.override) {
@@ -192,6 +194,10 @@ const TIMEOUT = 60*1000;
         }
         if (options.mutation)
             fs.writeFileSync(`${dirname}/${filename}_invariant_violations.json`, JSON.stringify(invarObserver.violations, null, 2));
+
+        // * Step 8: If replayweb, collect HTMLs and JavaScripts
+        if (replayweb)
+            fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(web_resources, null, 2));
 
         fs.writeFileSync(`${dirname}/${filename}_done`, "");
         

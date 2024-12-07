@@ -107,6 +107,7 @@ async function getActivePage(browser) {
     let dirname = options.dir;
     let filename = options.file;
     let scroll = options.scroll == true;
+    let replayweb = options.replayweb == true;
     
     Archive = options.archive;
     ArchiveFile = (() => Archive.toLowerCase().replace(/ /g, '-'))();
@@ -193,6 +194,11 @@ async function getActivePage(browser) {
             await recordPage.evaluateOnNewDocument("__trace_enabled = true");
         // // Seen clearCache Cookie not working, can pause here to manually clear them
         Error.stackTraceLimit = Infinity;
+
+        // Step 3.5: Collect HTMLs and JavaScripts
+        if (replayweb)
+            var web_resources = new Map(); 
+            await measure.collectWebResources(client, web_resources);
 
         // * Step 4: Load the page
         await recordPage.goto(
@@ -292,6 +298,10 @@ async function getActivePage(browser) {
         // * Step 11: Remove recordings
         if (options.remove)
             await removeRecordings(page, 0)
+
+        // * Step 12: If replayweb, save HTMLs and JavaScripts
+        if (replayweb)
+            fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(web_resources, null, 2));
 
         fs.writeFileSync(`${dirname}/${filename}_done`, "");
         // ! Signal of the end of the program
