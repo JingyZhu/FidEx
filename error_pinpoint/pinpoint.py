@@ -46,7 +46,7 @@ def extra_writes(dirr, left_diffs, right_diffs, left_prefix='live', right_prefix
                     for w in element_writes:
                         if 1 or w.serialized_stack_async not in target_stacks:
                             writes.add(w)
-                            break
+                            # break
                 if len(writes) > 0:
                     diff_writes.append(sorted(list(writes), key=lambda x: int(x.wid.split(':')[0])))
             if len(diff_writes) > 0:
@@ -237,6 +237,8 @@ class Pinpointer:
 
     def pinpoint_mutations(self) -> "List[js_exceptions.JSExcep], FidelityResult":
         arguments = ['-w', '-t', '-s', '--scroll', '--headless', '-e', '--mutation']
+        if CONFIG.replayweb:
+            arguments.append('--replayweb')
         write_path = '/'.join(self.dirr.split('/')[:-1]) if '/' in self.dirr else '.'
         archive_name = self.dirr.split('/')[-1]
         archive_url = json.load(open(f'{self.dirr}/metadata.json'))['archive_url']
@@ -264,6 +266,14 @@ class Pinpointer:
                                                                  need_exist=False)
         invariant_violations = json.load(open(f'{self.dirr}/mut_invariant_violations.json'))
         invariant_violations = [js_exceptions.JSException(iv) for iv in invariant_violations]
+        if len(invariant_violations) ==  0: # Not console logged
+            invariant_violations = [js_exceptions.JSException({
+                'ts': time.time(),
+                'description': 'Mutation success',
+                'scriptURL': 'wombat.js',
+                'line': 1,
+                'column': 1,
+            })]
         if not fidelity_result_mut.info['diff']:
             return invariant_violations, fidelity_result_mut
         if fidelity_result_mut.info['diff_stage'] != self.fidelity_result.info['diff_stage']:
@@ -283,50 +293,52 @@ def pinpoint_issue(dirr, idx=0, left_prefix='live', right_prefix='archive', mean
                               diff_writes=[],
                               pinpointed_errors=[])
     
+    if CONFIG.replayweb:
+        execution.Frame.REPLAYWEB_DIR = dirr
     start = time.time()
-    pinpointer = Pinpointer(dirr, idx, left_prefix, right_prefix, meaningful)
-    pinpointer.add_fidelity_result(fidelity_result)
-    diff_writes = pinpointer.extra_writes()
-    pinpointer.read_related_info()
-    logging.info(f'{dirr} pinpoint preparation {time.time()-start}')
-    
-    syntax_errors = pinpointer.pinpoint_syntax_errors()
-    if len(syntax_errors) > 0:
+    try:
+        pinpointer = Pinpointer(dirr, idx, left_prefix, right_prefix, meaningful)
+        pinpointer.add_fidelity_result(fidelity_result)
+        diff_writes = pinpointer.extra_writes()
+        pinpointer.read_related_info()
+        logging.info(f'{dirr} pinpoint preparation {time.time()-start}')
+        
+        syntax_errors = pinpointer.pinpoint_syntax_errors()
+        if len(syntax_errors) > 0:
+            return PinpointResult(fidelity_result=fidelity_result, 
+                                mut_fidelity_result=None, 
+                                diff_writes=diff_writes, 
+                                pinpointed_errors=syntax_errors)
+        logging.info(f'{dirr} syntax error pinpoint {time.time()-start}')
+        
+        exceptions = pinpointer.pinpoint_exceptions()
+        if len(exceptions) > 0:
+            return PinpointResult(fidelity_result=fidelity_result, 
+                                mut_fidelity_result=None, 
+                                diff_writes=diff_writes, 
+                                pinpointed_errors=exceptions)
+        logging.info(f'{dirr} exception pinpoint {time.time()-start}')
+        
+        mutation_errors, mut_fidelity_result = pinpointer.pinpoint_mutations()
+        if len(mutation_errors) > 0:
+            return PinpointResult(fidelity_result=fidelity_result, 
+                                mut_fidelity_result=mut_fidelity_result, 
+                                diff_writes=diff_writes, 
+                                pinpointed_errors=mutation_errors)
+        logging.info(f'{dirr} mutation pinpoint {time.time()-start}')
+        
+        common_issues = pinpointer.pinpoint_common()
+        if len(common_issues) > 0:
+            return PinpointResult(fidelity_result=fidelity_result, 
+                                mut_fidelity_result=None,
+                                diff_writes=[],
+                                pinpointed_errors=common_issues)
+        logging.info(f'{dirr} common pinpoint {time.time()-start}')
+        return PinpointResult(fidelity_result=fidelity_result,
+                            mut_fidelity_result=None,
+                            diff_writes=diff_writes, 
+                            pinpointed_errors=[])
+    finally:
+        if CONFIG.replayweb:
+            execution.Frame.REPLAYWEB_DIR = None
         logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
-        return PinpointResult(fidelity_result=fidelity_result, 
-                              mut_fidelity_result=None, 
-                              diff_writes=diff_writes, 
-                              pinpointed_errors=syntax_errors)
-    logging.info(f'{dirr} syntax error pinpoint {time.time()-start}')
-    
-    exceptions = pinpointer.pinpoint_exceptions()
-    if len(exceptions) > 0:
-        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
-        return PinpointResult(fidelity_result=fidelity_result, 
-                              mut_fidelity_result=None, 
-                              diff_writes=diff_writes, 
-                              pinpointed_errors=exceptions)
-    logging.info(f'{dirr} exception pinpoint {time.time()-start}')
-    
-    mutation_errors, mut_fidelity_result = pinpointer.pinpoint_mutations()
-    if len(mutation_errors) > 0:
-        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
-        return PinpointResult(fidelity_result=fidelity_result, 
-                              mut_fidelity_result=mut_fidelity_result, 
-                              diff_writes=diff_writes, 
-                              pinpointed_errors=mutation_errors)
-    logging.info(f'{dirr} mutation pinpoint {time.time()-start}')
-    
-    common_issues = pinpointer.pinpoint_common()
-    if len(common_issues) > 0:
-        logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
-        return PinpointResult(fidelity_result=fidelity_result, 
-                              mut_fidelity_result=None,
-                              diff_writes=[],
-                              pinpointed_errors=common_issues)
-    logging.info(f'{dirr} common pinpoint {time.time()-start}')
-    logging.info(f'Finished pinpoint {dirr} {time.time()-start}')
-    return PinpointResult(fidelity_result=fidelity_result,
-                          mut_fidelity_result=None,
-                          diff_writes=diff_writes, 
-                          pinpointed_errors=[])

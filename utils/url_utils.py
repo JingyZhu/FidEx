@@ -186,6 +186,13 @@ def request_live_url(url):
                 final_url = urljoin(url, content[4:])
     return final_url
 
+def get_file_extension(url):
+    parsed_url = urlsplit(url)
+    path = parsed_url.path
+    path = unquote(path)
+    _, ext = os.path.splitext(path)
+    return ext
+
 class HostExtractor:
     def __init__(self):
         self.psl = PublicSuffixList()

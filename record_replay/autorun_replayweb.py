@@ -133,6 +133,7 @@ def record_replay(url, archive_name,
         client = upload.LocalUploadManager(wb_manager=wb_manager)
     client.remove_write(f'{pw_archive}/{archive_name}')
 
+    arguments += ['--replayweb']
     ts, record_url = record(url, archive_name, 
                 chrome_data=chrome_data, 
                 write_path=write_path, 
@@ -177,7 +178,6 @@ def record_replay(url, archive_name,
     serve_process, port = start_http_warc_server(download_path)
     # archive_url = f"https://replayweb.page/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
     archive_url = f"http://localhost:9990/?source=http://localhost:{port}/{archive_name}.warc#view=resources&url={record_url}"
-    arguments += ['--replayweb']
     # time.sleep(20)
     replay(archive_url, archive_name, 
             chrome_data=chrome_data,

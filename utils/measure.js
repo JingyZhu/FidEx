@@ -291,7 +291,7 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         } catch(e) {}
         try {
             // If change timeout, also need to change capture_sync.js and event_sync.js correspondingly
-            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 3000);
+            await eventSync.waitTimeout(Promise.all([ori_page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 3000);
             if (options.manual)
                 await eventSync.waitForReady();
         } catch(e) {

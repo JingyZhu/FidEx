@@ -160,7 +160,11 @@ class ASTNode:
     
     def filter_archive(self):
         # * First, strip all the headers and block added by rewriting tools
-        actual_root = self.children[2].children[9]
+        if CONFIG.replayweb:
+            actual_root = self.children[2]
+            actual_root.children = actual_root.children[10:]
+        else:
+            actual_root = self.children[2].children[9]
         actual_root.parent = None
         
         # * Second, traverse through the tree and skip all the nodes that follows the rewriting pattern
@@ -291,7 +295,8 @@ class TextMatcher:
         # Assume the header added to the code is fixed
         line, col = ASTNode.pos_2_linecol(pos, self.code)
         lines = self.code.split('\n')
-        lines[14] = lines[14][1:]
+        if not CONFIG.replayweb:
+            lines[14] = lines[14][1:]
         if line == 14:
             col -= 1
         new_pos = 0
@@ -331,7 +336,7 @@ class TextMatcher:
 
 
 class JSTextParser:
-    def __init__(self, js_file):
+    def __init__(self, js_file, url=None):
         """
         Example usage:
           program = "document.documentElement.isSameNode(documentElement)"
@@ -339,6 +344,7 @@ class JSTextParser:
           ast_node = parser.get_ast_node()
         """
         self.text = js_file
+        self.url = url
 
     @lru_cache(maxsize=None)
     def parse_source(self, text):
@@ -353,6 +359,9 @@ class JSTextParser:
     
     @lru_cache(maxsize=None)
     def get_program(self, loc):
+        ext = url_utils.get_file_extension(self.url)
+        if ext.lower() in ['.js']:
+            return self.text
         html_tags = re.compile(r'</?([a-zA-Z]+)>')
         if not html_tags.search(self.text): # JS
             return self.text
@@ -467,10 +476,15 @@ class JSTextParser:
 
 
 class Frame:
+    REPLAYWEB_DIR = None
+    REPLAYWEB_SEEN_DIRS = set()
+
     def __init__(self, functionName: str, url: str, lineNumber: int, columnNumber: int):
         self.functionName = functionName
-        self.url = url_utils.replace_archive_collection(url, CONFIG.collection)
-        self.url = url_utils.replace_archive_host(self.url, CONFIG.host)
+        self.url = url
+        if not CONFIG.replayweb:
+            self.url = url_utils.replace_archive_collection(url, CONFIG.collection)
+            self.url = url_utils.replace_archive_host(self.url, CONFIG.host)
         self.lineNumber = lineNumber
         self.columnNumber = columnNumber
 
@@ -499,29 +513,36 @@ class Frame:
 
     @staticmethod
     def get_code(url):
-        if DIRR is not None:
-            with open(f"{DIRR}/live_resources.json") as f:
-                d = json.load(f)
-            ALL_SCRIPTS.update(d)
-            with open(f"{DIRR}/archive_resources.json") as f:
-                d = json.load(f)
-            ALL_SCRIPTS.update(d)
+        # * replayweb logic
+        if Frame.REPLAYWEB_DIR is not None:
+            if Frame.REPLAYWEB_DIR not in Frame.REPLAYWEB_SEEN_DIRS:
+                with open(f"{Frame.REPLAYWEB_DIR}/live_resources.json") as f:
+                    d = json.load(f)
+                    d = {url_utils.url_norm(u, trim_www=True, trim_slash=True): c for u, c in d.items()}
+                ALL_SCRIPTS.update(d)
+                with open(f"{Frame.REPLAYWEB_DIR}/archive_resources.json") as f:
+                    d = json.load(f)
+                    d = {url_utils.url_norm(u, trim_www=True, trim_slash=True): c for u, c in d.items()}
+                ALL_SCRIPTS.update(d)
+        # * pywb logic
+        else:
+            if url not in ALL_SCRIPTS:
+                args = {}
+                if url_utils.is_archive(url):
+                    url = url_utils.replace_archive_host(url, CONFIG.host)
+                else:
+                    url = f'http://{CONFIG.host}/{CONFIG.collection}/{CONFIG.ts}id_/{url}'
+                try:
+                    response = requests.get(url, timeout=5)
+                except Exception as e:
+                    logging.error(f"Fail to fetch {url}: {e}")
+                    return None
+                ALL_SCRIPTS[url] = response.text
+        if url in ALL_SCRIPTS:
             return ALL_SCRIPTS[url]
-
-        if url not in ALL_SCRIPTS:
-            args = {}
-            if url_utils.is_archive(url):
-                url = url_utils.replace_archive_host(url, CONFIG.host)
-            else:
-                url = f'http://{CONFIG.host}/{CONFIG.collection}/{CONFIG.ts}id_/{url}'
-            try:
-                response = requests.get(url, timeout=5)
-            except Exception as e:
-                logging.error(f"Fail to fetch {url}: {e}")
-                return None
-            ALL_SCRIPTS[url] = response.text
+        url = url_utils.url_norm(url, trim_www=True, trim_slash=True)
         return ALL_SCRIPTS[url]
-    
+
     def get_program_identifier(self):
         ast_info = self.get_ASTInfo()
         if ast_info.parser is None:
@@ -536,13 +557,13 @@ class Frame:
             if ast or matcher:
                 return ALL_ASTS[self.url]
         else:
-            ALL_ASTS[self.url] = ASTInfo(parser=JSTextParser(self.code), asts={}, text_matchers={})
+            ALL_ASTS[self.url] = ASTInfo(parser=JSTextParser(self.code, self.url), asts={}, text_matchers={})
         try:
             parser = ALL_ASTS[self.url].parser
             start, end = parser.get_program_range(self.position)
             matcher = parser.get_text_matcher(self.position)
             matcher.is_archive = url_utils.is_archive(self.url)
-            ALL_ASTS[self.url].add_matcher(matcher, start, end)    
+            ALL_ASTS[self.url].add_matcher(matcher, start, end)
             ast_node = parser.get_ast_node(archive=url_utils.is_archive(self.url), pos=self.position)
             ALL_ASTS[self.url].add_ast(ast_node, start, end)
         except Exception as e:
@@ -601,7 +622,8 @@ class Frame:
         return False
     
     def same_scope(self, other: "Frame") -> bool:
-        if self.associated_ast and other.associated_ast:
+        # Replayweb scoping currently have some problems on AST, direcly go to fallbacks
+        if not CONFIG.replayweb and self.associated_ast and other.associated_ast:
             return self.associated_ast.same_scope(other.associated_ast)
         return self.functionName == other.functionName and url_utils.url_match(self.url, other.url)
 
@@ -704,5 +726,7 @@ class Stack:
             a_divergent = self.serialized_flat_reverse[len(common_frames)]
             b_divergent = other.serialized_flat_reverse[len(common_frames)]
             location_after =  a_divergent.after(b_divergent)
+            # logging.info(f"Comparing {a_divergent.lineNumber=} {a_divergent.columnNumber=} and {b_divergent.lineNumber=} {b_divergent.columnNumber=}")
             same_scope = a_divergent.same_scope(b_divergent)
+            # logging.info(f'{location_after=} {same_scope=}')
             return location_after and same_scope
