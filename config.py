@@ -11,6 +11,7 @@ class Config:
         self.path = path
         self.config = json.load(open(path))
         self._collection = None
+        self._replayweb = False
 
     @cached_property
     def host(self):
@@ -37,6 +38,16 @@ class Config:
     @collection.setter
     def collection(self, value):
         self._collection = value
+    
+    @property
+    def replayweb(self):
+        return self._replayweb
+    
+    @replayweb.setter
+    def replayweb(self, value):
+        self._replayweb = value
+        if value == True:
+            os.environ['REPLAYWEB'] = '1'
     
     @property
     def ts(self):

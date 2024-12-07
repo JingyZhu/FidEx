@@ -33,7 +33,8 @@ PROXYHOST = f'http://{CONFIG.host_proxy}'
 HOME = os.path.expanduser("~")
 default_archive = 'test'
 DEFAULTARGS = ['-w', '-s', '--scroll', '-e', '-t']
-SPLIT_ARCHIVE = True
+SPLIT_ARCHIVE = False
+REPLAYWEB_WARC_PORT = 9991
 
 DEFAULT_CHROMEDATA = CONFIG.chrome_data_dir
 
@@ -183,6 +184,8 @@ def record_replay(url, archive_name,
             write_path=write_path, 
             arguments=arguments)
     serve_process.terminate()
+
+    client.upload_warc(f'{download_path}/{archive_name}.warc', pw_archive, directory=pw_archive)
     
     # The metadata will also be merged and dump together later. Here just leave a copy at the directory
     if os.path.exists(f'{write_path}/{archive_name}'):
@@ -190,8 +193,9 @@ def record_replay(url, archive_name,
             'ts': ts,
             'url': record_url,
             'req_url': url,
-            'archive_url': f'{HOST}/{pw_archive}/{ts}/{record_url}',
+            'archive_url': f"http://localhost:9990/?source=http://localhost:{REPLAYWEB_WARC_PORT}/warcs/{pw_archive}/{archive_name}.warc#view=resources&url={record_url}",
             'directory': archive_name,
+            'host': common.get_hostname()
             # 'proxy_host': PHOST if proxy else None,
             # 'archive_host': AHOST if archive else None,
         }, open(f'{write_path}/{archive_name}/metadata.json', 'w+'), indent=2)
@@ -261,8 +265,9 @@ def record_replay_all_urls(urls,
             'ts': ts,
             'url': record_url,
             'req_url': req_url,
-            'archive': f'{HOST}/{pw_archive}/{ts}/{record_url}',
+            'archive_url': f"http://localhost:9990/?source=http://localhost:{REPLAYWEB_WARC_PORT}/warcs/{pw_archive}/{archive_name}.warc#view=resources&url={record_url}",
             'directory': archive_name,
+            'host': common.get_hostname(),
         }
         finished_urls.add(url)
         json.dump(metadata, open(metadata_file, 'w+'), indent=2)

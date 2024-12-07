@@ -6,10 +6,14 @@ import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
-ARCHIVE_PATTERN = r'(https?://[^/]+)/([^/]+)/([12]\d{9,})[^/\d]*/(((https?:)?//)?.+)'
+PYWB_PATTERN = r'(https?://[^/]+)/([^/]+)/([12]\d{9,})[^/\d]*/(((https?:)?//)?.+)'
+REPLAYWEB_PATTERN = r'(https?://[^/]+)/w/([^/]+)/([^/]+)/(((https?:)?//)?.+)'
+
+def ARCHIVE_PATTERN():
+    return REPLAYWEB_PATTERN if os.environ.get('REPLAYWEB') else PYWB_PATTERN
 
 def filter_archive(archive_url):
-    match = re.search(ARCHIVE_PATTERN, archive_url)
+    match = re.search(ARCHIVE_PATTERN(), archive_url)
     if match:
         url = match.group(4)
         if url.startswith('http'):
@@ -22,7 +26,7 @@ def filter_archive(archive_url):
         return archive_url
 
 def is_archive(url):
-    return re.search(ARCHIVE_PATTERN, url) is not None
+    return re.search(ARCHIVE_PATTERN(), url) is not None
 
 def replace_archive_host(url, new_host):
     if not is_archive(url):
@@ -33,7 +37,7 @@ def replace_archive_host(url, new_host):
 def replace_archive_collection(url, new_collection):
     if not is_archive(url):
         return url
-    matches = re.search(ARCHIVE_PATTERN, url)
+    matches = re.search(ARCHIVE_PATTERN(), url)
     if not matches:
         return url
     return f'{url[:matches.start(2)-1]}/{new_collection}/{url[matches.end(2)+1:]}'
@@ -82,7 +86,7 @@ def url_match(url1, url2, archive=True, case=False):
     return len(qsl1) > 0 and qsl1 == qsl2
 
 def get_ts(archive_url):
-    match = re.search(ARCHIVE_PATTERN, archive_url)
+    match = re.search(ARCHIVE_PATTERN(), archive_url)
     if match:
         return match.group(3)
     else:
@@ -95,7 +99,7 @@ def archive_split(archive_url):
         'ts': None,
         'url': None,
     }
-    match = re.search(ARCHIVE_PATTERN, archive_url)
+    match = re.search(ARCHIVE_PATTERN(), archive_url)
     if match:
         result['hostname'] = match.group(1)
         result['collection'] = match.group(2)

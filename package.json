@@ -12,7 +12,7 @@
     "node-fetch": "^2.6.9",
     "node-html-parser": "^6.1.5",
     "prettier": "^3.2.5",
-    "puppeteer": "^23.9.0",
+    "puppeteer": "^23.1.1",
     "typescript": "^5.3.3"
   }
 }

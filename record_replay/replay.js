@@ -114,7 +114,7 @@ const TIMEOUT = 60*1000;
             start = Date.now();
             await eventSync.waitTimeout(networkIdle, timeoutDur); 
             if (replayweb) 
-                await eventSync.sleep(5000-Date.now()+start);
+                await eventSync.sleep(10000-Date.now()+start);
         } catch {}
         if (options.minimal)
             return;
