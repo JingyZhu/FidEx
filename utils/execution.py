@@ -705,12 +705,24 @@ class Stack:
                 break
         return common_frames
     
+    def rw_after(self, other: "Stack") -> bool:
+        """Replayweb has some problems with tracking, use fallbacks"""
+        for i in range(len(self.serialized_flat_reverse)):
+            a_frame = self.serialized_flat_reverse[i]
+            for j in range(len(other.serialized_flat_reverse)):
+                b_frame = other.serialized_flat_reverse[j]
+                if a_frame.after(b_frame):
+                    return True
+        return False
+
     def after(self, other: "Stack") -> bool:
         """Check if this stack is after the other stack"""
         common_frames = self.overlap(other)
         if len(common_frames) == 0:
             if len(self.serialized_flat_reverse) > 0 \
             and len(other.serialized_flat_reverse) > 0:
+                if CONFIG.replayweb:
+                    return self.rw_after(other)
                 a_base = self.serialized_flat_reverse[0]
                 b_base = other.serialized_flat_reverse[0]
                 if not a_base.same_file(b_base):
