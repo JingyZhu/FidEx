@@ -4,12 +4,13 @@
  * and exceptions and failed fetches during loading the page. 
  */
 const fs = require('fs');
-const { loadToChromeCTX, loadToChromeCTXWithUtils} = require('./load');
-const { Puppeteer } = require('puppeteer');
+const { loadToChromeCTX, 
+        loadToChromeCTXWithUtils, 
+        FRAME_CTXID_MAP,
+        frameToPage } = require('./load');
+const puppeteer = require('puppeteer');
 const { parse: HTMLParse } = require('node-html-parser');
 const eventSync = require('./event_sync');
-const { log } = require('console');
-const { request } = require('http');
 
 function identicalURL(liveURL, archiveURL){
     if (liveURL == archiveURL)
@@ -60,89 +61,9 @@ class IframeIDs {
     }
 }
 
-async function getEvalIframeFromPage(page) {
-    let evalIframe = page;
-    const urlStr = await page.evaluate(() => location.href);
-    if (urlStr.includes('replayweb.page')||urlStr.includes('localhost:9990')) {
-        await evalIframe.waitForSelector("body > replay-app-main");
-        evalIframe = await evalIframe.$("body > replay-app-main");
-        evalIframe = await evalIframe.evaluateHandle(el => el.shadowRoot);
-
-        await evalIframe.waitForSelector("wr-item");
-        evalIframe = await evalIframe.$("wr-item");
-        evalIframe = await evalIframe.evaluateHandle(el => el.shadowRoot);
-
-        await evalIframe.waitForSelector("#replay");
-        evalIframe = await evalIframe.$("#replay");
-        evalIframe = await evalIframe.evaluateHandle(el => el.shadowRoot);
-
-        await evalIframe.waitForSelector("div > iframe");
-        evalIframe = await evalIframe.$("div > iframe");
-        evalIframe = await evalIframe.contentFrame();
-    }
-    return evalIframe;
-}
-
-async function collectWebResources(client, logfile) {
-    let requestIDMaps = new Map();
-    client.on('Network.requestWillBeSent', (params) => {
-        const { requestId, request } = params;
-        if (request.url.includes('chrome-extension://'))
-            return;
-        if (request.url.includes('blob:'))
-            return;
-        if (request.url.includes('https://replayweb.page') || request.url.includes('http://localhost:9990')) {
-            if (!request.url.includes('_/http'))  // hardcode to exclude replayweb.page resources
-                return;
-        }
-        // console.log(`Request: ${requestId} ${request.url}`);
-        requestIDMaps.set(requestId, request.url);
-    });
-    client.on('Network.responseReceived', (params) => {
-        const { requestId, response } = params;
-        const mimeType = response.mimeType;
-        if (!mimeType.includes('text/html') && !mimeType.includes('application/javascript')){
-            requestIDMaps.delete(requestId);
-        }
-        // if (!requestIDMaps.has(requestId))
-        //     return;
-        // const url = requestIDMaps.get(requestId);
-        // console.log(`Response: ${requestId} ${url} ${mimeType}`);
-    });
-    client.on('Network.loadingFinished', async (params) => {
-        const { requestId } = params;
-        if (!requestIDMaps.has(requestId))
-            return;
-        try{
-            const { body, base64Encoded } = await client.send('Network.getResponseBody', { requestId });
-            if (base64Encoded) // skip media
-                return;
-            if (requestIDMaps.get(requestId).includes('https://replayweb.page') || requestIDMaps.get(requestId).includes('http://localhost:9990')) {
-                if (body.includes("<p>Sorry, this page was not found in this archive:</p>"))  // real-time 404 not-found resources have html responses
-                    return;
-            }
-            // console.log(`Body: ${requestId} ${requestIDMaps.get(requestId)} ${base64Encoded} ${body.length}`);
-            logfile[requestIDMaps.get(requestId)] = body;
-        } catch (e) { console.error(`!!! ${requestId} Error: ${e}`)};
-    });
-}
-
-async function getOriPage(evalIframe) {
-    try{
-        if (evalIframe.parentFrame() === null) {
-            return evalIframe;
-        }
-    } catch {
-        return evalIframe;
-    }
-    return evalIframe.page();
-}
-
-async function getDimensions(page) {
-    ori_page = await getOriPage(page);
-
-    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
-    const result = await page.evaluate(() => JSON.stringify(getDimensions()))
+async function getDimensions(frame) {
+    await loadToChromeCTX(frame, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    const result = await frame.evaluate(() => JSON.stringify(getDimensions()))
     return result;
 }
 
@@ -159,11 +80,9 @@ async function maxWidthHeight(dimen) {
     return [width, height];
 }
 
-async function getPageDimension(page) {
-    let ori_page = await getOriPage(page);
-
-    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
-    const result = await page.evaluate(() => getPageDimension())
+async function getPageDimension(frame) {
+    await loadToChromeCTX(frame, `${__dirname}/../chrome_ctx/get_elem_dimensions.js`)
+    const result = await frame.evaluate(() => getPageDimension())
     return result;
 }
 
@@ -187,22 +106,20 @@ async function scroll(page) {
 
 /**
  * Collect fidelity info of a page in a naive way.
- * @param {Puppeteer.page} page Page object of puppeteer.
+ * @param {puppeteer.Frame} mainFrame Frame object of puppeteer.
  * @param {string} url URL of the page. 
  * @param {string} dirname 
  * @param {string} filename 
  * @param {object} options 
  */
-async function collectNaiveInfo(page, dirname,
+async function collectNaiveInfo(mainFrame, dirname,
     filename = "dimension",
     options = { html: false }) {
-    // // ! TEMP
-    // return;
     const start = new Date().getTime();
-    const { width, height } = await getPageDimension(page);
+    const { width, height } = await getPageDimension(mainFrame);
     
     if (options.html) {
-        const html = await page.evaluate(() => {
+        const html = await mainFrame.evaluate(() => {
             return document.documentElement.outerHTML;
         });
         fs.writeFileSync(`${dirname}/${filename}.html`, html);
@@ -217,13 +134,13 @@ async function collectNaiveInfo(page, dirname,
     // await page.evaluate(() => window.scrollTo(0, 0));
     // await new Promise(resolve => setTimeout(resolve, 2000));
 
-    ori_page = await getOriPage(page);
-    await ori_page.setViewport({
+    let page = await frameToPage(mainFrame);
+    await page.setViewport({
         width: Math.max(width, 1920),
         height: Math.max(height, 1080)
     });
 
-    await ori_page.screenshot({
+    await page.screenshot({
         path: `${dirname}/${filename}.jpg`,
         clip: {
             x: 0,
@@ -239,24 +156,21 @@ async function collectNaiveInfo(page, dirname,
 }
 
 
-async function interaction(page, cdp, excepFF, url, dirname, filename, options) {
-    const ori_page = await getOriPage(page);
-
-    await loadToChromeCTX(ori_page, `${__dirname}/../chrome_ctx/interaction.js`)
-    // await cdp.send("Runtime.evaluate", {expression: "let eli = new eventListenersIterator();", includeCommandLineAPI:true});
-    let contextId = global.__eval_iframe_exec_ctx_id;
+async function interaction(mainFrame, cdp, excepFF, url, dirname, filename, options) {
+    await loadToChromeCTX(mainFrame, `${__dirname}/../chrome_ctx/interaction.js`)
+    const contextId = FRAME_CTXID_MAP.get(mainFrame);
     const { exceptionDetails } = await cdp.send("Runtime.evaluate", {
         expression: "let eli = new eventListenersIterator({grouping: true});",
         includeCommandLineAPI: true,
         returnByValue: true,
-        ...(contextId && { contextId }),
+        ...( contextId && { contextId }),
     });
     if (exceptionDetails) {
         console.error(`Exception: Interaction on Runtime.evaluate ${exceptionDetails.text}`);
         return [];
     }
 
-    const allEvents = await page.evaluate(() => {
+    const allEvents = await mainFrame.evaluate(() => {
         let serializedEvents = [];
         for (let idx = 0; idx < eli.listeners.length; idx++) {
             const event = eli.listeners[idx];
@@ -273,17 +187,20 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         }
         return serializedEvents;
     });
+
     const numEvents = allEvents.length;
     console.log("Interaction:", "Number of events", numEvents);
     if (typeof options.interaction === 'string')
         options.interaction = parseInt(options.interaction);
     console.log("Number of interactions", options.interaction);
     let numInteractions = typeof options.interaction === 'number' ? Math.min(options.interaction, 20) : 20;
+    
+    const page = await frameToPage(mainFrame);
     // * Incur a maximum of 20 events, as ~80% of URLs have less than 20 events.
     for (let i = 0; i < numEvents && i < numInteractions; i++) {
         let startTime = new Date().getTime();
         try {
-            await page.waitForFunction(async (idx) => {
+            await mainFrame.waitForFunction(async (idx) => {
                     __tasks && __tasks.start();
                     await eli.triggerNth(idx);
                     return true;
@@ -291,30 +208,20 @@ async function interaction(page, cdp, excepFF, url, dirname, filename, options) 
         } catch(e) {}
         try {
             // If change timeout, also need to change capture_sync.js and event_sync.js correspondingly
-            await eventSync.waitTimeout(Promise.all([ori_page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 3000);
+            await eventSync.waitTimeout(Promise.all([page.waitForNetworkIdle(), eventSync.waitCaptureSync(page)]), 3000);
             if (options.manual)
                 await eventSync.waitForReady();
         } catch(e) {
             console.error(`Exception: Interaction ${i} for ${url} \n ${e}`);
         }
         let t1 = new Date().getTime();
-        // if (options.scroll)
-        //     await measure.scroll(page);
         if (options.rendertree) {
-            // const rootFrame = page.mainFrame();
-            let rootFrame;
-            try {
-                rootFrame = await page.mainFrame();
-            } catch {
-                rootFrame = page;
-            }
-            const renderInfoRaw = await collectRenderTree(rootFrame,
+            const renderInfoRaw = await collectRenderTree(mainFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             fs.writeFileSync(`${dirname}/${filename}_${i}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));    
         }
         if (options.screenshot)
-            await collectNaiveInfo(page, dirname, `${filename}_${i}`)
-        let t2 = new Date().getTime();
+            await collectNaiveInfo(mainFrame, dirname, `${filename}_${i}`)
         if (options.exetrace)
             excepFF.afterInteraction(`interaction_${allEvents[i].idx}`, allEvents[i]);
         console.log(`Interaction: Triggered interaction ${i}, Total: ${(t1 - startTime)/1000}s, URL: ${url}`);
@@ -334,7 +241,7 @@ function _origURL(url){
 }
 
 /**
- * Collect the render tree from the page
+ * Collect the render tree from the frame
  * @param {iframe} iframe 
  * @param {object} parentInfo 
  * @param {boolean} visibleOnly If only visible elements are collected
@@ -455,9 +362,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
 
 
 module.exports = {
-    getEvalIframeFromPage,
     getDimensions,
-    collectWebResources,
     maxWidthHeight,
     scroll,
     collectNaiveInfo,

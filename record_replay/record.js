@@ -19,6 +19,7 @@ const measure = require('../utils/measure');
 const { recordReplayArgs } = require('../utils/argsparse');
 const execution = require('../utils/execution');
 const { loggerizeConsole } = require('../utils/logger');
+const adapter = require('../utils/adapter');
 
 loggerizeConsole();
 // Dummy server for enable page's network and runtime before loading actual page
@@ -40,7 +41,7 @@ const TIMEOUT = 60*1000;
 
 
 async function clickDownload(page, url=null) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
+    await loadToChromeCTX(page.mainFrame(), `${__dirname}/../chrome_ctx/click_download.js`)
     await page.evaluate(async (archive) => { await firstPageClick(archive) }, Archive)
     await eventSync.sleep(500);
     await page.waitForSelector('archive-web-page-app');
@@ -50,7 +51,7 @@ async function clickDownload(page, url=null) {
     let elementHandle2 = await shadowRoot.asElement().$('wr-rec-coll');
     let shadowRoot2 = await elementHandle2.evaluateHandle(el => el.shadowRoot);
     await shadowRoot2.asElement().waitForSelector('#pages');
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/click_download.js`)
+    await loadToChromeCTX(page.mainFrame(), `${__dirname}/../chrome_ctx/click_download.js`)
     let {recordURL, pageTs} = await page.evaluate(async (url) => {
         let wholePage = await secondPageDesc();
         let {recordURL, pageTs} = await secondPageTarget(wholePage, url);
@@ -63,13 +64,13 @@ async function clickDownload(page, url=null) {
 // This function assumes that the archive collection is already opened
 // i.e. click_download.js:firstPageClick should already be executed
 async function removeRecordings(page, topN) {
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/remove_recordings.js`)
+    await loadToChromeCTX(page.mainFrame(), `${__dirname}/../chrome_ctx/remove_recordings.js`)
     await page.evaluate(topN => removeRecording(topN), topN)
 }
 
 async function dummyRecording(page) {
     await page.waitForSelector('archive-web-page-app');
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/start_recording.js`)
+    await loadToChromeCTX(page.mainFrame(), `${__dirname}/../chrome_ctx/start_recording.js`)
     while (!PORT) {
         await eventSync.sleep(500);
     }
@@ -166,7 +167,10 @@ async function getActivePage(browser) {
             mobile: false
         });
 
-        let excepFF = null, executionStacks = null;
+        let excepFF = null, 
+            executionStacks = null,
+            adpt = new adapter.BaseAdapter(client);
+
         if (options.exetrace) {
             excepFF = new execution.ExcepFFHandler();
             executionStacks = new execution.ExecutionStacks();
@@ -197,8 +201,8 @@ async function getActivePage(browser) {
 
         // Step 3.5: Collect HTMLs and JavaScripts
         if (replayweb)
-            var web_resources = new Map(); 
-            await measure.collectWebResources(client, web_resources);
+            adpt = new adapter.ReplayWebAdapter(client);
+        await adpt.initialize();
 
         // * Step 4: Load the page
         await recordPage.goto(
@@ -244,22 +248,22 @@ async function getActivePage(browser) {
             excepFF.afterInteraction('onload', {});
 
 
+        const mainFrame = await recordPage.mainFrame();
         // * Step 6: Collect the screenshots and all other measurement for checking fidelity
         if (options.rendertree){
-            const rootFrame = recordPage.mainFrame();
-            const renderInfoRaw = await measure.collectRenderTree(rootFrame,
+            const renderInfoRaw = await measure.collectRenderTree(mainFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         if (options.screenshot)
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectNaiveInfo(recordPage, dirname, filename);
+            await measure.collectNaiveInfo(mainFrame, dirname, filename);
 
         const onloadURL = recordPage.url();
 
         // * Step 7: Interact with the webpage
         if (options.interaction){
-            const allEvents = await measure.interaction(recordPage, client, excepFF, url, dirname, filename, options);
+            const allEvents = await measure.interaction(mainFrame, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
@@ -268,8 +272,8 @@ async function getActivePage(browser) {
         // * Step 8: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
-            await loadToChromeCTXWithUtils(recordPage, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await recordPage.evaluate(() => { 
+            await loadToChromeCTXWithUtils(recordPage.mainFrame(), `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await mainFrame.evaluate(() => { 
                 collect_writes();
                 return __write_log_processed;
             });
@@ -300,8 +304,8 @@ async function getActivePage(browser) {
             await removeRecordings(page, 0)
 
         // * Step 12: If replayweb, save HTMLs and JavaScripts
-        if (replayweb)
-            fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(web_resources, null, 2));
+        if (options.replayweb)
+            adpt.writeAdapterInfo(dirname, filename);
 
         fs.writeFileSync(`${dirname}/${filename}_done`, "");
         // ! Signal of the end of the program

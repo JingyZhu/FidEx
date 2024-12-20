@@ -1,10 +1,29 @@
 /**
  * Loading files from ../chrome_ctx to Chrome's execution context.
  */
-const { clear } = require('console');
 const fs = require('fs');
 const os = require('os');
 const puppeteer = require("puppeteer");
+const assert = require('assert');
+
+var FRAME_CTXID_MAP = new (class FrameCtxMap extends Map {
+    set(params) {
+        if (!( params 
+            && params.context 
+            && params.context.auxData 
+            && params.context.auxData.frameId)) {
+                return;
+        }
+        if (!params.context.auxData.isDefault)
+            return;
+        super.set(params.context.auxData.frameId, params.context.id);
+    }
+
+    get(frame) {
+        const key = frame instanceof puppeteer.Frame ? frame._id : frame;
+        return super.get(key);
+    }
+})();
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -55,7 +74,7 @@ async function clearBrowserStorage(browser) {
     const page = await browser.newPage();
     await page.goto('chrome://settings/clearBrowserData?search=cache');
     await sleep(100);
-    await loadToChromeCTX(page, `${__dirname}/../chrome_ctx/clear_storage.js`);
+    await loadToChromeCTX(page.mainFrame(), `${__dirname}/../chrome_ctx/clear_storage.js`);
     const result = await page.evaluate(() => deletaData());
     console.log("Clearing browser storage: ", result);
     page.close();
@@ -88,42 +107,60 @@ async function preventWindowPopup(page) {
     });
 }
 
-async function loadToChromeCTX(page, file) {
-    await page.evaluate(() => {loadUtils = false});
+
+/**
+ * Transform the iframe to the page
+ * @param {frame} frame Frame to be transformed into page. 
+ * @returns {page} The page object of the iframe
+ */
+function frameToPage(frame) {
+    assert(frame instanceof puppeteer.Frame, "frameToPage: frame is not an instance of Puppeteer.Frame");
+    return frame.page();
+}
+
+/**
+ * Need to load at the CDP level, since getEventListeners is command line API, which can only be used in the CDP level
+ * @param {puppeteer.Frame} frame 
+ * @param {String} file file path of the script to load
+ */
+async function loadToChromeCTX(frame, file) {
+    const page = frameToPage(frame);
     const cdp = await page.target().createCDPSession();
     const script = fs.readFileSync(file, 'utf8');
 
-    contextId = global.__eval_iframe_exec_ctx_id;
-    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, ...(contextId && { contextId })});
+    const contextId = FRAME_CTXID_MAP.get(frame);
+    await cdp.send("Runtime.evaluate", {expression: "loadUtils = false", includeCommandLineAPI: true, ...(contextId && { contextId })});
+    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI: true, ...(contextId && { contextId })});
     
-    if (contextId) {
-        const { result: loadUtilsResult } = await cdp.send('Runtime.evaluate', {
-            expression: 'loadUtils',
-            contextId: global.__eval_iframe_exec_ctx_id,
-            returnByValue: true,
-        });
-        let loadUtils = loadUtilsResult.value;
-        if (loadUtils) {
-            const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
-            await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI:true, contextId: global.__eval_iframe_exec_ctx_id});
-        }
-        return;
-    }
-
-    let loadUtils = await page.evaluate(() => loadUtils);
+    // * Check if loadUtils is changed by the script. If so, need to load utils.js
+    const { result: loadUtilsResult } = await cdp.send('Runtime.evaluate', {
+        expression: 'loadUtils',
+        returnByValue: true,
+        ...(contextId && { contextId }),
+    });
+    let loadUtils = loadUtilsResult.value;
     if (loadUtils) {
         const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
-        await page.evaluate(utilScript);
+        await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
     }
 }
 
-async function loadToChromeCTXWithUtils(page, file) {
-    const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
-    await page.evaluate(utilScript);
-    // const cdp = await page.target().createCDPSession();
+async function loadToChromeCTXWithUtils(frame, file) {
+    const page = frameToPage(frame);
+    const cdp = await page.target().createCDPSession();
+    
+    const contextId = FRAME_CTXID_MAP.get(frame);
+    
+    const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8');
+    await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
+    
     const script = fs.readFileSync(file, 'utf8');
-    await page.evaluate(script);
-    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI:true, contextId: contextId});
+    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI: true, ...(contextId && { contextId })});
+
+    // const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8');
+    // await page.evaluate(utilScript);
+    // const script = fs.readFileSync(file, 'utf8');
+    // await page.evaluate(script);
 }
 
 class BrowserFetcher {
@@ -152,9 +189,12 @@ module.exports = {
     preventNavigation,
     preventWindowPopup,
 
+    frameToPage,
     loadToChromeCTX,
     loadToChromeCTXWithUtils,
     
     BrowserFetcher,
-    browserFetcher
+    browserFetcher,
+
+    FRAME_CTXID_MAP,
 }

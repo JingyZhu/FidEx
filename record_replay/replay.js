@@ -13,10 +13,11 @@ const { startChrome,
         loadToChromeCTXWithUtils, 
         clearBrowserStorage,
         preventNavigation,
-        preventWindowPopup, 
+        preventWindowPopup,
       } = require('../utils/load');
 const { recordReplayArgs } = require('../utils/argsparse');
 const { loggerizeConsole } = require('../utils/logger');
+const adapter = require('../utils/adapter');
 
 loggerizeConsole();
 const TIMEOUT = 60*1000;
@@ -31,8 +32,6 @@ const TIMEOUT = 60*1000;
     const options = program.opts();
     let dirname = options.dir;
     let filename = options.file;
-    let scroll = options.scroll == true;
-    let replayweb = options.replayweb == true;
     
     const headless = options.headless ? "new": false;
     const { browser } = await startChrome(options.chrome_data, headless, options.proxy);
@@ -60,7 +59,11 @@ const TIMEOUT = 60*1000;
         await eventSync.sleep(1000);
         
         // * Step 1: Parse and Inject the overriding script
-        let excepFF = null, executionStacks = null;
+        let excepFF = null, 
+            executionStacks = null,
+            adpt = new adapter.BaseAdapter(client),
+            invarObserver = null;
+
         if (options.exetrace) {
             excepFF = new execution.ExcepFFHandler();
             executionStacks = new execution.ExecutionStacks();
@@ -75,12 +78,9 @@ const TIMEOUT = 60*1000;
         }
 
         // * Step 1.5: Collect all execution contexts (for replayweb.page)
-        if (replayweb) {
-            var executionContexts = [];
-            client.on('Runtime.executionContextCreated', params => { executionContexts.push(params) });
-            var web_resources = new Map();
-            await measure.collectWebResources(client, web_resources);
-        }
+        if (options.replayweb)
+            adpt = adapter.ReplayWebAdapter(client);
+        await adpt.initialize();
 
         if (options.override) {
             let overrideName = options.override === true ? 'overrides.json': options.override;
@@ -99,7 +99,6 @@ const TIMEOUT = 60*1000;
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");
         Error.stackTraceLimit = Infinity;
-        let invarObserver = null;
         if (options.mutation) {
             await page.evaluateOnNewDocument("__fidex_mutation = true");
             invarObserver = new execution.InvariantObserver();
@@ -112,36 +111,20 @@ const TIMEOUT = 60*1000;
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
-            const timeoutDur = replayweb ? 5000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
+            const timeoutDur = options.replayweb ? 5000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
             start = Date.now();
             await eventSync.waitTimeout(networkIdle, timeoutDur); 
-            if (replayweb) 
-                await eventSync.sleep(10000-Date.now()+start);
+            if (options.replayweb) 
+                await adpt.onloadSleep(start);
         } catch {}
         if (options.minimal)
             return;
 
-        let evalIframe = await measure.getEvalIframeFromPage(page);
-        let evalIframeExecCtxId = null;
-        if (replayweb) {
-            await page.evaluate(`document.querySelector("body > replay-app-main").shadowRoot.querySelector("nav").style.display = "none";`);
-            await page.evaluate(`document.querySelector("body > replay-app-main").shadowRoot.querySelector("wr-item").shadowRoot.querySelector("nav").style.display = "none"`);
+        // Adpation for replayweb.page if set
+        let { mainFrame } = await adpt.getMainFrame(page);
         
-            for (let execCtx of executionContexts) {
-                if (!(execCtx && execCtx.context && execCtx.context.auxData && execCtx.context.auxData.frameId)) {
-                    continue
-                }
-                if (execCtx.context.auxData.frameId === evalIframe._id && !execCtx.context.origin.includes("puppeteer")) {
-                    evalIframeExecCtxId = execCtx.context.id;
-                    break;
-                }
-            }
-            global.__eval_iframe_exec_ctx_id = evalIframeExecCtxId;
-        } else {
-            global.__eval_iframe_exec_ctx_id = null;
-        }
-        if (scroll)
-            await measure.scroll(evalIframe);
+        if (options.scroll)
+            await measure.scroll(mainFrame);
         
         // * Step 3: Wait for the page to be loaded
         if (options.manual)
@@ -153,23 +136,17 @@ const TIMEOUT = 60*1000;
 
         // * Step 4: Collect the screenshot and other measurements
         if (options.rendertree){
-            let frameRenderTree;
-            if (replayweb) {
-                frameRenderTree = evalIframe;
-            } else {
-                frameRenderTree = page.mainFrame();
-            }
-            const renderInfoRaw = await measure.collectRenderTree(frameRenderTree,
+            const renderInfoRaw = await measure.collectRenderTree(mainFrame,
                 {xpath: '', dimension: {left: 0, top: 0}, prefix: "", depth: 0}, false);
             fs.writeFileSync(`${dirname}/${filename}_dom.json`, JSON.stringify(renderInfoRaw.renderTree, null, 2));
         }
         if (options.screenshot)
             // ? If put this before pageIfameInfo, the "currentSrc" attributes for some pages will be missing
-            await measure.collectNaiveInfo(evalIframe, dirname, filename);
+            await measure.collectNaiveInfo(mainFrame, dirname, filename);
 
         // * Step 5: Interact with the webpage
         if (options.interaction){
-            const allEvents = await measure.interaction(evalIframe, client, excepFF, url, dirname, filename, options);
+            const allEvents = await measure.interaction(mainFrame, client, excepFF, url, dirname, filename, options);
             if (options.manual)
                 await eventSync.waitForReady();
             fs.writeFileSync(`${dirname}/${filename}_events.json`, JSON.stringify(allEvents, null, 2));
@@ -178,8 +155,8 @@ const TIMEOUT = 60*1000;
         // * Step 6: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
-            await loadToChromeCTXWithUtils(evalIframe, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
-            const writeLog = await evalIframe.evaluate(() => { 
+            await loadToChromeCTXWithUtils(mainFrame, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            const writeLog = await mainFrame.evaluate(() => { 
                 collect_writes();
                 return __write_log_processed;
             });
@@ -196,9 +173,9 @@ const TIMEOUT = 60*1000;
             fs.writeFileSync(`${dirname}/${filename}_invariant_violations.json`, JSON.stringify(invarObserver.violations, null, 2));
 
         // * Step 8: If replayweb, collect HTMLs and JavaScripts
-        if (replayweb)
-            fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(web_resources, null, 2));
-
+        if (options.replayweb)
+            adpt.writeAdapterInfo(dirname, filename);
+            
         fs.writeFileSync(`${dirname}/${filename}_done`, "");
         
     } catch (err) {
