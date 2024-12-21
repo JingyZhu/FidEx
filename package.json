@@ -2,17 +2,13 @@
   "dependencies": {
     "assert": "^2.0.0",
     "commander": "^11.1.0",
-    "diff-match-patch": "^1.0.5",
     "espree": "^10.0.1",
-    "html-differ": "^1.4.0",
     "http-server": "^14.1.1",
-    "jsdom": "^20.0.3",
     "mime": "^3.0.0",
     "mime-types": "^2.1.35",
     "node-fetch": "^2.6.9",
     "node-html-parser": "^6.1.5",
     "prettier": "^3.2.5",
-    "puppeteer": "^23.1.1",
-    "typescript": "^5.3.3"
+    "puppeteer": "^23.1.1"
   }
 }

@@ -34,7 +34,7 @@ class ReplayWebAdapter extends BaseAdapter {
     constructor(client, options={hostname: 'localhost:9990' }) {
         super(client);
         this.hostname = options.hostname;
-        this.webResources = [];
+        this.webResources = {};
     }
 
     async initialize() {
