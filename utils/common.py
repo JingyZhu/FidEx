@@ -47,7 +47,7 @@ def get_img_src(img_tag) -> set:
     srcs = set([url_utils.url_norm(src, ignore_scheme=True, ignore_netloc=True, trim_slash=True, archive=True) for src in srcs])
     return srcs
 
-def finished_record_replaY(write_dir, check_prefix):
+def finished_record_replay(write_dir, check_prefix):
     return os.path.exists(f"{write_dir}/{check_prefix}_done")
 
 def merge_strings(original: str, new_strs: list) -> str:

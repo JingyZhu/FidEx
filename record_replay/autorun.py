@@ -150,7 +150,7 @@ def record_replay(url, archive_name,
                 chrome_data=chrome_data,
                 write_path=write_path, 
                 arguments=arguments)
-        if not common.finished_record_replaY(f'{write_path}/{archive_name}', 'archive'):
+        if not common.finished_record_replay(f'{write_path}/{archive_name}', 'archive'):
             return '', record_url
     
     if proxy:
@@ -161,7 +161,7 @@ def record_replay(url, archive_name,
                 write_path=write_path, 
                 proxy=True,
                 arguments=proxy_arguments)
-        if not common.finished_record_replaY(f'{write_path}/{archive_name}', 'proxy'):
+        if not common.finished_record_replay(f'{write_path}/{archive_name}', 'proxy'):
             return '', record_url
     
     # The metadata will also be merged and dump together later. Here just leave a copy at the directory

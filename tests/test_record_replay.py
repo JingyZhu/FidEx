@@ -50,7 +50,7 @@ def _check_record_replay(host):
     stages = ['live', 'archive', 'proxy']
     error_stages = []
     for stage in stages:
-        if not common.finished_record_replaY(f'{ARCHIVEDIR}/writes/test/{host}', stage):
+        if not common.finished_record_replay(f'{ARCHIVEDIR}/writes/test/{host}', stage):
             error_stages.append(stage)
     return error_stages
 

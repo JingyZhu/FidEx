@@ -347,7 +347,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
         }
         returnObj['renderHTML'] = renderHTML
         // * Switch stage to next
-        iframe.evaluate(() => {
+        await iframe.evaluate(() => {
             if (!__current_stage)
                 __current_stage = 'onload';
             else if (__current_stage == 'onload')
