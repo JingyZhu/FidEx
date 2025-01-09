@@ -48,6 +48,9 @@ class LoadInfo:
         self.write_stacks = LoadInfo.read_write_stacks(self.dirr, self.base)
     
     def read_events(self, available=True) -> list:
+        if not os.path.exists(f"{self.dirr}/{self.base}_events.json"):
+            self.events = []
+            return self.events
         self.events = json.load(open(f"{self.dirr}/{self.base}_events.json"))
         if available:
             self.available_events()

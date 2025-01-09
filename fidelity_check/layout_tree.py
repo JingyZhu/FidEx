@@ -272,7 +272,7 @@ class LayoutElement:
                 if e1.tagname == '#text' and e2.tagname == '#text':
                     return True
             # svg related, depend on parent dimension could change from time to time
-            if e1.tagname in ['path', 'g'] and e1.text == e2.text:
+            if e1.tagname in ['path', 'g', 'rect'] and e1.text == e2.text:
                 return True
             if e1.extraAttr.get('animation') and e2.extraAttr.get('animation'):
                 return True

@@ -20,6 +20,7 @@ const { recordReplayArgs } = require('../utils/argsparse');
 const execution = require('../utils/execution');
 const { loggerizeConsole } = require('../utils/logger');
 const adapter = require('../utils/adapter');
+const assert = require('assert');
 
 loggerizeConsole();
 // Dummy server for enable page's network and runtime before loading actual page
@@ -298,6 +299,10 @@ async function getActivePage(browser) {
         )
         await eventSync.sleep(500);
         let {recordURL, ts} = await clickDownload(page, finalURL);
+        // recordURL's hostname should not contain "localhost"
+        const urlObj = new URL(recordURL);
+        const hostname = urlObj.hostname;
+        assert(hostname != "localhost", "Record URL should not be localhost");
         
         // * Step 11: Remove recordings
         if (options.remove)
