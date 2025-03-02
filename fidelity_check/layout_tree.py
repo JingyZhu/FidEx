@@ -91,6 +91,94 @@ def _collect_dimension(element):
         'left': round(element['dimension']['left'], 1)
     }
 
+def full_stack_eq(e1, e2):
+    e1_elements = [e1] + e1.descendants()
+    e2_elements = [e2] + e2.descendants()
+    e1_write_stacks = [w for e in e1_elements for w in e.writes]
+    e2_write_stacks = [w for e in e2_elements for w in e.writes]
+    return len(e1_write_stacks) > 0 and js_writes.writes_stacks_match(e1_write_stacks, e2_write_stacks)
+
+def dimension_eq(e1, e2):
+    if e1.tagname == 'img' and e2.tagname == 'img':
+        return True
+    d1, d2 = e1.dimension, e2.dimension
+    d1w, d1h = d1.get('width', 1), d1.get('height', 1)
+    d2w, d2h = d2.get('width', 1), d2.get('height', 1)
+    wdiff = abs(d1w - d2w) / max(d1w, d2w, 1)
+    hdiff = abs(d1h - d2h) / max(d1h, d2h, 1)
+    return wdiff <= 0.05 and hdiff <= 0.05
+
+def features_eq(e1, e2):
+    if e1.features[0].lower() == 'a' and e2.features[0].lower() == 'a':
+        identical = True
+        if len(e1.features) != len(e2.features):
+            return False
+        for f1, f2 in zip(e1.features, e2.features):
+            if type(f1) != str or type(f2) != str:
+                identical = identical and f1 == f2
+                continue
+            identical = identical and (f1.endswith(f2) or f2.endswith(f1))
+        return identical
+    elif e1.features[0].lower() == '#text' and e2.features[0].lower() == '#text':
+        return common.normal_text(e1.text) == common.normal_text(e2.text)
+    elif e1.features[0].lower() == 'img' and e2.features[0].lower() == 'img':
+        src_match = len(set(e1.features[1]).intersection(set(e2.features[1]))) > 0
+        return src_match and tuple(e1.features[2:]) == tuple(e2.features[2:])
+    else:
+        return tuple(e1.features) == tuple(e2.features)
+        
+def js_dynamism_self_eq(e1, e2):
+    """
+    If two elements have the same set of stack traces of writes
+    """
+    if len(e1.writes) + len(e2.writes) > 0:
+        e1_related_writes, e2_related_writes = [], []
+        if e1.parent:
+            e1_related_writes = [w for e in e1.parent.children for w in e.writes]
+        else:
+            e1_related_writes = e1.writes
+        if e2.parent:
+            e2_related_writes = [w for e in e2.parent.children for w in e.writes]
+        else:
+            e2_related_writes = e2.writes
+        # e1_related_writes = e1.writes
+        # e2_related_writes = e2.writes
+
+        e1_subset = set(e1_related_writes).issubset(set(e2_related_writes))
+        e2_subset = set(e2_related_writes).issubset(set(e1_related_writes))
+        if e1_subset and e2_subset:
+            return True
+        
+        e1_related_writes_plain = [w.plain_form for w in e1_related_writes]
+        e2_related_writes_plain = [w.plain_form for w in e2_related_writes]
+        e1_subset = set(e1_related_writes_plain).issubset(set(e2_related_writes_plain))
+        e2_subset = set(e2_related_writes_plain).issubset(set(e1_related_writes_plain))
+        if e1_subset and e2_subset:
+            return True
+    return False
+
+def css_dynamism_self_eq(e1, e2):
+    """Check if css dynamic elements can be matched"""
+    if e1.tagname != e2.tagname:
+        return False
+    # SVG cases
+    if (e1.parent and e1.parent.tagname == 'svg') and (e2.parent and e2.parent.tagname == 'svg'):
+        if e1.tagname == '#text' and e2.tagname == '#text':
+            return True
+    # svg related, depend on parent dimension could change from time to time
+    if e1.tagname in ['path', 'g', 'rect'] and e1.text == e2.text:
+        return True
+    if e1.extraAttr.get('animation') and e2.extraAttr.get('animation'):
+        return True
+    if not isinstance(e1.tag, Tag) or not isinstance(e2.tag, Tag):
+        return False
+    if 'style' in e1.tag.attrs and 'style' in e2.tag.attrs:
+        s1 = _filter_style(e1.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
+        s2 = _filter_style(e2.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
+        if s1 == s2:
+            return True
+    return False
+
 class LayoutElement:
     @staticmethod
     def dummy_element():
@@ -195,94 +283,6 @@ class LayoutElement:
     
     def __eq__(self, other):
         if self.tagname != other.tagname:
-            return False
-        
-        def full_stack_eq(e1, e2):
-            e1_elements = [e1] + e1.descendants()
-            e2_elements = [e2] + e2.descendants()
-            e1_write_stacks = [w for e in e1_elements for w in e.writes]
-            e2_write_stacks = [w for e in e2_elements for w in e.writes]
-            return len(e1_write_stacks) > 0 and js_writes.writes_stacks_match(e1_write_stacks, e2_write_stacks)
-
-        def dimension_eq(e1, e2):
-            if e1.tagname == 'img' and e2.tagname == 'img':
-                return True
-            d1, d2 = e1.dimension, e2.dimension
-            d1w, d1h = d1.get('width', 1), d1.get('height', 1)
-            d2w, d2h = d2.get('width', 1), d2.get('height', 1)
-            wdiff = abs(d1w - d2w) / max(d1w, d2w, 1)
-            hdiff = abs(d1h - d2h) / max(d1h, d2h, 1)
-            return wdiff <= 0.05 and hdiff <= 0.05
-
-        def features_eq(e1, e2):
-            if e1.features[0].lower() == 'a' and e2.features[0].lower() == 'a':
-                identical = True
-                if len(e1.features) != len(e2.features):
-                    return False
-                for f1, f2 in zip(e1.features, e2.features):
-                    if type(f1) != str or type(f2) != str:
-                        identical = identical and f1 == f2
-                        continue
-                    identical = identical and (f1.endswith(f2) or f2.endswith(f1))
-                return identical
-            elif e1.features[0].lower() == '#text' and e2.features[0].lower() == '#text':
-                return common.normal_text(e1.text) == common.normal_text(e2.text)
-            elif e1.features[0].lower() == 'img' and e2.features[0].lower() == 'img':
-                src_match = len(set(e1.features[1]).intersection(set(e2.features[1]))) > 0
-                return src_match and tuple(e1.features[2:]) == tuple(e2.features[2:])
-            else:
-                return tuple(e1.features) == tuple(e2.features)
-        
-        def js_dynamism_self_eq(e1, e2):
-            """
-            If two elements have the same set of stack traces of writes
-            """
-            if len(e1.writes) + len(e2.writes) > 0:
-                e1_related_writes, e2_related_writes = [], []
-                if e1.parent:
-                    e1_related_writes = [w for e in e1.parent.children for w in e.writes]
-                else:
-                    e1_related_writes = e1.writes
-                if e2.parent:
-                    e2_related_writes = [w for e in e2.parent.children for w in e.writes]
-                else:
-                    e2_related_writes = e2.writes
-                # e1_related_writes = e1.writes
-                # e2_related_writes = e2.writes
-
-                e1_subset = set(e1_related_writes).issubset(set(e2_related_writes))
-                e2_subset = set(e2_related_writes).issubset(set(e1_related_writes))
-                if e1_subset and e2_subset:
-                    return True
-                
-                e1_related_writes_plain = [w.plain_form for w in e1_related_writes]
-                e2_related_writes_plain = [w.plain_form for w in e2_related_writes]
-                e1_subset = set(e1_related_writes_plain).issubset(set(e2_related_writes_plain))
-                e2_subset = set(e2_related_writes_plain).issubset(set(e1_related_writes_plain))
-                if e1_subset and e2_subset:
-                    return True
-            return False
-
-        def css_dynamism_self_eq(e1, e2):
-            """Check if css dynamic elements can be matched"""
-            if e1.tagname != e2.tagname:
-                return False
-            # SVG cases
-            if (e1.parent and e1.parent.tagname == 'svg') and (e2.parent and e2.parent.tagname == 'svg'):
-                if e1.tagname == '#text' and e2.tagname == '#text':
-                    return True
-            # svg related, depend on parent dimension could change from time to time
-            if e1.tagname in ['path', 'g', 'rect'] and e1.text == e2.text:
-                return True
-            if e1.extraAttr.get('animation') and e2.extraAttr.get('animation'):
-                return True
-            if not isinstance(e1.tag, Tag) or not isinstance(e2.tag, Tag):
-                return False
-            if 'style' in e1.tag.attrs and 'style' in e2.tag.attrs:
-                s1 = _filter_style(e1.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
-                s2 = _filter_style(e2.tag.attrs['style'], filter_keys=CSS_ANIMATION_STYLES)
-                if s1 == s2:
-                    return True
             return False
         
         # # Full stack matching
