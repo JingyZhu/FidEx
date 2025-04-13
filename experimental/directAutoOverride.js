@@ -39,48 +39,36 @@ function getFileOverrides(dir){
     }
 }
 
-async function overrideResponses(client) {
+async function overrideResponsesInDir(client) {
     getFileOverrides(OVERRIDE_DIR);
-    const urlPatterns = [];
+    const patterns = [];
     // Iterate k, v of PATH_MAP
     for (const [file_path, resource] of Object.entries(PATH_MAP)){
         let url = 'https?://' + file_path;
-        urlPatterns.push({
+        patterns.push({
             urlPattern: url,
             resourceType: "",
             requestStage: "Response"
         })
     }
-    console.log("Finished sending Fetch.enable");
-    // * For debugging
-    client.on('Fetch.requestPaused', async (params) => {
-        debug("ReqeustPaused on response", params.request.url);
-        // If stage is reqeust stage, return
-        if (!params.responseStatusText)
-            return;
+    const callback = (params) => {
+        debug("ReqeustPaused on overrideResponsesInDir", params.request.url);
         // Remove the beginning  http:// or https://
         file = params.request.url.replace(/^https?:\/\//, '');
-        if (!PATH_MAP[file]) {
-            try {
-                await client.send("Fetch.continueRequest", {requestId: params.requestId});
-                debug("continueRequest success on response", params.request.url);
-            } catch (e) {}
-            return;
-        }
+        if (!PATH_MAP[file])
+            return {};
         const resource = fs.readFileSync(PATH_MAP[file]);
-        try{
-            await client.send('Fetch.fulfillRequest', {
-                requestId: params.requestId,
-                responseCode: 200,
-                responseHeaders: params.responseHeaders,
-                body: Buffer.from(resource).toString('base64')
-            });
-            console.log("Sent Fetch.fulfillRequest", params.request.url);
-        } catch (e) {
-            console.warn("Error sending Fetch.fulfillRequest", e);
-        }
-    });
-    return urlPatterns;
+        return {
+            responseCode: 200,
+            responseHeaders: params.responseHeaders,
+            body: Buffer.from(resource).toString('base64')
+        };
+    }
+    return {
+        patterns: patterns,
+        callback: callback,
+        stage: "Response"
+    }
 }
 
 async function overrideHeaderTS(client){
@@ -90,28 +78,84 @@ async function overrideHeaderTS(client){
     }]
     const timestamp = moment.utc(TIMESTAMP, "YYYYMMDDHHmmss").format("ddd, DD MMM YYYY HH:mm:ss [GMT]");
     console.log(`Overrider.overrideReqestTS: Overriding requests headers with Accept-Datetime: ${timestamp}`);
-    client.on('Fetch.requestPaused', async (params) => {
-        debug("ReqeustPaused on headers", params.request.url);
-        const { requestId, request } = params;
+    const callback = (params) => {
+        debug("ReqeustPaused on overrideHeaderTS", params.request.url);
+        const { request } = params;
         let headers = request.headers;
         headers['Accept-Datetime'] = timestamp;
         let fetchHeaders = []
         for (const [key, value] of Object.entries(headers))
             fetchHeaders.push({name: key, value: value});
-        try {
-            await client.send('Fetch.continueRequest', { requestId: requestId, headers: fetchHeaders });
-            debug("continueRequest success on headers", params.request.url);
-        } catch (e) {}
-    });
-    return patterns;
+        return {
+            headers: fetchHeaders
+        }
+    };
+    return {
+        patterns: patterns,
+        callback: callback,
+        stage: "Request"
+    }
 }
 
+async function overrideResponsesMap(client) {
+    const resourceMap = {
+        "https://cdn.userway.org/widgetapp/2025-01-06-11-33-33/widget_app_base_1736163213276.js xxx": "https://cdn.userway.org/widgetapp/2024-12-23-09-27-55/widget_app_base_1734946075448.js",
+        "https://static.klaviyo.com/onsite/js/runtime.c2fa93361c4305723baf.js?cb=1&v2-route=1": "https://static.klaviyo.com/onsite/js/runtime.2e57d1c55b996b57fc0b.js?cb=1&v2-route=1"
+    }
+    patterns = [];
+    for (const url of Object.keys(resourceMap)){
+        patterns.push({
+            urlPattern: url,
+            resourceType: "",
+            requestStage: "Request"
+        })
+    }
+    const callback = (params) => {
+        debug("ReqeustPaused on overrideResponsesMap", params.request.url);
+        if (!resourceMap[params.request.url])
+            return {};
+        const toURL = resourceMap[params.request.url];
+        return {url: toURL};
+    }
+    return {
+        patterns: patterns,
+        callback: callback,
+        stage: "Request"
+    }
+}
+
+
+const overrideLists = [
+    // overrideHeaderTS,
+    overrideResponsesMap,
+    // overrideResponsesInDir
+];
 async function overrideResources(client){
-    p1 = await overrideHeaderTS(client);
-    p2 = await overrideResponses(client);
-    const patterns = [...p1, ...p2];
-    console.log("Send Fetch.enable", patterns);
-    await client.send('Fetch.enable', {patterns: patterns});
+    let allPatterns = [], allCallbacks = {'Request': [], 'Response': []};
+    let patterns, callback, stage;
+    for (const override of overrideLists){
+        ({patterns, callback, stage} = await override(client));
+        allPatterns = allPatterns.concat(patterns);
+        allCallbacks[stage].push(callback);
+    }
+    console.log("Send Fetch.enable", allPatterns);
+    await client.send('Fetch.enable', {patterns: allPatterns});
+    await client.on('Fetch.requestPaused', async (params) => {
+        stage = params.requestStatusText ? "Response" : "Request";
+        debug(`Request paused on ${stage}`, params.request.url);
+        let overrideObj = {};
+        for (const callback of allCallbacks[stage]){
+            callbackObj = callback(params);
+            overrideObj = {...overrideObj, ...callbackObj};
+        }
+        call = stage == 'Request' ? 'Fetch.continueRequest' : 'Fetch.fulfillRequest';
+        try {
+            await client.send(call, { requestId: params.requestId, ...overrideObj });
+        } catch (e){
+            if (stage == 'Response')
+                console.error("Error on", call, e);
+        }
+    });
 }
 
 /**
