@@ -2,6 +2,8 @@
 
 This dataset is designed to support experiments and analysis of fidelity violations in archived web pages. The experiments were conducted using **pywb 2.8.3**. The dataset is hosted on Azure Blob Storage and is available as `.tar.gz` archives.
 
+> **Note**: FidEx includes additional instrumentation in `wombat.js` for silent error detection. To enable this feature, replace the `pywb/static/wombat.js` in **pywb** with the version provided at [`src_changed/pywb/static/wombat.js`](../src_changed/pywb/static/wombat.js).
+
 ## Dataset Overview
 
 The dataset has three parts:
@@ -51,4 +53,4 @@ The dataset is available for download as `.tar.gz` archives:
 
 - [Metadata](https://fidexdataset.blob.core.windows.net/dataset/metadata.tar.gz)
 - [Example Dataset](https://fidexdataset.blob.core.windows.net/dataset/examples.tar.gz)
-- **Full Dataset**: The full dataset is split into multiple `.tar.gz` archives. The list of links is available in the ```collections_list.json```
+- **Full Dataset**: The full dataset is split into multiple `.tar.gz` archives. The list of links is available in the [`collections_list.json`](collections_list.json)

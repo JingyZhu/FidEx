@@ -21,5 +21,6 @@ results*
 *.npy
 *.csv
 !fidelity_check/testcases*.json
+!dataset/collections_list.json
 !misc/examples/*
 !package.json
