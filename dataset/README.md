@@ -43,19 +43,7 @@ Both datasets include the following directory structure for each collection (exa
 > **Note**: For the complete dataset, to determine which page load belongs to which collection, refer to the `sub_archive` attribute in `metadata.json` within the metadata dataset.
 
 - **`warcs/`**: Contains WARC files for each page load.
-- **`instrumentations/`**: Contains instrumentation data for each load, with files prefixed and suffixed as follows:
-  - **Prefixes**:
-    - `live`: Data collected while loading live web pages.
-    - `proxy`: Data collected while loading with pywb's Proxy Mode (not rewritten).
-    - `archive`: Data collected while loading with pywb's Archive Mode (rewritten).
-  - **Suffixes**:
-    - `{N}_dom.json`: Layout tree collected after triggering the Nth interaction (initial load if no N).
-    - `{N}.jpg`: Screenshot taken after triggering the Nth interaction.
-    - `events.json`: Interactions offered by the page (in the same order as the previous files).
-    - `exception_failfetch.json`: Uncaught exceptions and failed fetches.
-    - `requestStacks.json`: Stack traces for each initiated request.
-    - `writes.json`: JavaScript writes performed to the DOM and CSSOM.
-    - `writeStacks.json`: Stack traces for each write operation.
+- **`instrumentations/`**: Contains instrumentation data for each load. Detailed structure is in [`instrumentation_tree.md`](instrumentation_tree.md).
 
 ## Download Links
 
