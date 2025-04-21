@@ -6,11 +6,12 @@ This dataset is designed to support experiments and analysis of fidelity violati
 
 ## Dataset Overview
 
-The dataset has three parts:
+The dataset has the following parts:
 
 1. **Metadata**: Provides information about each page load, including its directory, collection, and URL during loading.
-2. **Example Dataset**: A small set of page examples with fidelity violations, pinpointed errors, and instrumentation data.
-3. **Full Dataset**: Comprehensive data for all pages detected with fidelity violations by FidEx.
+3. **Example Dataset**: A small set of page examples with fidelity violations, pinpointed errors, and instrumentation data.
+2. **Commonly Pinpointed Dataset**: Top commonly pinpointed errors for pages with fidelity issues. Each pinpointed error has 10 example pages.
+4. **Full Dataset**: Comprehensive data for all pages detected with fidelity violations by FidEx.
 
 ### Metadata
 
@@ -36,10 +37,11 @@ The metadata includes the following files and directories:
 
 ### Example and Complete Datasets
 
-Both datasets include the following directory structure for each collection (example dataset only has 1 collection):
+All datasets other than the metadata include the following directory structure for each collection (example dataset only has 1 collection):
 ```
 ├── instrumentations
-└── warcs
+├── warcs
+└── ...
 ```
 
 > **Note**: For the complete dataset, to determine which page load belongs to which collection, refer to the `sub_archive` attribute in `metadata.json` within the metadata dataset.
@@ -53,4 +55,5 @@ The dataset is available for download as `.tar.gz` archives:
 
 - [Metadata](https://fidexdataset.blob.core.windows.net/dataset/metadata.tar.gz)
 - [Example Dataset](https://fidexdataset.blob.core.windows.net/dataset/examples.tar.gz)
+- [Commonly Pinpointed Dataset](https://fidexdataset.blob.core.windows.net/dataset/common_pinpoint.tar.gz)
 - **Full Dataset**: The full dataset is split into multiple `.tar.gz` archives. The list of links is available in the [`collections_list.json`](collections_list.json)
