@@ -141,7 +141,7 @@ async function getActivePage(browser) {
             {waitUntil: 'load'}
         )
         await eventSync.sleep(1000);
-        await dummyRecording(page, url);
+        await dummyRecording(page);
         await eventSync.sleep(1000);
         
         let recordPage = await getActivePage(browser);
@@ -168,33 +168,33 @@ async function getActivePage(browser) {
             mobile: false
         });
 
-        let excepFF = null, 
-            executionStacks = null,
-            adpt = new adapter.BaseAdapter(client);
+        let excepFF = new execution.ExcepFFHandler(client),
+            executionStacks = new execution.ExecutionStacks(client),
+            adpt = new adapter.BaseAdapter(client),
+            fetchedRS = new execution.FetchedResources(client);
 
+        fetchedRS.turnOnFetchTrace();    
         if (options.exetrace) {
-            excepFF = new execution.ExcepFFHandler();
-            executionStacks = new execution.ExecutionStacks();
-            client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
-            client.on('Runtime.consoleAPICalled', params => executionStacks.onWriteStack(params))
-            client.on('Network.requestWillBeSent', params => {
-                excepFF.onRequest(params);
-                executionStacks.onRequestStack(params);
-            })
-            client.on('Network.responseReceived', params => excepFF.onFetch(params))
-            client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
-        }
+            // assert(!options.disableJavascript, "Cannot disable JavaScript when enabling execution trace");
+            executionStacks.turnOnRequestTrace();
+            executionStacks.turnOnWriteTrace();
+            excepFF.turnOnExcepTrace();
+            excepFF.turnOnFFTrace();
+        } 
+        
+        if (options.disableJavascript)
+            await recordPage.setJavaScriptEnabled(false);
         // recordPage.on('response', async response => executableResources.onResponse(response));
         await eventSync.sleep(1000);
 
         await preventNavigation(recordPage);
         await preventWindowPopup(recordPage);
-        if (!options.minimal) {
-            const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
-            const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
-            await recordPage.evaluateOnNewDocument(nwoScript);
-            await recordPage.evaluateOnNewDocument(csScript);
-        }
+        
+        const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+        const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
+        await recordPage.evaluateOnNewDocument(nwoScript);
+        await recordPage.evaluateOnNewDocument(csScript);
+
         if (options.exetrace)
             await recordPage.evaluateOnNewDocument("__trace_enabled = true");
         // // Seen clearCache Cookie not working, can pause here to manually clear them
@@ -225,21 +225,12 @@ async function getActivePage(browser) {
         } catch { 
             // throw new Error('TimeoutError: Network idle')
         }
-        if (options.minimal) {
-            const finalURL = recordPage.url();
-            // * Step 10: Download recorded archive
-            await page.goto(
-                "chrome-extension://fpeoodllldobpkbkabpblcfaogecpndd/index.html",
-                {waitUntil: 'load'}
-            )
-            await eventSync.sleep(500);
-            let {recordURL, ts} = await clickDownload(page, finalURL);
-            // ! Signal of the end of the program
-            console.log("recorded page:", JSON.stringify({ts: ts, url: recordURL}));
-            return;
-        }
+
+        // Adpation for replayweb.page if set
+        let { mainFrame } = await adpt.getMainFrame(recordPage);
+
         if (scroll)
-            await measure.scroll(recordPage);
+            await measure.scroll(mainFrame);
 
         if (options.manual)
             await eventSync.waitForReady();
@@ -249,7 +240,6 @@ async function getActivePage(browser) {
             excepFF.afterInteraction('onload', {});
 
 
-        const mainFrame = await recordPage.mainFrame();
         // * Step 6: Collect the screenshots and all other measurement for checking fidelity
         if (options.rendertree){
             const renderInfoRaw = await measure.collectRenderTree(mainFrame,
@@ -261,7 +251,7 @@ async function getActivePage(browser) {
             await measure.collectNaiveInfo(mainFrame, dirname, filename);
 
         const onloadURL = recordPage.url();
-
+        
         // * Step 7: Interact with the webpage
         if (options.interaction){
             const allEvents = await measure.interaction(mainFrame, client, excepFF, url, dirname, filename, options);
@@ -273,7 +263,7 @@ async function getActivePage(browser) {
         // * Step 8: Collect the writes to the DOM
         // ? If seeing double-size writes, maybe caused by the same script in tampermonkey.
         if (options.write){
-            await loadToChromeCTXWithUtils(recordPage.mainFrame(), `${__dirname}/../chrome_ctx/node_writes_collect.js`);
+            await loadToChromeCTXWithUtils(mainFrame, `${__dirname}/../chrome_ctx/node_writes_collect.js`);
             const writeLog = await mainFrame.evaluate(() => { 
                 collect_writes();
                 return __write_log_processed;
@@ -291,6 +281,9 @@ async function getActivePage(browser) {
             fs.writeFileSync(`${dirname}/${filename}_writeStacks.json`, JSON.stringify(executionStacks.writeStacksToList(), null, 2));
             // fs.writeFileSync(`${dirname}/${filename}_resources.json`, JSON.stringify(executableResources.resources, null, 2));
         }
+        
+        fs.writeFileSync(`${dirname}/${filename}_fetches.json`, JSON.stringify(fetchedRS.receivedResources, null, 2));
+        fs.writeFileSync(`${dirname}/${filename}_textualResources.json`, JSON.stringify(fetchedRS.textualResources, null, 2));
         
         // * Step 10: Download recorded archive
         await page.goto(
