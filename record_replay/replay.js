@@ -18,6 +18,7 @@ const { startChrome,
 const { recordReplayArgs } = require('../utils/argsparse');
 const { loggerizeConsole } = require('../utils/logger');
 const adapter = require('../utils/adapter');
+const assert = require('assert');
 
 loggerizeConsole();
 const TIMEOUT = 60*1000;
@@ -59,22 +60,19 @@ const TIMEOUT = 60*1000;
         await eventSync.sleep(1000);
         
         // * Step 1: Parse and Inject the overriding script
-        let excepFF = null, 
-            executionStacks = null,
+        let excepFF = new execution.ExcepFFHandler(client),
+            executionStacks = new execution.ExecutionStacks(client),
             adpt = new adapter.BaseAdapter(client),
+            fetchedRS = new execution.FetchedResources(client),
             invarObserver = null;
 
+
+        fetchedRS.turnOnFetchTrace();    
         if (options.exetrace) {
-            excepFF = new execution.ExcepFFHandler();
-            executionStacks = new execution.ExecutionStacks();
-            client.on('Runtime.exceptionThrown', params => excepFF.onException(params))
-            client.on('Runtime.consoleAPICalled', params => executionStacks.onWriteStack(params))
-            client.on('Network.requestWillBeSent', params => {
-                excepFF.onRequest(params);
-                executionStacks.onRequestStack(params);
-            })
-            client.on('Network.responseReceived', params => excepFF.onFetch(params))
-            client.on('Network.loadingFailed', params => excepFF.onFailFetch(params))
+            executionStacks.turnOnRequestTrace();
+            executionStacks.turnOnWriteTrace();
+            excepFF.turnOnExcepTrace();
+            excepFF.turnOnFFTrace();
         }
 
         // * Step 1.5: Collect all execution contexts (for replayweb.page)
@@ -87,15 +85,20 @@ const TIMEOUT = 60*1000;
             const overrideInfos = override.readOverrideInfo(`${dirname}/${overrideName}`);
             await override.overrideResources(client, overrideInfos);
         }
+        if (options.proxyTs) {
+            assert(options.proxy);
+            await override.overrideReqestTS(client, options.proxyTs, 
+                                            {patchTimestamp: options.patchTs, url: urlStr});
+        }
         
         await preventNavigation(page);
         await preventWindowPopup(page);
-        if (!options.minimal) {
-            const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
-            const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
-            await page.evaluateOnNewDocument(nwoScript);
-            await page.evaluateOnNewDocument(csScript);
-        }
+        
+        const nwoScript = fs.readFileSync( `${__dirname}/../chrome_ctx/node_writes_override.js`, 'utf8');
+        const csScript = fs.readFileSync( `${__dirname}/../chrome_ctx/capture_sync.js`, 'utf8');
+        await page.evaluateOnNewDocument(nwoScript);
+        await page.evaluateOnNewDocument(csScript);
+        
         if (options.exetrace)
             await page.evaluateOnNewDocument("__trace_enabled = true");
         Error.stackTraceLimit = Infinity;
@@ -175,7 +178,9 @@ const TIMEOUT = 60*1000;
         // * Step 8: If replayweb, collect HTMLs and JavaScripts
         if (options.replayweb)
             adpt.writeAdapterInfo(dirname, filename);
-            
+        
+        fs.writeFileSync(`${dirname}/${filename}_fetches.json`, JSON.stringify(fetchedRS.receivedResources, null, 2));
+        fs.writeFileSync(`${dirname}/${filename}_textualResources.json`, JSON.stringify(fetchedRS.textualResources, null, 2));       
         fs.writeFileSync(`${dirname}/${filename}_done`, "");
         
     } catch (err) {

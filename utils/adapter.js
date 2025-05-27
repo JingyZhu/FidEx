@@ -122,7 +122,8 @@ class ReplayWebAdapter extends BaseAdapter {
 
 }
 
+
 module.exports = {
     BaseAdapter,
-    ReplayWebAdapter
+    ReplayWebAdapter,
 }

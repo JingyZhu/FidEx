@@ -46,9 +46,30 @@ function targetStack(stackInfo) {
 
 class ExecutionStacks {
 
-    constructor(){
+    constructor(cdp){
+        this.client = cdp;
+        this.reqTraceOn = false;
+        this.writeTraceOn = false;
         this.requestStacks = new Map();
         this.writeStacks = new Map();
+    }
+
+    turnOnRequestTrace(){
+        if (this.reqTraceOn)
+            return;
+        this.reqTraceOn = true;
+        this.client.on('Network.requestWillBeSent', params => {
+            this.onRequestStack(params);
+        });
+    }
+
+    turnOnWriteTrace(){
+        if (this.writeTraceOn)
+            return;
+        this.writeTraceOn = true;
+        this.client.on('Runtime.consoleAPICalled', params => {
+            this.onWriteStack(params);
+        });
     }
 
     /**
@@ -130,57 +151,40 @@ class ExecutionStacks {
     }
 }
 
-// ?? Currently not used since execution matching query for executables itself
-class ExecutableResources {
-    resources = {};
-    constructor(){
-        this.resources = [];
-        this.filterList = ['image', 'video', 'audio', 'application/pdf']
-    }
-
-    async onResponse(response) {
-        const request = response.request();
-        const statuscode = response.status();
-        if (statuscode >= 300) // Redirection
-            return;
-        // Check mime type of the response, if image or video, skip adding to resources
-        const mime = response.headers()['content-type'];
-        if (mime) {
-            for (const filter of this.filterList) {
-                if (mime.includes(filter)){
-                    console.log("Filtered", request.url());
-                    return;
-                }
-            }
-        }
-        let responseObj = {
-            url: request.url(),
-            status: statuscode,
-            method: request.method(),
-        }
-
-        try {
-            const responseBody = await response.text();
-            responseObj['body'] = responseBody;
-        } catch (err) {
-            // console.log("\tGot exception on response.body", err.message, request.url());
-            return;
-        }
-        this.resources[responseObj.url] = responseObj;
-    }
-}
-
 /**
  * Collect exceptions and failed fetches during loading the page.
  */
 class ExcepFFHandler {
-    exceptions = [];
-    requestMap = {};
-    failedFetches = [];
-    excepFFDelta = [];
-    excepFFTotal = {
-        exceptions: [],
-        failedFetches: []
+
+    constructor(cdp){
+        this.client = cdp;
+        this.excepTraceOn = false;
+        this.ffTraceOn = false;
+
+        this.exceptions = [];
+        this.requestMap = {};
+        this.failedFetches = [];
+        this.excepFFDelta = [];
+        this.excepFFTotal = {
+            exceptions: [],
+            failedFetches: []
+        }
+    }
+
+    turnOnExcepTrace(){
+        if (this.excepTraceOn)
+            return;
+        this.excepTraceOn = true;
+        this.client.on('Runtime.exceptionThrown', params => this.onException(params))
+    }
+
+    turnOnFFTrace(){
+        if (this.ffTraceOn)
+            return;
+        this.ffTraceOn = true;
+        this.client.on('Network.requestWillBeSent', params => this.onRequest(params))
+        this.client.on('Network.responseReceived', params => this.onFetch(params))
+        this.client.on('Network.loadingFailed', params => this.onFailFetch(params))
     }
 
     /**
@@ -270,6 +274,75 @@ class ExcepFFHandler {
     }
 }
 
+class FetchedResources {
+
+    constructor(cdp){
+        this.client = cdp;
+        this.fetchTraceOn = false;
+        this.requestMap = {}; // {requestId: Network.Request}
+        this.responseMap = {}; // {requestId: Network.Response}
+
+        this.receivedResources = [];
+        this.textualResources = {};
+        
+    }
+
+    turnOnFetchTrace(){
+        if (this.fetchTraceOn)
+            return;
+        this.fetchTraceOn = true;
+
+        const includeTypes = ['html', 'javascript', 'css', 'json', 'plain']
+        this.client.on('Network.requestWillBeSent', (params) => {
+            const { requestId, request } = params;
+            if (request.url.includes('chrome-extension://'))
+                return;
+            if (request.url.includes('blob:'))
+                return;
+            this.requestMap[requestId] = request;
+        });
+
+        this.client.on('Network.responseReceived', (params) => {
+            const { requestId, response } = params;
+            const method = this.requestMap[params.requestId] && this.requestMap[params.requestId].method;
+            if (!method)
+                return;
+            if (response.status / 100 > 2)
+                return;
+            const successObj = {
+                url: response.url,
+                method: method,
+                status: response.status,
+                mime: response.mimeType,
+                resourceType: params.type,
+                headers: response.headers
+            }
+            this.receivedResources.push(successObj);
+
+            const mimeType = response.mimeType;
+            let mimeToInclude = false;
+            for (const targetType of includeTypes) {
+                if (mimeType.includes(targetType)){
+                    mimeToInclude = true;
+                    break
+                }
+            }
+            if (mimeToInclude)
+                this.responseMap[requestId] = response;
+        });
+
+        this.client.on('Network.loadingFinished', async (params) => {
+            const { requestId } = params;
+            if (!this.responseMap[requestId])
+                return;
+            try {
+                const { body, base64Encoded } = await this.client.send('Network.getResponseBody', { requestId });
+                this.textualResources[this.responseMap[requestId].url] = body;
+            } catch (e) { console.error(`Error on getResponseBody ${this.responseMap[requestId].url}: ${e}`)};
+        });
+    }
+}
+
 
 class InvariantObserver {
     constructor(){
@@ -302,5 +375,6 @@ module.exports = {
     parseStack,
     ExecutionStacks,
     ExcepFFHandler,
+    FetchedResources,
     InvariantObserver,
 }

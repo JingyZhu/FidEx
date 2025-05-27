@@ -346,7 +346,7 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
             renderHTML.push(`${'  '.repeat(element.depth)}${i}:${line}`)
         }
         returnObj['renderHTML'] = renderHTML
-        // * Switch stage to next
+        // * Switch stage to next stage
         await iframe.evaluate(() => {
             if (!__current_stage)
                 __current_stage = 'onload';
