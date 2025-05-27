@@ -13,6 +13,12 @@ class Event:
     def has_class_or_id(self):
         return '.' in self.element or '#' in self.element
 
+    @cached_property
+    def id(self):
+        # Seen some element has empty '' between classes because of double space
+        classes = [c for c in self.element.split('.') if c not in ['']]
+        return '.'.join(classes)
+
     def __eq__(self, other):
         if self.xpath == other.xpath:
             return True
@@ -65,4 +71,13 @@ def diff_events(left_seq: "List[Event]", right_seq: "List[Event]") -> "List[Even
 
 
 def load_events(events: list) -> "List[Event]":
-    return [Event(evt) for evt in events]
+    loaded_events = []
+    seen = set()
+    for evt in events:
+        evt = Event(evt)
+        if evt.id not in seen:
+            seen.add(evt.id)
+            loaded_events.append(evt)
+        else:
+            seen.add(evt.id)
+    return loaded_events

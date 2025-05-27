@@ -297,6 +297,7 @@ class LayoutElement:
         if features_eq(self, other) and dimension_eq(self, other):
             return True
         # Dynamic element that changes itself 
+        # ! Temp comment out for pure layout match
         if js_dynamism_self_eq(self, other):
             # Exclude body dynamic match tagging
             if self.tagname != 'body':
@@ -304,6 +305,7 @@ class LayoutElement:
             if other.tagname != 'body':
                 other.dynamic_matched = True
             return True
+        # ! End of comment
         # Dynamism caused by css
         if css_dynamism_self_eq(self, other):
             return True
