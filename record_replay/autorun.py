@@ -83,8 +83,8 @@ def replay(url, archive_name,
                 url], cwd=_FILEDIR)
 
 def record_replay(url, archive_name,
-                  file_suffix,
                   file_prefix=None,
+                  file_suffix=None,
                   chrome_data=DEFAULT_CHROMEDATA,
                   worker_id=None,
                   write_path=f'{_CURDIR}/writes',
@@ -95,9 +95,12 @@ def record_replay(url, archive_name,
                   pw_archive=default_archive,
                   remote_host=REMOTE,
                   sshclient=None,
+                  pywb_server=None,
                   record_live=False,
                   replay_archive=False,
+                  replay_proxy=False,
                   replay_ts=None,
+                  replay_proxy_ts=None,
                   arguments=None):
     """
     Now record and replay should be totally separate process, although they're still in the same function
@@ -112,10 +115,15 @@ def record_replay(url, archive_name,
         wr_archive: Name of the archive to save & export on webrecorder
         pw_archive: Name of the archive to import for warc on pywb
         remote_host: True if run on remote host, False if run on local host
+        pywb_server (upload.PYWBServer): The pywb server to use for replay. Used to get archive name and port.
         record_live: run record on the live
-        replay_archive (bool | str): True if run with archive, False if not run with archive, str if run on specific proxyhost
+        replay_archive (bool | str): True if run with archive, False if not run with archive, str if run on specific host
+        replay_proxy (bool | str): True if run in proxy mode, False if not run with proxy, str if run on specific host
         replay_ts: str: If replay is set, run the specific timestamp for replay
+        replay_proxy_ts: str: If replay is set, run the specific timestamp for proxy
     """
+    assert file_prefix or file_suffix, "file_prefix or file_suffix must be set"
+    construct_filename = lambda prefix, suffix, delim='-': delim.join(filter(None, [prefix, suffix]))
     if arguments is None:
         arguments = DEFAULTARGS
     if upload_write_archive is None:
@@ -136,8 +144,8 @@ def record_replay(url, archive_name,
     if download_path is None:
         download_path = f'{chrome_data}/Downloads'
     if record_live:
-        file_prefix = file_prefix or 'record'
-        filename = f'{file_prefix}-{file_suffix}'
+        file_prefix = file_prefix or 'live'
+        filename = construct_filename(file_prefix, file_suffix)
         ts, record_url = record(url, archive_name, 
                                 chrome_data=chrome_data, 
                                 write_path=write_path, 
@@ -149,43 +157,41 @@ def record_replay(url, archive_name,
         # Logic still in testing
         record_success = ts is not None
         if record_success:
-            metadata[file_prefix][file_suffix] = {
+            metadata.update({
                 'ts': ts,
                 'url': record_url,
                 'req_url': url
-            }
-            check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{archive_name}_{file_suffix}.warc'], cwd=_FILEDIR)
-            client.upload_warc(f'{download_path}/{archive_name}_{file_suffix}.warc', pw_archive, pw_archive , mv_only=True)
+            })
+            warc_name = construct_filename(archive_name, file_suffix, '_')
+            check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{warc_name}.warc'], cwd=_FILEDIR)
+            client.upload_warc(f'{download_path}/{warc_name}.warc', pw_archive, pw_archive , mv_only=True)
             
 
-    if replay_archive:
+    if replay_archive or replay_proxy:
         replay_ts = replay_ts or file_suffix
         # * The function should take care of URL to be run on
         # record_url = metadata['record'].get(file_suffix, {}).get('url', url)
-        record_url = url
-        a_pw_archive = wb_manager.collection(pw_archive)
-        file_prefix = file_prefix or 'replay'
-        filename = f'{file_prefix}-{file_suffix}'
-        if isinstance(replay_archive, str):
-            PHOST = replay_archive
-        elif replay_archive == True:
-            PHOST = PROXYHOST
-        else:
-            PHOST = PROXYHOST
-        proxy_arguments = arguments + ['--proxy', PHOST, '--proxy-ts', replay_ts]
-        replay(record_url, archive_name, 
+        file_prefix = file_prefix or 'archive'
+        filename = construct_filename(file_prefix, file_suffix)
+        replay_arguments = arguments
+        
+        PARCHIVE = pywb_server.archive if pywb_server else pw_archive
+        if replay_archive:
+            PHOST = replay_archive if isinstance(replay_archive, str) else HOST
+            url = f'{PHOST}/{PARCHIVE}/{replay_ts}/{url}' # TODO Construct URL with wayback format
+        elif replay_proxy == True:
+            PHOST = replay_proxy if isinstance(replay_proxy, str) else PROXYHOST
+            replay_arguments = arguments + ['--proxy', PHOST, '--proxy-ts', replay_proxy_ts]
+        replay(url, archive_name, 
                 chrome_data=chrome_data,
                 write_path=write_path, 
                 filename=filename,
-                arguments=proxy_arguments)
+                arguments=replay_arguments)
         # Logic still in testing
-        metadata[file_prefix][file_suffix] = {
-            'url': record_url,
-            'proxy': PHOST,
-            'archive': pw_archive,
-            'sub_archive': a_pw_archive,
+        metadata.update({
+            'archive': PARCHIVE,
             'directory': archive_name,
-        }
+        })
     
     # The metadata will also be merged and dump together later. Here just leave a copy at the directory
     if os.path.exists(f'{write_path}/{archive_name}'):
@@ -197,8 +203,8 @@ def record_replay(url, archive_name,
 
 
 def record_replay_all_urls(urls,
-                           file_suffix,
                            file_prefix=None,
+                           file_suffix=None,
                            chrome_data=DEFAULT_CHROMEDATA,
                            worker_id=None,
                            write_path=f'{_CURDIR}/writes',
@@ -208,9 +214,12 @@ def record_replay_all_urls(urls,
                            wr_archive=default_archive,
                            pw_archive=default_archive, 
                            remote_host=REMOTE,
+                           pywb_server=None,
                            record_live=False,
                            replay_archive=False,
+                           replay_proxy=False,
                            replay_ts=None,
+                           replay_proxy_ts=None,
                            arguments=None) -> set:
     if arguments is None:
         arguments = DEFAULTARGS
@@ -225,8 +234,8 @@ def record_replay_all_urls(urls,
         archive_name = url_utils.calc_hostname(req_url)
         try:
             url_metadata = record_replay(req_url, archive_name, 
-                                    file_suffix,
                                     file_prefix=file_prefix,
+                                    file_suffix=file_suffix,
                                     chrome_data=chrome_data,
                                     worker_id=worker_id,
                                     write_path=write_path, 
@@ -236,9 +245,12 @@ def record_replay_all_urls(urls,
                                     wr_archive=wr_archive, 
                                     pw_archive=pw_archive, 
                                     remote_host=remote_host, 
+                                    pywb_server=pywb_server,
                                     record_live=record_live,
                                     replay_archive=replay_archive,
+                                    replay_proxy=replay_proxy,
                                     replay_ts=replay_ts,
+                                    replay_proxy_ts=replay_proxy_ts,
                                     arguments=arguments)
             logging.info(f"Finished {url}")
             if len(url_metadata) == 0:
@@ -252,8 +264,8 @@ def record_replay_all_urls(urls,
     return finished_urls
 
 
-def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
-                                 file_prefix=None,
+def record_replay_all_urls_multi(urls, num_workers=8, 
+                                 file_prefix=None, file_suffix=None,
                                  chrome_data_dir=os.path.dirname(DEFAULT_CHROMEDATA),
                                  metadata='metadata/metadata',
                                  write_path=f'{_CURDIR}/writes',
@@ -264,7 +276,9 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
                                  remote_host=REMOTE,
                                  record_live=False,
                                  replay_archive=False,
+                                 replay_proxy=False,
                                  replay_ts=None,
+                                 replay_proxy_ts=None,
                                  arguments=None):
     """
     The  multi-threaded version of record_replay_all_urls
@@ -294,7 +308,7 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
             wb_manager = upload.WBManager(split=SPLIT_ARCHIVE, worker_id=i)
             pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive))
             pywb_server_proxy = upload.PYWBServer(archive=wb_manager.collection(pw_archive), proxy=True)
-            if proxy: # ! Need change this
+            if replay_proxy:
                 pywb_server_proxy.start()
             if replay_archive:
                 pywb_server.start()
@@ -307,9 +321,9 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
             us = us._replace(netloc=f'{hostname}:{port}')
             return urlunsplit(us)
 
-    def record_replay_worker(url, 
-                             file_suffix,
+    def record_replay_worker(url,
                              file_prefix,
+                             file_suffix,
                              chrome_data,
                              worker_id,
                              write_path,
@@ -320,23 +334,30 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
                              remote_host,
                              record_live,
                              replay_archive,
+                             replay_proxy,
                              replay_ts,
+                             replay_proxy_ts,
                              arguments):
-        pywb_server = pywb_servers[worker_id]
+        if replay_archive:
+            pywb_server = pywb_servers[worker_id][0] 
+        elif replay_proxy:
+            pywb_server = pywb_servers[worker_id][1]
         if CONFIG.separate_collection:
             coll_name = url_utils.calc_hostname(url)
-            coll_name = upload.BaseManager.escape(f'{pw_archive}_{coll_name}')
+            coll_name = upload.BaseManager.escape(coll_name)
             pywb_server.restart(coll_name)
         if replay_archive:
-            replay_archive = _replace_port(PROXYHOST, pywb_server.port)
+            replay_archive = _replace_port(HOST, pywb_server.port)
+        if replay_proxy:
+            replay_proxy = _replace_port(PROXYHOST, pywb_server.proxy_port)
         if not os.path.exists(chrome_data):
             # call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
             time.sleep(worker_id*5)
         logging.info(f"Start {worker_id} {url}")
         succeed_url = record_replay_all_urls([url],
-                               file_suffix,
                                file_prefix=file_prefix,
+                               file_suffix=file_suffix,
                                chrome_data=chrome_data,
                                worker_id=worker_id,
                                write_path=write_path,
@@ -345,9 +366,12 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
                                wr_archive=wr_archive,
                                pw_archive=pw_archive, 
                                remote_host=remote_host,
+                               pywb_server=pywb_server,
                                record_live=record_live,
                                replay_archive=replay_archive,
+                               replay_proxy=replay_proxy,
                                replay_ts=replay_ts,
+                               replay_proxy_ts=replay_proxy_ts,
                                arguments=arguments)
         finished_urls.update(succeed_url)
         with id_lock:
@@ -374,8 +398,8 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
                 # Submit the worker thread to the pool
                 task = executor.submit(record_replay_worker, 
                                         url=url,
-                                        file_suffix=file_suffix,
                                         file_prefix=file_prefix,
+                                        file_suffix=file_suffix,
                                         chrome_data=f'{chrome_data_dir}/record_replay_{common.get_hostname()}_{worker_id}',
                                         worker_id=worker_id,
                                         write_path=write_path,
@@ -386,7 +410,9 @@ def record_replay_all_urls_multi(urls, file_suffix, num_workers=8,
                                         remote_host=remote_host,
                                         record_live=record_live,
                                         replay_archive=replay_archive,
+                                        replay_proxy=replay_proxy,
                                         replay_ts=replay_ts,
+                                        replay_proxy_ts=replay_proxy_ts,
                                         arguments=arguments)
                 tasks.append(task)
             else:

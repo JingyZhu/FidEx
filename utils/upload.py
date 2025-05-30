@@ -6,10 +6,13 @@ import os
 import re
 import glob
 import paramiko
-from scp import SCPClient
+import json
 import time
 import socket, threading
+from collections import defaultdict
+from scp import SCPClient
 from subprocess import check_call, call, check_output, Popen, DEVNULL, PIPE
+from concurrent import futures
 
 from fidex.config import CONFIG
 from fidex.utils import common
@@ -50,10 +53,26 @@ class PYWBServer:
         self.thread.start()
         return self.port
     
-    def __del__(self):
+    def stop(self):
         if self.server:
             print(f"Killing server {self.port}")
             call(f"kill -9 {self.server}", shell=True)
+            self.thread = None
+            self.server = None
+    
+    def restart(self, archive=None):
+        self.stop()
+        if archive:
+            self.archive = archive
+        if not os.path.exists(f'{ARCHIVEDIR}/collections/{self.archive}'):
+            call(f"{PYWBENV} && cd {ARCHIVEDIR} && wb-manager init {self.archive} > /dev/null", shell=True)
+        self.thread = threading.Thread(target=self._start_server)
+        self.thread.daemon = True
+        self.thread.start()
+        return True
+
+    def __del__(self):
+        self.stop()
 
 class WBManager:
     def __init__(self, split=False, worker_id=None):
@@ -88,7 +107,16 @@ class WBManager:
         call(reindex_cmd, shell=True)
         
 
-class SSHClientManager:
+class BaseManager:
+    def __init__(self, wb_manager=None):
+        self.wb_manager = wb_manager or WBManager()
+
+    @staticmethod
+    def escape(collection):
+           return collection.replace('.', '_')
+
+
+class SSHClientManager(BaseManager):
     def __init__(self, server=None, user=None, password=None, wb_manager=None):
         assert not server or (server and user and password), "If server provided, user and password should also be provided"
         if server is None:
@@ -152,6 +180,14 @@ class SSHClientManager:
             call(f"rm -rf {screenshot_path}", shell=True)
         except Exception as e:
             print("Exception on uploading screenshots", str(e))
+    
+    def get_metadata(self, col_name, directory):
+        # TODO
+        raise NotImplementedError
+
+    def merge_metadata(self, col_name, directory, metadata):
+        # TODO
+        raise NotImplementedError
 
     def upload_write(self, write_path, directory='default'):
         try:
@@ -193,7 +229,7 @@ class SSHClientManager:
             print("Exception on uploading warc", str(e))
 
 
-class LocalUploadManager:
+class LocalUploadManager(BaseManager):
     def __init__(self, wb_manager=None):
         self.wb_manager = wb_manager
 
@@ -233,7 +269,8 @@ class LocalUploadManager:
     def upload_write(self, write_path, directory='default'):
         try:
             os.makedirs(f'{ARCHIVEDIR}/writes/{directory}', exist_ok=True)
-            call(f"mv -f {write_path} {ARCHIVEDIR}/writes/{directory}", shell=True)
+            call(f"cp -r {write_path} {ARCHIVEDIR}/writes/{directory}", shell=True)
+            call(f"rm -rf {write_path}", shell=True)
         except Exception as e:
             print("Exception on uploading writes", str(e))
 
@@ -242,12 +279,29 @@ class LocalUploadManager:
             call(f"rm -rf {ARCHIVEDIR}/writes/{directory}", shell=True)
         except Exception as e:
             print("Exception on removing writes", str(e))
+    
+    def get_metadata(self, col_name, directory):
+        if os.path.exists(f'{ARCHIVEDIR}/writes/{col_name}/{directory}/metadata.json'):
+            metadata = json.load(open(f'{ARCHIVEDIR}/writes/{col_name}/{directory}/metadata.json'))
+        else:
+            metadata = {}
+        return metadata
 
-    def upload_warc(self, warc_path, col_name, directory='default', lock=True):
+    def merge_metadata(self, col_name, directory, metadata):
+        full_metadata = {}
+        if os.path.exists(f'{ARCHIVEDIR}/writes/{col_name}/{directory}/metadata.json'):
+            full_metadata = json.load(open(f'{ARCHIVEDIR}/writes/{col_name}/{directory}/metadata.json'))
+        else:
+            os.makedirs(f'{ARCHIVEDIR}/writes/{col_name}/{directory}', exist_ok=True)
+        return full_metadata
+
+    def upload_warc(self, warc_path, col_name, directory='default', lock=True, mv_only=False):
         col_name = self.wb_manager.collection(col_name)
         try:
             os.makedirs(f'{ARCHIVEDIR}/warcs/{directory}', exist_ok=True)
             call(f"mv -f {warc_path} {ARCHIVEDIR}/warcs/{directory}", shell=True)
+            if mv_only:
+                return
             warc_name = warc_path.split('/')[-1]
             command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
             command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
@@ -264,3 +318,51 @@ class LocalUploadManager:
                 self._unlock(col_name)
         except Exception as e:
             print("Exception on uploading warc", str(e))
+    
+    def remove_archive(self, col_name):
+        call(f"rm -rf {ARCHIVEDIR}/collections/{col_name}", shell=True)
+
+    def _upload_worker(self, warc_paths, col_name, lock, archive_name=""):
+        print("Uploading warcs to archive", col_name, warc_paths, flush=True)
+        try:
+            command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
+            command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
+            call(command_init, shell=True)
+            if lock:
+                self._lock(col_name)
+                
+            for warc_path in warc_paths:
+                call(f'cp -r {warc_path} {ARCHIVEDIR}/collections/{col_name}/archive/', shell=True)
+            
+            command_reindex = f"{command_prefix} && wb-manager reindex {col_name}"
+            check_call(command_reindex, shell=True)
+            if lock:
+                self._unlock(col_name)
+            return archive_name
+        except Exception as e:
+            print("Exception _upload_worker", str(e))
+    
+    def upload_warcs_to_archive(self, warc_paths_map, col_name, lock=True, separate_collection=False):
+        """
+        warc_paths_map ({str: [str]}): {archive_name: [warc paths]}. If separate_collection is True, each sublist will be treated as a separate collection.
+        """
+        finished = set()
+        if not separate_collection:
+            warc_paths = [w for warcs in warc_paths_map.values() for w in warcs] # Flatten the list
+            self._upload_worker(warc_paths, col_name)
+        else: # Create a separate collection for each warc
+            with futures.ProcessPoolExecutor(max_workers=16) as executor:
+                results = []
+                count = 0 
+                for archive_name, warcs in warc_paths_map.items():
+                    col_name_sub = BaseManager.escape(f'{col_name}_{archive_name}')
+                    count += 1
+                    results.append(executor.submit(self._upload_worker, warcs, col_name_sub, lock, archive_name))
+                while len(results) > 0:
+                    try:
+                        for result in futures.as_completed(results, timeout=10):
+                            finished.add(result.result())
+                            results.remove(result)
+                    except Exception as e:
+                        print("Exception upload_warcs_to_archive", str(e))
+        return finished
