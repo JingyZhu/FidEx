@@ -663,12 +663,18 @@ class Stack:
     
     @cached_property
     def serialized(self) -> "list[list[Frame]]":
+        def valid_url(url):
+            if 'wombat.js' in url or url == '':
+                return False
+            if url.startswith('pptr:'):
+                return False
+            return True
         all_frames = []
         for call_frames in self.stack:
             sync_frames = []
             call_frames = call_frames['callFrames']
             for frame in call_frames:
-                if 'wombat.js' not in frame['url'] and frame['url'] != '':
+                if valid_url(frame['url']):
                     sync_frames.append(Frame(frame['functionName'], frame['url'], frame['lineNumber'], frame['columnNumber']))
             all_frames.append(sync_frames)
         return all_frames
