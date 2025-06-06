@@ -17,6 +17,7 @@ function recordReplayArgs() {
         .option('-c --chrome_data <chrome_data>', "Directory of Chrome data")
         .option('--headless', "If run in headless mode")
         .option('-p --proxy <proxy>', "Proxy server to use. Note that is chrome is installed with extensions that controls proxy, this could not work.")
+        .option('--proxy-ts <timestamp>', "Timestamp to use for proxy.")
         .option('-e --exetrace', "Enable execution trace for both js run and network fetches")
         .option('--minimal', "Minimal mode for record and replay")
         .option('-o --override [override]', "Override resources (used for proxy error injection currently)")

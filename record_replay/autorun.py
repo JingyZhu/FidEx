@@ -179,7 +179,7 @@ def record_replay(url, archive_name,
         if replay_archive:
             PHOST = replay_archive if isinstance(replay_archive, str) else HOST
             url = f'{PHOST}/{PARCHIVE}/{replay_ts}/{url}' # TODO Construct URL with wayback format
-        elif replay_proxy == True:
+        elif replay_proxy:
             PHOST = replay_proxy if isinstance(replay_proxy, str) else PROXYHOST
             replay_arguments = arguments + ['--proxy', PHOST, '--proxy-ts', replay_proxy_ts]
         replay(url, archive_name, 
@@ -349,7 +349,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
         if replay_archive:
             replay_archive = _replace_port(HOST, pywb_server.port)
         if replay_proxy:
-            replay_proxy = _replace_port(PROXYHOST, pywb_server.proxy_port)
+            replay_proxy = _replace_port(PROXYHOST, pywb_server.port)
         if not os.path.exists(chrome_data):
             # call(['cp', '--reflink=auto', '-r', f'{chrome_data_dir}/base', chrome_data])
             call(['cp', '-r', f'{chrome_data_dir}/base', chrome_data])
