@@ -325,7 +325,9 @@ async function collectRenderTree(iframe, parentInfo, visibleOnly=true) {
             const childInfo = await collectRenderTree(childFrame, currentInfo);
             // Potentially, idx could be overlapped
             childRenderTrees.push({idx: htmlIframe.idx, renderTree: childInfo.renderTree});
-        } catch {}
+        } catch(e) {
+            console.error(`collectRenderTree exception: ${e}`)
+        }
     }
     childRenderTrees.sort((a, b) => a.idx - b.idx);
     childRenderTrees.push({idx: renderTree.length-1, renderTree: []});

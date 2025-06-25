@@ -228,7 +228,7 @@ def record_replay_all_urls(urls,
     for i, url in list(enumerate(urls)):
         logging.info(f"Start {i} {url}") if worker_id is None else logging.info(f"Start {worker_id} {i} {url}")
         try:
-            req_url = url_utils.request_live_url(url)
+            req_url = url_utils.request_live_url(url) if record_live else url
         except:
             continue
         archive_name = url_utils.calc_hostname(req_url)
