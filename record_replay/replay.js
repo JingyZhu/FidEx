@@ -186,7 +186,11 @@ const TIMEOUT = 60*1000;
     } catch (err) {
         console.error(`Replay proxy=${options.proxy?true:false} exception on ${urlStr}: ${err.stack}`);
     } finally {
-        await browser.close();
+        try {
+            await browser.close();
+        } catch {
+            process.kill(browser.process().pid, 'SIGKILL');
+        }
         process.exit();
     }
 })()

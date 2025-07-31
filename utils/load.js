@@ -58,6 +58,10 @@ async function startChrome(chromeData=null, headless=false, proxy=null) {
         headless: headless
     }
     const browser = await puppeteer.launch(launchOptions);
+    const pid = browser.process().pid;
+    const pidFilePath = `${chromeData}/PID`;
+    fs.mkdirSync(chromeData, { recursive: true });
+    fs.writeFileSync(pidFilePath, pid.toString());
     return { 
         browser: browser, 
         chromeData: chromeData,

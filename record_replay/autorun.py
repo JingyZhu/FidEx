@@ -76,12 +76,18 @@ def replay(url, archive_name,
     if filename is None:
         filename = 'proxy' if proxy else 'archive'
     assert '_' not in filename, "Filename cannot contain underscore"
-    check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
-                '-f', filename,
-                '-c', chrome_data,
-                *arguments,
-                url], cwd=_FILEDIR)
-
+    try:
+        check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
+                    '-f', filename,
+                    '-c', chrome_data,
+                    *arguments,
+                    url], cwd=_FILEDIR, timeout=240)
+    except Exception as e:
+        logging.error(str(e))
+        if os.path.exists(f'{chrome_data}/PID'):
+            pid = open(f'{chrome_data}/PID', 'r').read().strip()
+            call(['kill', '-9', pid])
+        
 def record_replay(url, archive_name,
                   file_prefix=None,
                   file_suffix=None,
@@ -187,11 +193,11 @@ def record_replay(url, archive_name,
                 write_path=write_path, 
                 filename=filename,
                 arguments=replay_arguments)
-        # Logic still in testing
-        metadata.update({
-            'archive': PARCHIVE,
-            'directory': archive_name,
-        })
+        # # Logic still in testing
+        # metadata.update({
+        #     'archive': PARCHIVE,
+        #     'directory': archive_name,
+        # })
     
     # The metadata will also be merged and dump together later. Here just leave a copy at the directory
     if os.path.exists(f'{write_path}/{archive_name}'):
