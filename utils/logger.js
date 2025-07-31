@@ -16,16 +16,43 @@ function loggerizeConsole() {
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     }
 
+    function getCallLocation() {
+        const stack = new Error().stack;
+        if (!stack) return '';
+        const lines = stack.split('\n');
+        // The third line in the stack trace is usually the caller
+        if (lines.length >= 4) {
+            let callerLine = lines[3].trim().replace(/\s*at\s*/, '');
+            // Example stack line: at Object.<anonymous> (/path/to/file.js:10:15)
+            const match = callerLine.match(/^(.*?) \((.*):(\d+):(\d+)\)$/) || callerLine.match(/^(.*):(\d+):(\d+)$/);
+            if (match) {
+                if (match.length === 5) {
+                    // With function name
+                    const func = match[1].split(' ')[0];
+                    const file = match[2].split('/').pop();
+                    const line = match[3];
+                    return `${file}:${line}`;
+                } else if (match.length === 4) {
+                    // Without function name
+                    const file = match[1].split('/').pop();
+                    const line = match[2];
+                    return `${file}:${line}`;
+                }
+            }
+        }
+        return '';
+    }
+
     console.log = (...args) => {
-        originalLog(`[${getCurrentTimestamp()} INFO JS]`, ...args);
+        originalLog(`[${getCurrentTimestamp()} INFO ${getCallLocation()}]`, ...args);
     };
 
     console.error = (...args) => {
-        originalError(`[${getCurrentTimestamp()} ERROR JS]`, ...args);
+        originalError(`[${getCurrentTimestamp()} ERROR ${getCallLocation()}]`, ...args);
     };
 
     console.warn = (...args) => {
-        originalWarn(`[${getCurrentTimestamp()} WARN JS]`, ...args);
+        originalWarn(`[${getCurrentTimestamp()} WARN ${getCallLocation()}]`, ...args);
     };
 
     console.info = (...args) => {
