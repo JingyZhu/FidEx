@@ -148,7 +148,6 @@ async function loadToChromeCTX(frame, file) {
     // });
     // let loadUtils = loadUtilsResult.value;
     let loadUtils = await frame.evaluate(() => loadUtils);
-    console.log("loadUtils: ", loadUtils);
     if (loadUtils) {
         const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
         // await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
