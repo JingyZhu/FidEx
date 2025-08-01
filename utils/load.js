@@ -133,19 +133,26 @@ async function loadToChromeCTX(frame, file) {
     const script = fs.readFileSync(file, 'utf8');
 
     const contextId = FRAME_CTXID_MAP.get(frame);
-    await cdp.send("Runtime.evaluate", {expression: "loadUtils = false", includeCommandLineAPI: true, ...(contextId && { contextId })});
-    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI: true, ...(contextId && { contextId })});
+
+    // * Choose between cdp, or puppeteer native evaluate
+    // await cdp.send("Runtime.evaluate", {expression: "loadUtils = false", includeCommandLineAPI: true, ...(contextId && { contextId })});
+    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI: true, ...(contextId && { contextId })});
+    await frame.evaluate(() => {loadUtils = false;});
+    await frame.evaluate(script);
     
     // * Check if loadUtils is changed by the script. If so, need to load utils.js
-    const { result: loadUtilsResult } = await cdp.send('Runtime.evaluate', {
-        expression: 'loadUtils',
-        returnByValue: true,
-        ...(contextId && { contextId }),
-    });
-    let loadUtils = loadUtilsResult.value;
+    // const { result: loadUtilsResult } = await cdp.send('Runtime.evaluate', {
+    //     expression: 'loadUtils',
+    //     returnByValue: true,
+    //     ...(contextId && { contextId }),
+    // });
+    // let loadUtils = loadUtilsResult.value;
+    let loadUtils = await frame.evaluate(() => loadUtils);
+    console.log("loadUtils: ", loadUtils);
     if (loadUtils) {
         const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8')
-        await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
+        // await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
+        await frame.evaluate(utilScript);
     }
 }
 
@@ -154,12 +161,17 @@ async function loadToChromeCTXWithUtils(frame, file) {
     const cdp = await page.target().createCDPSession();
     
     const contextId = FRAME_CTXID_MAP.get(frame);
+    // console.log("Loading utils.js to contextId: ", contextId, frame);
     
     const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8');
-    await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
+    // * Choose between cdp, or puppeteer native evaluate
+    // await cdp.send("Runtime.evaluate", {expression: utilScript, includeCommandLineAPI: true, ...(contextId && { contextId })});
+    await frame.evaluate(utilScript);
     
     const script = fs.readFileSync(file, 'utf8');
-    await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI: true, ...(contextId && { contextId })});
+    // * Same here
+    // await cdp.send("Runtime.evaluate", {expression: script, includeCommandLineAPI: true, ...(contextId && { contextId })});
+    await frame.evaluate(script);        
 
     // const utilScript = fs.readFileSync(`${__dirname}/../chrome_ctx/utils.js`, 'utf8');
     // await page.evaluate(utilScript);

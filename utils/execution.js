@@ -338,7 +338,7 @@ class FetchedResources {
             try {
                 const { body, base64Encoded } = await this.client.send('Network.getResponseBody', { requestId });
                 this.textualResources[this.responseMap[requestId].url] = body;
-            } catch (e) { console.error(`Error on getResponseBody ${this.responseMap[requestId].url}: ${e}`)};
+            } catch (e) { console.warn(`Error on getResponseBody ${this.responseMap[requestId].url}: ${e}`)};
         });
     }
 }
