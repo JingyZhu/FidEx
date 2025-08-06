@@ -122,8 +122,31 @@ class ReplayWebAdapter extends BaseAdapter {
 
 }
 
+class PYWBClientAdapter extends BaseAdapter {
+    constructor(client) {
+        super(client);
+    }
+
+    async initialize() {
+        await super.initialize();
+        // PYWB-specific initialization
+    }
+
+    async onloadSleep(start) {
+        await eventSync.sleep(10000 - Date.now() + start);
+    }
+
+    async getMainFrame(page) {
+        // PYWB-specific main frame retrieval
+        const frameHandle = await page.$('iframe#replay_iframe');
+        const frame = await frameHandle.contentFrame();
+        return { mainFrame: frame }
+    }
+}
+
 
 module.exports = {
     BaseAdapter,
     ReplayWebAdapter,
+    PYWBClientAdapter
 }

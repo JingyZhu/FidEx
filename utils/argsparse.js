@@ -22,6 +22,7 @@ function recordReplayArgs() {
         .option('--minimal', "Minimal mode for record and replay")
         .option('-o --override [override]', "Override resources (used for proxy error injection currently)")
         .option('--replayweb', "Replayweb.page mode")
+        .option('--pywbclient', "PYWB client mode")
     return program
 }
 

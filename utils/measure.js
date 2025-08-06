@@ -134,13 +134,17 @@ async function collectNaiveInfo(mainFrame, dirname,
     // await page.evaluate(() => window.scrollTo(0, 0));
     // await new Promise(resolve => setTimeout(resolve, 2000));
 
+    // * Two options: Get the full page, or get the mainframe
     let page = await frameToPage(mainFrame);
     await page.setViewport({
         width: Math.max(width, 1920),
         height: Math.max(height, 1080)
     });
+    let mainPage = await mainFrame.frameElement();
+    if (!mainPage) // * Main Frame seems to return null on frameElement
+        mainPage = page;
 
-    await page.screenshot({
+    await mainPage.screenshot({
         path: `${dirname}/${filename}.jpg`,
         clip: {
             x: 0,

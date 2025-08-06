@@ -77,7 +77,9 @@ const TIMEOUT = 60*1000;
 
         // * Step 1.5: Collect all execution contexts (for replayweb.page)
         if (options.replayweb)
-            adpt = adapter.ReplayWebAdapter(client);
+            adpt = new adapter.ReplayWebAdapter(client);
+        else if (options.pywbclient)
+            adpt =  new adapter.PYWBClientAdapter(client);
         await adpt.initialize();
 
         if (options.override) {
@@ -117,7 +119,7 @@ const TIMEOUT = 60*1000;
             const timeoutDur = options.replayweb ? 5000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
             start = Date.now();
             await eventSync.waitTimeout(networkIdle, timeoutDur); 
-            if (options.replayweb) 
+            if (options.replayweb || options.pywbclient) 
                 await adpt.onloadSleep(start);
         } catch {}
         if (options.minimal)

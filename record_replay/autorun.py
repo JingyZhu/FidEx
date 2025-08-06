@@ -71,10 +71,16 @@ def replay(url, archive_name,
            chrome_data=DEFAULT_CHROMEDATA,
            write_path=f'{_CURDIR}/writes',
            proxy=False,
+           archive_client=False,
            filename=None,
            arguments=None):
     if filename is None:
-        filename = 'proxy' if proxy else 'archive'
+        if proxy:
+            filename = 'proxy'
+        elif archive_client:
+            filename = 'archiveclient'
+        else:
+            filename = 'archive'
     assert '_' not in filename, "Filename cannot contain underscore"
     try:
         check_call(['node', 'replay.js', '-d', f'{write_path}/{archive_name}', 
@@ -104,6 +110,7 @@ def record_replay(url, archive_name,
                   pywb_server=None,
                   record_live=False,
                   replay_archive=False,
+                  replay_archive_client=False,
                   replay_proxy=False,
                   replay_ts=None,
                   replay_proxy_ts=None,
@@ -124,6 +131,7 @@ def record_replay(url, archive_name,
         pywb_server (upload.PYWBServer): The pywb server to use for replay. Used to get archive name and port.
         record_live: run record on the live
         replay_archive (bool | str): True if run with archive, False if not run with archive, str if run on specific host
+        replay_archive_client (bool): True if run with archive client-side mode replay
         replay_proxy (bool | str): True if run in proxy mode, False if not run with proxy, str if run on specific host
         replay_ts: str: If replay is set, run the specific timestamp for replay
         replay_proxy_ts: str: If replay is set, run the specific timestamp for proxy
@@ -173,7 +181,7 @@ def record_replay(url, archive_name,
             client.upload_warc(f'{download_path}/{warc_name}.warc', pw_archive, pw_archive , mv_only=True)
             
 
-    if replay_archive or replay_proxy:
+    if replay_archive or replay_proxy or replay_archive_client:
         replay_ts = replay_ts or file_suffix
         # * The function should take care of URL to be run on
         # record_url = metadata['record'].get(file_suffix, {}).get('url', url)
@@ -185,6 +193,10 @@ def record_replay(url, archive_name,
         if replay_archive:
             PHOST = replay_archive if isinstance(replay_archive, str) else HOST
             url = f'{PHOST}/{PARCHIVE}/{replay_ts}/{url}' # TODO Construct URL with wayback format
+        if replay_archive_client:
+            PHOST = replay_archive_client if isinstance(replay_archive_client, str) else HOST
+            url = f'{PHOST}/{PARCHIVE}/{replay_ts}/{url}' # TODO Construct URL with wayback format
+            replay_arguments = arguments + ['--pywbclient']
         elif replay_proxy:
             PHOST = replay_proxy if isinstance(replay_proxy, str) else PROXYHOST
             replay_arguments = arguments + ['--proxy', PHOST, '--proxy-ts', replay_proxy_ts]
@@ -223,6 +235,7 @@ def record_replay_all_urls(urls,
                            pywb_server=None,
                            record_live=False,
                            replay_archive=False,
+                           replay_archive_client=False,
                            replay_proxy=False,
                            replay_ts=None,
                            replay_proxy_ts=None,
@@ -254,6 +267,7 @@ def record_replay_all_urls(urls,
                                     pywb_server=pywb_server,
                                     record_live=record_live,
                                     replay_archive=replay_archive,
+                                    replay_archive_client=replay_archive_client,
                                     replay_proxy=replay_proxy,
                                     replay_ts=replay_ts,
                                     replay_proxy_ts=replay_proxy_ts,
@@ -282,6 +296,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                  remote_host=REMOTE,
                                  record_live=False,
                                  replay_archive=False,
+                                 replay_archive_client=False,
                                  replay_proxy=False,
                                  replay_ts=None,
                                  replay_proxy_ts=None,
@@ -312,11 +327,11 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     def _start_pywb_servers():
         for i in range(num_workers):
             wb_manager = upload.WBManager(split=SPLIT_ARCHIVE, worker_id=i)
-            pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive))
+            pywb_server = upload.PYWBServer(archive=wb_manager.collection(pw_archive), client_replay=replay_archive_client)
             pywb_server_proxy = upload.PYWBServer(archive=wb_manager.collection(pw_archive), proxy=True)
             if replay_proxy:
                 pywb_server_proxy.start()
-            if replay_archive:
+            if replay_archive or replay_archive_client:
                 pywb_server.start()
             pywb_servers.append((pywb_server, pywb_server_proxy))
     _start_pywb_servers()
@@ -340,11 +355,12 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                              remote_host,
                              record_live,
                              replay_archive,
+                             replay_archive_client,
                              replay_proxy,
                              replay_ts,
                              replay_proxy_ts,
                              arguments):
-        if replay_archive:
+        if replay_archive or replay_archive_client:
             pywb_server = pywb_servers[worker_id][0] 
         elif replay_proxy:
             pywb_server = pywb_servers[worker_id][1]
@@ -354,6 +370,8 @@ def record_replay_all_urls_multi(urls, num_workers=8,
             pywb_server.restart(coll_name)
         if replay_archive:
             replay_archive = _replace_port(HOST, pywb_server.port)
+        if replay_archive_client:
+            replay_archive_client = _replace_port(HOST, pywb_server.port)
         if replay_proxy:
             replay_proxy = _replace_port(PROXYHOST, pywb_server.port)
         if not os.path.exists(chrome_data):
@@ -375,6 +393,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                pywb_server=pywb_server,
                                record_live=record_live,
                                replay_archive=replay_archive,
+                               replay_archive_client=replay_archive_client,
                                replay_proxy=replay_proxy,
                                replay_ts=replay_ts,
                                replay_proxy_ts=replay_proxy_ts,
@@ -416,6 +435,7 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                                         remote_host=remote_host,
                                         record_live=record_live,
                                         replay_archive=replay_archive,
+                                        replay_archive_client=replay_archive_client,
                                         replay_proxy=replay_proxy,
                                         replay_ts=replay_ts,
                                         replay_proxy_ts=replay_proxy_ts,

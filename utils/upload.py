@@ -26,16 +26,19 @@ ARCHIVEDIR = CONFIG.archive_dir
 PYWBENV = CONFIG.pywb_env
 
 class PYWBServer:
-    def __init__(self, proxy=False, archive='test'):
+    def __init__(self, proxy=False, client_replay=False, archive='test'):
         self.port = None
         self.server = None
         self.thread = None
         self.archive = archive
         self.proxy = proxy
+        self.client_replay = client_replay
 
     def _start_server(self):
         if self.proxy:
             cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && wayback --proxy {self.archive} -p {self.port} > /dev/null 2>&1 & echo $!'
+        elif self.client_replay:
+            cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && PYWB_CONFIG_FILE=config_client.yaml wayback -p {self.port} > /dev/null 2>&1 & echo $!'
         else:
             cmd = f'{PYWBENV} && cd {ARCHIVEDIR} && wayback -p {self.port} > /dev/null 2>&1 & echo $!'
         server = Popen(cmd, shell=True, stdout=PIPE)
