@@ -605,11 +605,15 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     # print(f'sets {len(left_write_stacks)=} {len(right_write_stacks)=}')
     # left_write_map = {w.serialized_stack: w.wid for w in reversed(left_layout.all_writes)}
     # right_write_map = {w.serialized_stack: w.wid for w in reversed(right_layout.all_writes)}
+    # ? 1
     # left_unique = [{'wid': idd, 'stack': stack} for stack, idd in left_write_map.items() if stack not in right_write_stacks]
     # right_unique = [{'wid': idd, 'stack': stack} for stack, idd in right_write_map.items() if stack not in left_write_stacks]
+    # ? 2
+    # left_unique = [{'wid': idd, 'stack': stack} for stack, idd in left_write_map.items()]
+    # right_unique = [{'wid': idd, 'stack': stack} for stack, idd in right_write_map.items()]
     # print(f'unique {len(left_unique)=} {len(right_unique)=}')
-    # json.dump(left_unique, open('left_unique.json', 'w'), indent=2)
-    # json.dump(right_unique, open('right_unique.json', 'w'), indent=2)
+    # json.dump(left_unique, open('left_stacks.json', 'w'), indent=2)
+    # json.dump(right_unique, open('right_stacks.json', 'w'), indent=2)
     
     if left_write_stacks == right_write_stacks:
         # print("Same whole write stacks", left_layout.all_writes, right_layout.all_writes)

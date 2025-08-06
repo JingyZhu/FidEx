@@ -11,6 +11,7 @@ __current_stage = 'onload';
 __console_message = console.warn;
 __referenced_nodes = new Set();
 
+__window_id = crypto.randomUUID().substring(0, 5); // 5-char unique id for this window/frame
 
 function _debug_log(...args) {
     if (__debug)
@@ -21,8 +22,10 @@ function _get_wid() {
     if (window === window.top)
         return `${__write_id++}`;
     else {
+        const id = window.frameElement && window.frameElement.id;
         const frameName = window.name;
-        return `${__write_id++}:${frameName}`;
+        const frameId = id || frameName || __window_id;
+        return `${__write_id++}:${frameId}`;
     }
 }
 
