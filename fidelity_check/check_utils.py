@@ -103,13 +103,14 @@ def xpaths_2_text(xpaths, xpath_map):
         text += '  ' * element['depth'] + element['text'] + '\n'
     return text
 
-def diff(left_info: "fidelity_detect.LoadInfo", right_info: "fidelity_detect.LoadInfo") -> (list, list):
-    # Currently we assue left element is always the live page and right element is the archive/proxy page 
-    left_layout = layout_tree.build_layout_tree(left_info.elements, left_info.writes, left_info.write_stacks)
-    right_layout = layout_tree.build_layout_tree(right_info.elements, right_info.writes, right_info.write_stacks)
+def diff(left_info: "fidelity_detect.LoadInfo", right_info: "fidelity_detect.LoadInfo", js_comp=True) -> (list, list):
+    # Currently we assue left element is always the live page and right element is the archive/proxy page
+    left_layout = layout_tree.build_layout_tree(left_info.elements, left_info.writes, left_info.write_stacks, js_comp=js_comp)
+    right_layout = layout_tree.build_layout_tree(right_info.elements, right_info.writes, right_info.write_stacks, js_comp=js_comp)
 
     for layout_order in [False, True]:
-        left_unique, right_unique = layout_tree.diff_layout_tree_xpath(left_layout, right_layout, layout_order=layout_order)
+        left_unique, right_unique = layout_tree.diff_layout_tree_xpath(left_layout, right_layout,
+                                                                       layout_order=layout_order, js_comp=js_comp)
         if len(left_unique) == 0 and len(right_unique) == 0:
             break
     

@@ -71,12 +71,13 @@ class LoadInfo:
         self.events = events
 
 
-def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', meaningful=True) -> (bool, (list, list)):
+def fidelity_issue(dirr, left_prefix='live', right_prefix='archive', 
+                   meaningful=True, js_comp=True) -> (bool, (list, list)):
     """Returns: (if fidelity issue, detailed unique elements in live and archive)"""
     left_info = LoadInfo(dirr, left_prefix)
     right_info = LoadInfo(dirr, right_prefix)
 
-    left_unique, right_unique = check_utils.diff(left_info, right_info)
+    left_unique, right_unique = check_utils.diff(left_info, right_info, js_comp=js_comp)
     if meaningful:
         left_unique, right_unique = check_meaningful.meaningful_diff(left_info.elements, left_unique, right_info.elements, right_unique)
     # * Same visual part
@@ -148,18 +149,21 @@ class FidelityResult:
 
 class FidelityDetector:
     def __init__(self, dirr, left_prefix='live', right_prefix='archive', 
-                 fidex_check=True, screenshot=False, more_errs=False, html_text=False, 
+                 fidex_check=True, layout_check=False, screenshot=False, more_errs=False, html_text=False, 
                  meaningful=True):
         self.dirr = dirr
         self.left_prefix = left_prefix
         self.right_prefix = right_prefix
         self.fidex_check = fidex_check
+        self.layout_check = layout_check
         self.screenshot = screenshot
         self.more_errs = more_errs
         self.html_text = html_text
         self.meaningful = meaningful
         self.diff = False
         self.diff_stage = None
+        self.layout_diff = False
+        self.layout_diff_stage = None
         self.screenshot_diff = False
         self.screenshot_diff_stage = None
         self.screenshot_simi = None
@@ -186,6 +190,11 @@ class FidelityDetector:
                 self.diff_stage = left_stage
                 self.left_unique = left_unique
                 self.right_unique = right_unique
+        if self.layout_check and not self.layout_diff:
+            layout_diff, (left_unique, right_unique) = fidelity_issue(self.dirr, left, right, meaningful=self.meaningful, js_comp=False)
+            self.layout_diff = self.layout_diff or layout_diff
+            if self.layout_diff:
+                self.layout_diff_stage = left_stage
         if self.screenshot and not self.screenshot_diff:
             s_simi, s_diff_array = fidelity_issue_screenshot(self.dirr, left, right)
             s_diff = s_simi < 1
@@ -209,6 +218,7 @@ class FidelityDetector:
                 self.html_text_diff_stage = left_stage
                 self.html_text_simi = t_simi
         return (not self.fidex_check or self.diff), \
+                (not self.layout_check or self.layout_diff), \
                 (not self.screenshot or self.screenshot_diff), \
                 (not self.more_errs or self.more_errs_diff), \
                 (not self.html_text or self.html_text_diff)
@@ -236,10 +246,12 @@ class FidelityDetector:
         info = {
             'hostname': self.dirr,
             'diff': self.diff,
+            'layout_diff': self.layout_diff,
             'screenshot_diff': self.screenshot_diff,
             'more_errs_diff': self.more_errs_diff,
             'html_text_diff': self.html_text_diff,
             'diff_stage': self.diff_stage,
+            'layout_diff_stage': self.layout_diff_stage,
             'screenshot_diff_stage': self.screenshot_diff_stage,
             'more_errs_diff_stage': self.more_errs_diff_stage,
             'html_text_diff_stage': self.html_text_diff_stage,
@@ -247,6 +259,7 @@ class FidelityDetector:
             'more_errs_num': self.more_errs_num,
             'text_similarity': self.html_text_simi,
         }
+        # ! If comment, temp
         if writedown:
             json.dump({
                 'info': info,
@@ -254,14 +267,15 @@ class FidelityDetector:
                 'archive_unique': self.right_unique,
                 'more_errs': self.more_errs_list
             }, open(f"{self.dirr}/diff_{self.left_prefix}_{self.right_prefix}.json", 'w'), indent=2)
+        # ! End of temp comment
         return FidelityResult(info=info, 
             live_unique=self.left_unique,
             archive_unique=self.right_unique,
             more_errs=self.more_errs_list)
 
 def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive', 
-                       fidex_check=True, screenshot=False, more_errs=False, html_text=False,
-                       meaningful=True, need_exist=True, finish_all=False) -> FidelityResult:
+                       fidex_check=True, layout_check=False, screenshot=False, more_errs=False, html_text=False,
+                       meaningful=True, need_exist=True, finish_all=False, writedown=True) -> FidelityResult:
     """
     Check fidelity issue for all stages (i.e. onload, extraInteraction, and interaction)
     """
@@ -269,12 +283,13 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
     fidelity_detector = FidelityDetector(dirr, left_prefix=left_prefix, 
                                                right_prefix=right_prefix, 
                                                fidex_check=fidex_check,
+                                               layout_check=layout_check,
                                                screenshot=screenshot,
                                                more_errs=more_errs, 
                                                html_text=html_text,
                                                meaningful=meaningful)
-    diff, s_diff, m_diff, t_diff = fidelity_detector.detect_stage('onload', 'onload')
-    if not finish_all and diff and s_diff and m_diff and t_diff:
+    diff, l_diff, s_diff, m_diff, t_diff = fidelity_detector.detect_stage('onload', 'onload')
+    if not finish_all and diff and l_diff and s_diff and m_diff and t_diff:
         return fidelity_detector.generate_result()
     logging.info(f'{dirr.split("/")[-1]} onload elasped: {time.time()-start}')
     
@@ -291,8 +306,8 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
             assert(not need_exist), f"Interaction {left_e.idx} or {right_e.idx} not found and need_exist is True"
             continue
         i, j = left_e.idx, right_e.idx
-        diff, s_diff, m_diff, t_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
+        diff, l_diff, s_diff, m_diff, t_diff = fidelity_detector.detect_stage(f'interaction_{i}', f'interaction_{j}')
         logging.info(f'{dirr.split("/")[-1]}, {i+1}/{len(fidelity_detector.left_common_events)} elasped: {time.time()-start}')
-        if not finish_all and diff and s_diff and m_diff and t_diff:
-            return fidelity_detector.generate_result()
-    return fidelity_detector.generate_result()
+        if not finish_all and diff and l_diff and s_diff and m_diff and t_diff:
+            return fidelity_detector.generate_result(writedown=writedown)
+    return fidelity_detector.generate_result(writedown=writedown)

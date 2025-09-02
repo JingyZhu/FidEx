@@ -122,5 +122,7 @@ def diff_eliminated(dirr, diff_left_prefix, diff_right_prefix, filter_apply=True
                                                 diff_right_prefix.split('_')[1], diff_right.info['diff_stage'])
     if len(left_unique) == 0 and len(right_unique) == 0:
         return None
+    # left_unique = [br for branch in left_unique for br in branch]
+    # right_unique = [br for branch in right_unique for br in branch]
     return (len(left_unique) - len(right_unique)) / max(len(left_unique), len(right_unique))
  

@@ -189,7 +189,7 @@ class LayoutElement:
             'extraAttr': {}
         })
     
-    def __init__(self, element: dict):
+    def __init__(self, element: dict, js_comp=True):
         self.depth = element['depth']
         self.xpath = element['xpath']
         self.text = element['text']
@@ -200,6 +200,7 @@ class LayoutElement:
         self.writes = []
         self.verbose_writes = []
         self.dimension = _collect_dimension(element)
+        self.js_comp = js_comp
 
         self.children = []
         self.parent = None
@@ -298,7 +299,7 @@ class LayoutElement:
             return True
         # Dynamic element that changes itself 
         # ! Temp comment out for pure layout match
-        if js_dynamism_self_eq(self, other):
+        if self.js_comp and js_dynamism_self_eq(self, other):
             # Exclude body dynamic match tagging
             if self.tagname != 'body':
                 self.dynamic_matched = True
@@ -419,7 +420,8 @@ class LayoutElement:
         return f"{self.xpath} {self.text} {self.dimension}"
 
 
-def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list, include_verbose_writes=False) -> "Optional[LayoutElement]":
+def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list, 
+                      include_verbose_writes=False, js_comp=True) -> "Optional[LayoutElement]":
     """
     Args:
         elements (list): List of elements
@@ -429,12 +431,12 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
     """
     stack_map = {w['wid']: w for w in writeStacks}
     if len(elements) == 0:
-        dummy = LayoutElement.dummy_element()
+        dummy = LayoutElement.dummy_element(js_comp=js_comp)
         dummy.all_writes = []
         dummy.all_nodes = {dummy.xpath: dummy}
         return dummy
     root_e = elements[0]
-    nodes = {root_e['xpath']: LayoutElement(root_e)} # {xpath: LayoutElement}
+    nodes = {root_e['xpath']: LayoutElement(root_e, js_comp=js_comp)} # {xpath: LayoutElement}
 
     def get_parent_xpath(xpath, elements):
         for e in reversed(elements):
@@ -445,7 +447,7 @@ def build_layout_tree(elements: "list[element]", writes: list, writeStacks: list
     for i in range(1, len(elements)):
         element = elements[i]
         xpath = element['xpath']
-        layout_element = LayoutElement(element)
+        layout_element = LayoutElement(element, js_comp=js_comp)
         nodes[xpath] = layout_element
         parent_xpath = get_parent_xpath(xpath, elements[:i])
         parent_node = nodes[parent_xpath]
@@ -591,7 +593,8 @@ def _myers_diff(left_seq, right_seq):
 
     assert False, 'Could not find edit script'
 
-def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement", layout_order=False) -> "tuple[list[LayoutElement], list[LayoutElement]]":
+def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement", 
+                     layout_order=False, js_comp=True) -> "tuple[list[LayoutElement], list[LayoutElement]]":
     """
     Compute the diff between left_tree and right_tree by computing the longest common subsequence
         
@@ -630,14 +633,15 @@ def diff_layout_tree(left_layout: "LayoutElement", right_layout: "LayoutElement"
     right_diff = [e for e in right_diff if post_diff_element(e)]
     return left_diff, right_diff
 
-def diff_layout_tree_xpath(left_layout: "LayoutElement", right_layout: "LayoutElement", layout_order=False) -> "tuple[list[str], list[str]]":
+def diff_layout_tree_xpath(left_layout: "LayoutElement", right_layout: "LayoutElement", 
+                           layout_order=False, js_comp=True) -> "tuple[list[str], list[str]]":
     """
     Wrapper for diff_layout_tree that returns the xpaths only
     
     Returns:
         (List[str], List[str]): List of xpaths that are different, for live and archive respectively.
     """
-    left_diff, right_diff = diff_layout_tree(left_layout, right_layout, layout_order=layout_order)
+    left_diff, right_diff = diff_layout_tree(left_layout, right_layout, layout_order=layout_order, js_comp=js_comp)
     return [e.xpath for e in left_diff], [e.xpath for e in right_diff]
     
 
