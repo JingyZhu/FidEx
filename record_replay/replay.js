@@ -21,7 +21,7 @@ const adapter = require('../utils/adapter');
 const assert = require('assert');
 
 loggerizeConsole();
-const TIMEOUT = 60*1000;
+const TIMEOUT = 90*1000;
 
 (async function(){
     // * Step 0: Prepare for running
@@ -112,10 +112,11 @@ const TIMEOUT = 60*1000;
             
         // * Step 2: Load the page
         try {
-            console.log("Replay: Start loading the actual page");
+            // console.log("Replay: Start loading the actual page (nosync version)");
             let networkIdle = page.goto(url, {
                 waitUntil: 'networkidle0'
             })
+            // await networkIdle;
             const timeoutDur = options.replayweb ? 5000 : TIMEOUT; // websocket will stay open and puppeteer will mark it as not idle???
             start = Date.now();
             await eventSync.waitTimeout(networkIdle, timeoutDur); 

@@ -181,13 +181,13 @@ def css_dynamism_self_eq(e1, e2):
 
 class LayoutElement:
     @staticmethod
-    def dummy_element():
+    def dummy_element(js_comp=True):
         return LayoutElement({
             'depth': 0,
             'xpath': '/',
             'text': 'html',
             'extraAttr': {}
-        })
+        }, js_comp=js_comp)
     
     def __init__(self, element: dict, js_comp=True):
         self.depth = element['depth']

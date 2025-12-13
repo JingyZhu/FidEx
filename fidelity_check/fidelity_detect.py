@@ -236,6 +236,7 @@ class FidelityDetector:
         if len(left_unique_events) > 0:
             self.diff = True
             self.diff_stage = self.diff_stage or 'extraInteraction'
+            self.layout_diff = True
             self.screenshot_diff = True
             self.screenshot_diff_stage = self.screenshot_diff_stage or 'extraInteraction'
             self.left_unique = [[e.xpath] for e in left_unique_events]
@@ -296,7 +297,7 @@ def fidelity_issue_all(dirr, left_prefix='live', right_prefix='archive',
     # * Check extraInteraction
     extra_intact = fidelity_detector.extra_interaction(need_exist=need_exist)
     if not finish_all and extra_intact:
-        return fidelity_detector.generate_result()
+        return fidelity_detector.generate_result(writedown=writedown)
 
     # * Check for each interaction
     for left_e, right_e in zip(fidelity_detector.left_common_events, 
