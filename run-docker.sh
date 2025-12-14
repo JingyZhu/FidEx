@@ -8,14 +8,27 @@ if ! docker images | grep -q "fidex"; then
 fi
 
 # Run the container with volume mappings
-# Use ENABLE_VNC=1 to enable VNC server for headful Chrome access
 # VNC_DISPLAY=1 means display :1, which maps to port 5901
+
+# To fix permissions for mounted volumes, use FIX_VOLUME_PERMISSIONS env var
+# Example: -e FIX_VOLUME_PERMISSIONS="/mounted/path1:/mounted/path2"
+# The entrypoint script will automatically fix ownership and permissions
 docker run -it --rm \
     --name fidex \
     -p 5901:5901 \
-    -e ENABLE_VNC=1 \
     -e VNC_DISPLAY=1 \
+    -e FIX_VOLUME_PERMISSIONS="/root/fidelity-files/writes:/root/fidelity-files/warcs:/root/measurement" \
+    -v $(pwd)/fidelity-files/writes:/root/fidelity-files/writes \
+    -v $(pwd)/fidelity-files/warcs:/root/fidelity-files/warcs \
+    -v $(pwd)/measurement:/root/measurement \
     fidex
 
-    # -v "$(pwd)/fidelity-files/writes:/home/pptruser/fidelity-files/writes" \
-    # -v "$(pwd)/fidelity-files/warcs:/home/pptruser/fidelity-files/warcs" \
+# Example with volume mount and permission fix:
+# docker run -it --rm \
+#     --name fidex \
+#     -p 5901:5901 \
+#     -e VNC_DISPLAY=1 \
+#     -e FIX_VOLUME_PERMISSIONS="/home/pptruser/data:/home/pptruser/output" \
+#     -v $(pwd)/data:/home/pptruser/data \
+#     -v $(pwd)/output:/home/pptruser/output \
+#     fidex

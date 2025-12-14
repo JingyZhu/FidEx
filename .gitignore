@@ -3,6 +3,7 @@ chrome_data/
 collections/
 env/
 __pycache__/
+fidelity-files/
 
 results*
 */downloads/
