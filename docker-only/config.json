@@ -1,0 +1,9 @@
+{
+    "host": "localhost:8080",
+    "host_proxy": "localhost:8079",
+    "host_proxy_test": "localhost:8078",
+    "collection": "all_0",
+    "pywb_env": ". /home/pptruser/pywb/env/bin/activate",
+    "chrome_data_dir": "/home/pptruser/chrome_data/",
+    "archive_dir": "/home/pptruser/fidelity-files"
+}

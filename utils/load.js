@@ -44,7 +44,8 @@ async function startChrome(chromeData=null, headless=false, proxy=null) {
         // '--autoplay-policy=no-user-gesture-required',
         // `--user-data-dir=/tmp/chrome/${Date.now()}`
         `--user-data-dir=${chromeData}`,
-        '--enable-automation'
+        '--enable-automation',
+        '--no-sandbox',
     ]
     if (proxy)
         args.push(`--proxy-server=${proxy}`);
