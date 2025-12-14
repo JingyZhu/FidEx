@@ -4,12 +4,6 @@ collections/
 env/
 __pycache__/
 
-
-archived_code/error_match/
-archived_code/execution_match/
-archived_code/replayweb/
-archived_code/revert_rewrite/
-
 results*
 */downloads/
 *.json
@@ -20,7 +14,8 @@ results*
 *.log
 *.npy
 *.csv
-!fidelity_check/testcases*.json
+!fidex/fidelity_check/testcases*.json
 !dataset/collections_list.json
 !misc/examples/*
 !package.json
+!measurement/**

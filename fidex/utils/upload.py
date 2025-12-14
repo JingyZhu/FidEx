@@ -20,8 +20,8 @@ from fidex.utils import common
 # SERVER is from the .ssh/config file
 ssh_config = paramiko.SSHConfig()
 ssh_alias = 'pistons'
-with open(os.path.expanduser('~/.ssh/config')) as f:
-    ssh_config.parse(f)
+# with open(os.path.expanduser('~/.ssh/config')) as f:
+#     ssh_config.parse(f)
 ARCHIVEDIR = CONFIG.archive_dir
 PYWBENV = CONFIG.pywb_env
 
@@ -59,7 +59,7 @@ class PYWBServer:
     def stop(self):
         if self.server:
             print(f"Killing server {self.port}")
-            call(f"kill -9 {self.server}", shell=True)
+            call(f"kill -9 {self.server} > /dev/null 2>&1", shell=True)
             self.thread = None
             self.server = None
     
@@ -68,7 +68,7 @@ class PYWBServer:
         if archive:
             self.archive = archive
         if not os.path.exists(f'{ARCHIVEDIR}/collections/{self.archive}'):
-            call(f"{PYWBENV} && cd {ARCHIVEDIR} && wb-manager init {self.archive} > /dev/null", shell=True)
+            call(f"{PYWBENV} && cd {ARCHIVEDIR} && wb-manager init {self.archive}", shell=True)
         self.thread = threading.Thread(target=self._start_server)
         self.thread.daemon = True
         self.thread.start()
@@ -305,8 +305,11 @@ class LocalUploadManager(BaseManager):
             call(f"mv -f {warc_path} {ARCHIVEDIR}/warcs/{directory}", shell=True)
             if mv_only:
                 return
+
             warc_name = warc_path.split('/')[-1]
             command_prefix = f"{PYWBENV} && cd {ARCHIVEDIR}"
+            
+            
             command_init = f"test -d {ARCHIVEDIR}/collections/{col_name} || ({command_prefix} && wb-manager init {col_name}) && touch {ARCHIVEDIR}/collections/{col_name}/lock"
             call(command_init, shell=True)
 
@@ -320,7 +323,7 @@ class LocalUploadManager(BaseManager):
             if lock:
                 self._unlock(col_name)
         except Exception as e:
-            print("Exception on uploading warc", str(e))
+            print("Exception on uploading warc", str(e), flush=True)
     
     def remove_archive(self, col_name):
         call(f"rm -rf {ARCHIVEDIR}/collections/{col_name}", shell=True)

@@ -136,7 +136,7 @@ def record_replay(url, archive_name,
         replay_ts: str: If replay is set, run the specific timestamp for replay
         replay_proxy_ts: str: If replay is set, run the specific timestamp for proxy
     """
-    assert file_prefix or file_suffix, "file_prefix or file_suffix must be set"
+    # assert file_prefix or file_suffix, "file_prefix or file_suffix must be set"
     construct_filename = lambda prefix, suffix, delim='-': delim.join(filter(None, [prefix, suffix]))
     if arguments is None:
         arguments = DEFAULTARGS
@@ -146,6 +146,7 @@ def record_replay(url, archive_name,
     temp_client = False
     client = None
     wb_manager = upload.WBManager(split=SPLIT_ARCHIVE and (worker_id is not None), worker_id=worker_id)
+    
     if remote_host:
         if sshclient is None:
             temp_client = True
@@ -157,6 +158,7 @@ def record_replay(url, archive_name,
     metadata = client.get_metadata(col_name=upload_write_archive, directory=archive_name)
     if download_path is None:
         download_path = f'{chrome_data}/Downloads'
+    PARCHIVE = pywb_server.archive if pywb_server else pw_archive
     if record_live:
         file_prefix = file_prefix or 'live'
         filename = construct_filename(file_prefix, file_suffix)
@@ -178,18 +180,17 @@ def record_replay(url, archive_name,
             })
             warc_name = construct_filename(archive_name, file_suffix, '_')
             check_call(['mv', f'{download_path}/{wr_archive}.warc', f'{download_path}/{warc_name}.warc'], cwd=_FILEDIR)
-            client.upload_warc(f'{download_path}/{warc_name}.warc', pw_archive, pw_archive , mv_only=True)
+            client.upload_warc(f'{download_path}/{warc_name}.warc', PARCHIVE, pw_archive )
             
-
     if replay_archive or replay_proxy or replay_archive_client:
         replay_ts = replay_ts or file_suffix
         # * The function should take care of URL to be run on
         # record_url = metadata['record'].get(file_suffix, {}).get('url', url)
         file_prefix = file_prefix or 'archive'
         filename = construct_filename(file_prefix, file_suffix)
+        
         replay_arguments = arguments
         
-        PARCHIVE = pywb_server.archive if pywb_server else pw_archive
         if replay_archive:
             PHOST = replay_archive if isinstance(replay_archive, str) else HOST
             url = f'{PHOST}/{PARCHIVE}/{replay_ts}/{url}' # TODO Construct URL with wayback format
@@ -250,7 +251,7 @@ def record_replay_all_urls(urls,
             req_url = url_utils.request_live_url(url) if record_live else url
         except:
             continue
-        archive_name = url_utils.calc_hostname(req_url)
+        archive_name = url_utils.calc_hostname(url)
         try:
             url_metadata = record_replay(req_url, archive_name, 
                                     file_prefix=file_prefix,
@@ -360,10 +361,10 @@ def record_replay_all_urls_multi(urls, num_workers=8,
                              replay_ts,
                              replay_proxy_ts,
                              arguments):
-        if replay_archive or replay_archive_client:
-            pywb_server = pywb_servers[worker_id][0] 
-        elif replay_proxy:
+        if replay_proxy:
             pywb_server = pywb_servers[worker_id][1]
+        else:
+            pywb_server = pywb_servers[worker_id][0]
         if CONFIG.separate_collection:
             coll_name = url_utils.calc_hostname(url)
             coll_name = upload.BaseManager.escape(coll_name)
@@ -460,5 +461,5 @@ def record_replay_all_urls_multi(urls, num_workers=8,
     else:
         metadata_data = []
     metadata_data.append({'suffix': file_suffix})
-    json.dump(metadata_data, open(f'{metadata}.json', 'w+'), indent=2)
+    # json.dump(metadata_data, open(f'{metadata}.json', 'w+'), indent=2)
     return metadata_data

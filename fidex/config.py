@@ -12,7 +12,7 @@ class Config:
         self.config = json.load(open(path))
         self._collection = None
         self._replayweb = False
-        self._separate_collection = None
+        self._separate_collection = 1
 
     @cached_property
     def host(self):
