@@ -1,0 +1,5 @@
+diffs/**
+writes/**
+__pycache__/**      
+data/**      
+fidex_result/**

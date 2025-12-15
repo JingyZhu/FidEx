@@ -72,19 +72,17 @@ COPY requirements.txt .
 RUN ${HOME_DIR}/venv/fidex/bin/pip install --upgrade pip && \
     ${HOME_DIR}/venv/fidex/bin/pip install --no-cache-dir -r requirements.txt
 
-# Copy package.json and package-lock.json (if exists)
-COPY package.json ./
-
-# Install Node.js dependencies
-RUN npm install
-# Use puppeteer from image instead of local installation
-# RUN npm uninstall puppeteer
-
 # Copy the rest of the application
 COPY fidex/ .
 ENV PYTHONPATH="${HOME_DIR}:${PYTHONPATH}"
 
 WORKDIR ${HOME_DIR}
+
+# Copy package.json and package-lock.json (if exists)
+COPY package.json ./
+
+# Install Node.js dependencies
+RUN npm install
 
 #* pywb related logic 
 # Clone pywb repository

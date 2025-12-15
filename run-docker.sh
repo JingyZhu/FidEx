@@ -21,14 +21,5 @@ docker run -it --rm \
     -v $(pwd)/fidelity-files/writes:/root/fidelity-files/writes \
     -v $(pwd)/fidelity-files/warcs:/root/fidelity-files/warcs \
     -v $(pwd)/measurement:/root/measurement \
+    -v $(pwd)/fidex:/root/fidex \
     fidex
-
-# Example with volume mount and permission fix:
-# docker run -it --rm \
-#     --name fidex \
-#     -p 5901:5901 \
-#     -e VNC_DISPLAY=1 \
-#     -e FIX_VOLUME_PERMISSIONS="/home/pptruser/data:/home/pptruser/output" \
-#     -v $(pwd)/data:/home/pptruser/data \
-#     -v $(pwd)/output:/home/pptruser/output \
-#     fidex

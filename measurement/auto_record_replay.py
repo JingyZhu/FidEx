@@ -18,7 +18,7 @@ args = parser.parse_args()
 input_file = args.input_file or 'test_urls.json'
 
 timestamp = '202412010008'
-arguments = ['-s', '--scroll', '-t', '-w', '-e', '--headless']
+arguments = ['-s', '--scroll', '-t', '-w', '-e', '--headless', '-i', '20']
 # arguments = ['-s', '--scroll', '-t', '-i', '20', '--manual']
 
 
@@ -29,7 +29,7 @@ if os.environ.get('SEPARATE_COLLECTION') is not None:
     CONFIG.separate_collection = os.environ['SEPARATE_COLLECTION']
 hostname = utils.get_hostname()
 
-# * 1 Collect archives to run on this machine
+# * 1 Collect URLs to run on this machine
 all_metadata = utils.get_metadata(in_hostname=True)
 input_urls = json.load(open(input_file, 'r'))
 urls = [obj['url'] for obj in input_urls]
