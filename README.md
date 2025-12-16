@@ -169,9 +169,14 @@ The system uses configuration files located in:
 You can modify these files to adjust behavior, ports, or paths.
 
 
-## Dataset
+## Example Dataset
 
 A companion dataset is available for artifact evaluation. See [`dataset/README.md`](dataset/README.md) for details on downloading and using the dataset.
+
+## Full results (raw)
+
+Our main full results run (crawl metadata, fidelity detection, error pinpointing and clustering) are available in the `measurement/fidex_result` directory.
+For raw dataset including the original WARC files, crawling data (screenshots, Layout trees ,etc.), since they are too large to host, we'll try to host a sample subset of the data in the future.
 
 ## Directory Structure
 
