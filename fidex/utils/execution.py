@@ -483,7 +483,7 @@ class Frame:
         self.functionName = functionName
         self.url = url
         if not CONFIG.replayweb:
-            self.url = url_utils.replace_archive_collection(url, CONFIG.collection)
+            # self.url = url_utils.replace_archive_collection(url, CONFIG.collection)
             self.url = url_utils.replace_archive_host(self.url, CONFIG.host)
         self.lineNumber = lineNumber
         self.columnNumber = columnNumber

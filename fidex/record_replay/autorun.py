@@ -190,7 +190,6 @@ def record_replay(url, archive_name,
         filename = construct_filename(file_prefix, file_suffix)
         
         replay_arguments = arguments
-        
         if replay_archive:
             PHOST = replay_archive if isinstance(replay_archive, str) else HOST
             url = f'{PHOST}/{PARCHIVE}/{replay_ts}/{url}' # TODO Construct URL with wayback format
@@ -206,11 +205,10 @@ def record_replay(url, archive_name,
                 write_path=write_path, 
                 filename=filename,
                 arguments=replay_arguments)
-        # # Logic still in testing
-        # metadata.update({
-        #     'archive': PARCHIVE,
-        #     'directory': archive_name,
-        # })
+        if replay_archive:
+            metadata.update({
+                'archive_url': url
+            })
     
     # The metadata will also be merged and dump together later. Here just leave a copy at the directory
     if os.path.exists(f'{write_path}/{archive_name}'):
@@ -247,11 +245,12 @@ def record_replay_all_urls(urls,
     
     for i, url in list(enumerate(urls)):
         logging.info(f"Start {i} {url}") if worker_id is None else logging.info(f"Start {worker_id} {i} {url}")
-        try:
-            req_url = url_utils.request_live_url(url) if record_live else url
-        except:
-            continue
         archive_name = url_utils.calc_hostname(url)
+        if os.path.exists(f'{CONFIG.archive_dir}/writes/{pw_archive}/{archive_name}/metadata.json'):
+            metadata = json.load(open(f'{CONFIG.archive_dir}/writes/{pw_archive}/{archive_name}/metadata.json', 'r'))
+            req_url = metadata.get('url', url)
+        else:
+            req_url = url
         try:
             url_metadata = record_replay(req_url, archive_name, 
                                     file_prefix=file_prefix,

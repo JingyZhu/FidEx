@@ -156,7 +156,7 @@ class ErrorInjector:
         try:
             # print("Before:", url)
             url = url_utils.replace_archive_host(url, HOST)
-            url = url_utils.replace_archive_collection(url, CONFIG.collection)
+            # url = url_utils.replace_archive_collection(url, CONFIG.collection)
             url = url_utils.add_id(url)
             # print("After:", url)
             r_original = requests.get(url)
