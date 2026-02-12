@@ -3,11 +3,17 @@ import time
 import os
 import logging
 import cv2
+import numpy as np
 from dataclasses import dataclass
 from Levenshtein import distance
 
 from fidex.fidelity_check import check_utils, check_meaningful
 from fidex.utils import common, logger, url_utils
+
+def to_python_type(obj):
+    if isinstance(obj, np.generic):
+        return obj.item()
+    return obj
 
 def dedeup_elements(layout):
     seen_xpath = set()
@@ -184,7 +190,8 @@ class FidelityDetector:
         if self.fidex_check and not self.diff:
             # Only check fidelity issue if no diff found so far
             diff, (left_unique, right_unique) = fidelity_issue(self.dirr, left, right, meaningful=self.meaningful)
-            self.diff = self.diff or diff
+            diff = to_python_type(diff)
+            self.diff = to_python_type(self.diff or diff)
             if self.diff:
                 # Only set unique elements if diff is found
                 self.diff_stage = left_stage
@@ -192,28 +199,35 @@ class FidelityDetector:
                 self.right_unique = right_unique
         if self.layout_check and not self.layout_diff:
             layout_diff, (left_unique, right_unique) = fidelity_issue(self.dirr, left, right, meaningful=self.meaningful, js_comp=False)
-            self.layout_diff = self.layout_diff or layout_diff
+            layout_diff = to_python_type(layout_diff)
+            self.layout_diff = to_python_type(self.layout_diff or layout_diff)
             if self.layout_diff:
                 self.layout_diff_stage = left_stage
         if self.screenshot and not self.screenshot_diff:
             s_simi, s_diff_array = fidelity_issue_screenshot(self.dirr, left, right)
-            s_diff = s_simi < 1
+            # Convert numpy float to Python float (compare_screenshot returns numpy.float64)
+            s_simi = to_python_type(s_simi)
+            s_diff = to_python_type(s_simi < 1)  # Ensure Python bool, not numpy.bool_
             if s_diff:
                 cv2.imwrite(f"{self.dirr}/diff_{self.right_prefix}.jpg", s_diff_array)
-            self.screenshot_diff = self.screenshot_diff or s_diff
+            self.screenshot_diff = to_python_type(self.screenshot_diff or s_diff)
             if self.screenshot_diff:
                 self.screenshot_diff_stage = left_stage
                 self.screenshot_simi = s_simi
         if self.more_errs and not self.more_errs_diff:
             m_diff, m_errs = fidelity_issue_more_errs(self.dirr, left, right, left_stage)
-            self.more_errs_diff = self.more_errs_diff or m_diff
+            m_diff = to_python_type(m_diff)
+            self.more_errs_diff = to_python_type(self.more_errs_diff or m_diff)
             if self.more_errs_diff:
                 self.more_errs_diff_stage = left_stage
                 self.more_errs_num = len(m_errs)
                 self.more_errs_list = m_errs
         if self.html_text and not self.html_text_diff:
             t_diff, t_simi = fidelity_issue_text(self.dirr, left, right)
-            self.html_text_diff = self.html_text_diff or t_diff
+            # Convert to Python types (though likely already Python types)
+            t_simi = to_python_type(t_simi)
+            t_diff = to_python_type(t_diff)
+            self.html_text_diff = to_python_type(self.html_text_diff or t_diff)
             if self.html_text_diff:
                 self.html_text_diff_stage = left_stage
                 self.html_text_simi = t_simi

@@ -30,7 +30,7 @@ if os.environ.get('SEPARATE_COLLECTION') is not None:
 hostname = utils.get_hostname()
 
 # * 1 Collect URLs to run on this machine
-all_metadata = utils.get_metadata(in_hostname=True)
+# all_metadata = utils.get_metadata(in_hostname=True)  # Not used, commented out to avoid FileNotFoundError
 input_urls = json.load(open(input_file, 'r'))
 urls = [obj['url'] for obj in input_urls]
 print("Total URLs:", len(urls), flush=True)

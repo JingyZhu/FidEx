@@ -160,6 +160,8 @@ measurement/
 └── ...
 ```
 
+---
+
 ## Configuration
 
 The system uses configuration files located in:
